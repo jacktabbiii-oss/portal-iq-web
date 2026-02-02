@@ -21,9 +21,10 @@ import {
   POSITIONS,
   CLASS_YEARS,
   tierConfig,
+  getTierFromValue,
 } from "@/lib/utils";
 import type { NILTier, NILValuation } from "@/types";
-import { DollarSign, Search, TrendingUp, Users, BarChart3 } from "lucide-react";
+import { DollarSign, Search, TrendingUp, Users, BarChart3, Loader2 } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -36,55 +37,14 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-
-// Demo valuation result
-const demoValuation: NILValuation = {
-  player_name: "Arch Manning",
-  school: "Texas",
-  position: "QB",
-  predicted_value: 2500000,
-  value_tier: "mega",
-  tier_probabilities: {
-    mega: 0.85,
-    premium: 0.12,
-    solid: 0.03,
-    moderate: 0,
-    entry: 0,
-  },
-  confidence: 0.88,
-  value_breakdown: {
-    base_value: 800000,
-    social_media_premium: 650000,
-    school_brand_factor: 500000,
-    position_market_factor: 350000,
-    draft_potential_premium: 200000,
-  },
-  comparable_players: [
-    { name: "Quinn Ewers", school: "Texas", value: 3000000 },
-    { name: "Caleb Williams", school: "USC", value: 3200000 },
-    { name: "Jalen Milroe", school: "Alabama", value: 1800000 },
-  ],
-  percentile: 99.2,
-};
-
-// Demo leaderboard data
-const leaderboardData = [
-  { name: "Caleb Williams", school: "USC", position: "QB", value: 3200000, tier: "mega" as NILTier },
-  { name: "Travis Hunter", school: "Colorado", position: "CB", value: 2800000, tier: "mega" as NILTier },
-  { name: "Arch Manning", school: "Texas", position: "QB", value: 2500000, tier: "mega" as NILTier },
-  { name: "Quinn Ewers", school: "Texas", position: "QB", value: 3000000, tier: "mega" as NILTier },
-  { name: "Jalen Milroe", school: "Alabama", position: "QB", value: 1800000, tier: "mega" as NILTier },
-  { name: "Nico Iamaleava", school: "Tennessee", position: "QB", value: 1500000, tier: "mega" as NILTier },
-  { name: "Carson Beck", school: "Georgia", position: "QB", value: 1400000, tier: "mega" as NILTier },
-  { name: "Dillon Gabriel", school: "Oregon", position: "QB", value: 1200000, tier: "mega" as NILTier },
-];
+import { useNILPrediction, useMarketReport } from "@/hooks/queries";
+import { buildPlayerInput } from "@/lib/api/nil";
 
 const CHART_COLORS = ["#00C853", "#2196F3", "#9C27B0", "#FFD700", "#FF9800"];
 
 export default function NILValuatorPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPlayer, setSelectedPlayer] = useState<NILValuation | null>(demoValuation);
-  const [isLoading, setIsLoading] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<NILValuation | null>(null);
 
   // Custom player form state
   const [customPlayer, setCustomPlayer] = useState({
@@ -98,27 +58,40 @@ export default function NILValuatorPage() {
     twitterFollowers: "",
   });
 
+  // API hooks
+  const nilPrediction = useNILPrediction();
+  const { data: marketReport, isLoading: isMarketReportLoading } = useMarketReport();
+
+  const isLoading = nilPrediction.isPending;
+
   const handleSearch = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSelectedPlayer(demoValuation);
-      setIsLoading(false);
-    }, 500);
+    if (!searchQuery.trim()) return;
+
+    // For search, we'll use the search term as the player name
+    // In a real app, you'd have a player search endpoint
+    const playerInput = buildPlayerInput({
+      name: searchQuery,
+      school: "Unknown",
+      position: "QB",
+    });
+
+    nilPrediction.mutate(playerInput, {
+      onSuccess: (data) => {
+        setSelectedPlayer(data);
+      },
+    });
   };
 
   const handleCustomValuation = () => {
-    setIsLoading(true);
-    // Simulate API call with custom data
-    setTimeout(() => {
-      setSelectedPlayer({
-        ...demoValuation,
-        player_name: customPlayer.name || "Custom Player",
-        school: customPlayer.school || "Unknown School",
-        position: customPlayer.position,
-      });
-      setIsLoading(false);
-    }, 500);
+    if (!customPlayer.name || !customPlayer.school) return;
+
+    const playerInput = buildPlayerInput(customPlayer);
+
+    nilPrediction.mutate(playerInput, {
+      onSuccess: (data) => {
+        setSelectedPlayer(data);
+      },
+    });
   };
 
   // Prepare breakdown chart data
@@ -176,8 +149,12 @@ export default function NILValuatorPage() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                    <Button onClick={handleSearch} disabled={isLoading}>
-                      <Search className="h-4 w-4" />
+                    <Button onClick={handleSearch} disabled={isLoading || !searchQuery.trim()}>
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -310,9 +287,16 @@ export default function NILValuatorPage() {
                   <Button
                     className="w-full"
                     onClick={handleCustomValuation}
-                    disabled={isLoading}
+                    disabled={isLoading || !customPlayer.name || !customPlayer.school}
                   >
-                    Get Valuation
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Calculating...
+                      </>
+                    ) : (
+                      "Get Valuation"
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -458,32 +442,43 @@ export default function NILValuatorPage() {
               <CardTitle>NIL Leaderboard</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {leaderboardData.map((player, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl font-bold text-muted-foreground w-8">
-                        #{i + 1}
-                      </span>
-                      <div>
-                        <p className="font-medium">{player.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {player.position} • {player.school}
-                        </p>
+              {isMarketReportLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(marketReport?.top_players || []).map((player, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl font-bold text-muted-foreground w-8">
+                          #{i + 1}
+                        </span>
+                        <div>
+                          <p className="font-medium">{player.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {player.position} • {player.school}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <TierBadge tier={getTierFromValue(player.value)} />
+                        <span className="text-xl font-bold text-primary min-w-[100px] text-right">
+                          {formatCurrency(player.value, { compact: true })}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <TierBadge tier={player.tier} />
-                      <span className="text-xl font-bold text-primary min-w-[100px] text-right">
-                        {formatCurrency(player.value, { compact: true })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  {(!marketReport?.top_players || marketReport.top_players.length === 0) && (
+                    <p className="text-center text-muted-foreground py-8">
+                      No leaderboard data available
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
