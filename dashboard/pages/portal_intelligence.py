@@ -917,13 +917,14 @@ def render_portal_search_tab():
 
             with col_watch:
                 st.write("")  # Spacing
+                # Use unique keys based on player and watchlist state to avoid Streamlit key conflicts
+                player_id = f"{selected_player}_{origin_school}"
                 if is_in_watchlist(selected_player, origin_school):
-                    if st.button("⭐ Remove", key="detail_watch_btn", help="Remove from watchlist", use_container_width=True):
-                        player_id = f"{selected_player}_{origin_school}"
+                    if st.button("⭐ Remove", key=f"remove_watch_{player_id}", help="Remove from watchlist", use_container_width=True):
                         remove_from_watchlist(player_id)
                         st.rerun()
                 else:
-                    if st.button("☆ Add to Watchlist", key="detail_watch_btn", help="Add to watchlist", use_container_width=True):
+                    if st.button("☆ Add to Watchlist", key=f"add_watch_{player_id}", help="Add to watchlist", use_container_width=True):
                         add_to_watchlist(player_row.to_dict())
                         st.success(f"Added {selected_player} to watchlist!")
                         st.rerun()
@@ -1071,16 +1072,18 @@ def get_player_headshot_html(player: pd.Series) -> str:
     headshot_url = custom_url or (on3_url if on3_url and str(on3_url) not in ["", "nan", "None"] else None)
 
     if headshot_url:
+        # Note: Using CSS object-fit with background fallback - no JavaScript for Streamlit compatibility
         return f"""
         <div style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden;
                     border: 3px solid {COLORS['primary']}; margin: 0 auto 15px auto;
-                    background: {bg_color}; display: flex; align-items: center; justify-content: center;">
+                    background: linear-gradient(135deg, {bg_color} 0%, {bg_color}88 100%);
+                    display: flex; align-items: center; justify-content: center;
+                    position: relative;">
+            <span style="position: absolute; font-size: 2.5rem; font-weight: bold; color: white; z-index: 1;">{initials}</span>
             <img src="{headshot_url}"
-                 style="width: 100%; height: 100%; object-fit: cover;"
-                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                 style="width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 2;"
+                 alt="{name}"
             />
-            <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center;
-                        font-size: 2.5rem; font-weight: bold; color: white;">{initials}</div>
         </div>
         """
 

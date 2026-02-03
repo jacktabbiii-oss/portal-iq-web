@@ -19,10 +19,10 @@ COLORS = {
     "bg_light": "#1e3a5f",        # Lighter navy (cards, hover)
     "bg_card": "#1a2d4d",         # Card backgrounds
 
-    # Text colors
+    # Text colors - IMPROVED CONTRAST for readability
     "text_primary": "#ffffff",     # Pure white
-    "text_secondary": "#c9d6e3",   # Light blue-gray
-    "text_muted": "#7a8fa6",       # Muted blue-gray
+    "text_secondary": "#e8eef4",   # Much lighter for better readability
+    "text_muted": "#a8b8c8",       # Brighter muted - was too dark
     "text_gold": "#D4AF37",        # Gold text for highlights
 
     # Tier colors (NIL) - Updated for navy theme
@@ -30,7 +30,7 @@ COLORS = {
     "tier_premium": "#9C27B0",     # Purple
     "tier_solid": "#4A90D9",       # Blue
     "tier_moderate": "#5CB85C",    # Green
-    "tier_entry": "#7a8fa6",       # Muted gray
+    "tier_entry": "#a8b8c8",       # Brighter muted gray for readability
 
     # Risk colors
     "risk_critical": "#E74C3C",    # Red
@@ -111,9 +111,40 @@ def apply_custom_css():
             color: {COLORS['text_primary']} !important;
         }}
 
-        /* Regular text */
+        /* Regular text - IMPROVED for readability */
         p, span, label {{
-            color: {COLORS['text_secondary']};
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        /* Markdown content - ensure good contrast */
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMarkdownContainer"] li,
+        [data-testid="stMarkdownContainer"] span {{
+            color: {COLORS['text_secondary']} !important;
+            line-height: 1.6;
+        }}
+
+        /* Lists in markdown */
+        [data-testid="stMarkdownContainer"] ul,
+        [data-testid="stMarkdownContainer"] ol {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        [data-testid="stMarkdownContainer"] li {{
+            color: {COLORS['text_secondary']} !important;
+            margin-bottom: 4px;
+        }}
+
+        /* Strong/bold text should be white */
+        [data-testid="stMarkdownContainer"] strong,
+        [data-testid="stMarkdownContainer"] b {{
+            color: {COLORS['text_primary']} !important;
+            font-weight: 600;
+        }}
+
+        /* Emphasized text */
+        [data-testid="stMarkdownContainer"] em {{
+            color: {COLORS['primary_light']} !important;
         }}
 
         /* Metric styling */
@@ -235,7 +266,7 @@ def apply_custom_css():
             color: {COLORS['bg_dark']};
         }}
 
-        /* DataFrame/Table styling */
+        /* DataFrame/Table styling - IMPROVED contrast */
         [data-testid="stDataFrame"] {{
             background-color: {COLORS['bg_medium']};
             border-radius: 10px;
@@ -245,6 +276,7 @@ def apply_custom_css():
         .stDataFrame thead tr th {{
             background-color: {COLORS['bg_light']} !important;
             color: {COLORS['text_primary']} !important;
+            font-weight: 600 !important;
         }}
 
         .stDataFrame tbody tr td {{
@@ -256,16 +288,50 @@ def apply_custom_css():
             background-color: {COLORS['bg_light']} !important;
         }}
 
-        /* Expander */
+        /* Table text should be readable */
+        table, th, td {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        th {{
+            color: {COLORS['text_primary']} !important;
+            font-weight: 600 !important;
+        }}
+
+        /* Expander - IMPROVED */
         .streamlit-expanderHeader {{
             background-color: {COLORS['bg_medium']};
-            color: {COLORS['text_primary']};
+            color: {COLORS['text_primary']} !important;
             border-radius: 8px;
+        }}
+
+        .streamlit-expanderHeader p {{
+            color: {COLORS['text_primary']} !important;
+            font-weight: 500;
         }}
 
         .streamlit-expanderContent {{
             background-color: {COLORS['bg_medium']};
             border-radius: 0 0 8px 8px;
+        }}
+
+        .streamlit-expanderContent p,
+        .streamlit-expanderContent li {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        /* Info/Warning/Success boxes - ensure text is readable */
+        [data-testid="stAlert"] p {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        .stInfo, .stWarning, .stSuccess, .stError {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        /* Caption text - was too faint */
+        .stCaption, [data-testid="stCaptionContainer"] {{
+            color: {COLORS['text_muted']} !important;
         }}
 
         /* Cards */
@@ -401,6 +467,53 @@ def apply_custom_css():
             border-radius: 8px;
         }}
 
+        /* Chat messages - IMPROVED readability */
+        [data-testid="stChatMessage"] {{
+            background-color: {COLORS['bg_medium']} !important;
+        }}
+
+        [data-testid="stChatMessage"] p,
+        [data-testid="stChatMessage"] li,
+        [data-testid="stChatMessage"] span {{
+            color: {COLORS['text_secondary']} !important;
+            line-height: 1.7 !important;
+        }}
+
+        [data-testid="stChatMessage"] strong {{
+            color: {COLORS['text_primary']} !important;
+        }}
+
+        /* Code blocks in chat/markdown */
+        [data-testid="stMarkdownContainer"] code {{
+            background-color: {COLORS['bg_light']} !important;
+            color: {COLORS['primary_light']} !important;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }}
+
+        [data-testid="stMarkdownContainer"] pre {{
+            background-color: {COLORS['bg_light']} !important;
+            color: {COLORS['text_secondary']} !important;
+            padding: 12px;
+            border-radius: 8px;
+        }}
+
+        /* Blockquotes */
+        [data-testid="stMarkdownContainer"] blockquote {{
+            border-left: 3px solid {COLORS['primary']} !important;
+            padding-left: 15px;
+            color: {COLORS['text_muted']} !important;
+        }}
+
+        /* Links should be gold */
+        [data-testid="stMarkdownContainer"] a {{
+            color: {COLORS['primary']} !important;
+        }}
+
+        [data-testid="stMarkdownContainer"] a:hover {{
+            color: {COLORS['primary_light']} !important;
+        }}
+
         /* Form styling */
         [data-testid="stForm"] {{
             background-color: {COLORS['bg_medium']};
@@ -472,6 +585,45 @@ def apply_custom_css():
         /* Sidebar overall padding */
         [data-testid="stSidebarContent"] {{
             padding: 1rem 0.75rem !important;
+        }}
+
+        /* ============================================= */
+        /* GLOBAL TEXT READABILITY OVERRIDES            */
+        /* ============================================= */
+
+        /* Ensure ALL text has minimum readability */
+        body, .main, .block-container {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        /* Force better contrast on any remaining elements */
+        div[data-testid] p:not([style*="color"]),
+        div[data-testid] span:not([style*="color"]),
+        div[data-testid] li:not([style*="color"]) {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        /* Minimum font size for readability */
+        p, li, span, td {{
+            font-size: 0.95rem !important;
+            line-height: 1.5 !important;
+        }}
+
+        /* Headers should stand out more */
+        h1 {{ font-size: 2.2rem !important; font-weight: 700 !important; }}
+        h2 {{ font-size: 1.8rem !important; font-weight: 600 !important; }}
+        h3 {{ font-size: 1.4rem !important; font-weight: 600 !important; }}
+        h4 {{ font-size: 1.2rem !important; font-weight: 600 !important; }}
+
+        /* Small text should not be too small */
+        small, .small {{
+            font-size: 0.85rem !important;
+            color: {COLORS['text_muted']} !important;
+        }}
+
+        /* Ensure metric deltas are visible */
+        [data-testid="stMetricDelta"] svg {{
+            fill: {COLORS['primary_light']} !important;
         }}
     </style>
     """, unsafe_allow_html=True)

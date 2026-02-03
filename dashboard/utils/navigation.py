@@ -128,10 +128,10 @@ def render_sidebar():
         stats = get_database_stats()
         st.markdown(f"""
         <div style="padding: 8px 16px; font-size: 0.85rem;">
-            <p style="margin: 3px 0; color: #7a8fa6;">
+            <p style="margin: 3px 0; color: #a8b8c8;">
                 <span style="color: #ffffff;">{stats.get('total_players', 0):,}</span> players tracked
             </p>
-            <p style="margin: 3px 0; color: #7a8fa6;">
+            <p style="margin: 3px 0; color: #a8b8c8;">
                 Updated: <span style="color: #c9d6e3;">{stats.get('last_updated', 'N/A')}</span>
             </p>
         </div>
@@ -142,7 +142,7 @@ def render_sidebar():
         <div style="position: fixed; bottom: 0; left: 0; width: inherit; max-width: inherit;
                     padding: 15px; background: linear-gradient(to top, #0f1a2e 0%, transparent 100%);
                     text-align: center;">
-            <p style="color: #7a8fa6; font-size: 0.7rem; margin: 0;">
+            <p style="color: #a8b8c8; font-size: 0.7rem; margin: 0;">
                 <strong style="color: {BRAND_GOLD};">Elite Sports Solutions</strong> © 2026
             </p>
         </div>

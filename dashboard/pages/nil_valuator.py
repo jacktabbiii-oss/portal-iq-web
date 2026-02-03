@@ -883,18 +883,18 @@ def render_valuation_results(player_data: dict):
     with col1:
         st.markdown(f"""
         <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #2196F3; text-align: center;">
-            <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">On3 NIL Valuation</p>
+            <p style="color: #c9d6e3; margin-bottom: 5px; font-size: 0.9rem;">On3 NIL Valuation</p>
             <h2 style="color: #2196F3; margin: 0;">{format_currency(on3_value) if on3_value > 0 else 'N/A'}</h2>
-            <p style="color: #8b949e; font-size: 0.8rem; margin-top: 5px;">Market consensus value</p>
+            <p style="color: #c9d6e3; font-size: 0.8rem; margin-top: 5px;">Market consensus value</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown(f"""
         <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #00C853; text-align: center;">
-            <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">Portal IQ Custom Value</p>
+            <p style="color: #c9d6e3; margin-bottom: 5px; font-size: 0.9rem;">Portal IQ Custom Value</p>
             <h2 style="color: #00C853; margin: 0;">{format_currency(custom_value)}</h2>
-            <p style="color: #8b949e; font-size: 0.8rem; margin-top: 5px;">Performance-based estimate</p>
+            <p style="color: #c9d6e3; font-size: 0.8rem; margin-top: 5px;">Performance-based estimate</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -903,22 +903,22 @@ def render_valuation_results(player_data: dict):
         if on3_value > 0:
             diff = custom_value - on3_value
             diff_pct = (diff / on3_value) * 100 if on3_value > 0 else 0
-            diff_color = "#00C853" if diff > 0 else "#F44336" if diff < 0 else "#8b949e"
+            diff_color = "#00C853" if diff > 0 else "#F44336" if diff < 0 else "#c9d6e3"
             diff_label = "Undervalued by On3" if diff > 0 else "Overvalued by On3" if diff < 0 else "Fair Value"
 
             st.markdown(f"""
             <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid {diff_color}; text-align: center;">
-                <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">Difference</p>
+                <p style="color: #c9d6e3; margin-bottom: 5px; font-size: 0.9rem;">Difference</p>
                 <h2 style="color: {diff_color}; margin: 0;">{'+' if diff > 0 else ''}{format_currency(diff)}</h2>
                 <p style="color: {diff_color}; font-size: 0.8rem; margin-top: 5px;">{diff_label} ({diff_pct:+.1f}%)</p>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
-            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #8b949e; text-align: center;">
-                <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">Difference</p>
-                <h2 style="color: #8b949e; margin: 0;">N/A</h2>
-                <p style="color: #8b949e; font-size: 0.8rem; margin-top: 5px;">No On3 data available</p>
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #c9d6e3; text-align: center;">
+                <p style="color: #c9d6e3; margin-bottom: 5px; font-size: 0.9rem;">Difference</p>
+                <h2 style="color: #c9d6e3; margin: 0;">N/A</h2>
+                <p style="color: #c9d6e3; font-size: 0.8rem; margin-top: 5px;">No On3 data available</p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -963,11 +963,11 @@ def render_valuation_results(player_data: dict):
                 border-left: 5px solid {COLORS['primary']}; margin: 10px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <p style="color: #8b949e; margin: 0; font-size: 0.9rem;">Portal IQ Performance-Based Value</p>
+                <p style="color: #c9d6e3; margin: 0; font-size: 0.9rem;">Portal IQ Performance-Based Value</p>
                 <p style="color: {COLORS['primary']}; font-size: 2rem; font-weight: bold; margin: 5px 0;">{format_currency(custom_value)}</p>
             </div>
             <div style="text-align: right;">
-                <p style="color: #8b949e; margin: 0; font-size: 0.9rem;">Data Confidence</p>
+                <p style="color: #c9d6e3; margin: 0; font-size: 0.9rem;">Data Confidence</p>
                 <p style="color: {'#00C853' if confidence_pct >= 80 else '#FFB74D'}; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">{confidence_pct}%</p>
             </div>
         </div>
@@ -998,19 +998,19 @@ def render_valuation_results(player_data: dict):
             # Show each calculation step
             st.markdown(f"""
             <div style="background: #161b22; padding: 20px; border-radius: 10px; font-family: monospace;">
-                <p style="color: #8b949e; margin: 5px 0;"><strong>1. Position Base Value</strong></p>
+                <p style="color: #c9d6e3; margin: 5px 0;"><strong>1. Position Base Value</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{player_data.get('position', 'ATH')} = <strong>{format_currency(base_val)}</strong></p>
 
-                <p style="color: #8b949e; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
+                <p style="color: #c9d6e3; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star = <strong>{star_mult}x</strong></p>
 
-                <p style="color: #8b949e; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
+                <p style="color: #c9d6e3; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('size_description', 'N/A')} = <strong>{size_mult:.2f}x</strong></p>
 
-                <p style="color: #8b949e; margin: 5px 0;"><strong>4. School Brand Multiplier</strong></p>
+                <p style="color: #c9d6e3; margin: 5px 0;"><strong>4. School Brand Multiplier</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('school_tier', 'Standard')} = <strong>{school_mult}x</strong></p>
 
-                <p style="color: #8b949e; margin: 5px 0;"><strong>5. Performance Bonus</strong></p>
+                <p style="color: #c9d6e3; margin: 5px 0;"><strong>5. Performance Bonus</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">Stats-based additions = <strong>+{format_currency(perf_bonus)}</strong></p>
 
                 <hr style="border-color: #30363d; margin: 15px 0;">
@@ -1067,11 +1067,11 @@ def render_valuation_results(player_data: dict):
                 st.markdown(f"""
                 <div style="display: flex; justify-content: space-between; align-items: center;
                             padding: 8px 0; border-bottom: 1px solid #30363d;">
-                    <span style="color: #8b949e;">{item}</span>
+                    <span style="color: #c9d6e3;">{item}</span>
                     <div style="text-align: right;">
                         <span style="background: {color}; color: #000; padding: 2px 8px; border-radius: 4px;
                                     font-size: 0.75rem; font-weight: bold;">{level}</span>
-                        <p style="color: #6e7681; font-size: 0.75rem; margin: 2px 0 0 0;">{note}</p>
+                        <p style="color: #a8b8c8; font-size: 0.75rem; margin: 2px 0 0 0;">{note}</p>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1083,9 +1083,9 @@ def render_valuation_results(player_data: dict):
             st.markdown(f"""
                 <div style="margin-top: 20px; text-align: center; padding: 15px;
                             background: linear-gradient(135deg, #1a2332 0%, #0d1117 100%); border-radius: 8px;">
-                    <p style="color: #8b949e; margin: 0;">Overall Confidence Score</p>
+                    <p style="color: #c9d6e3; margin: 0;">Overall Confidence Score</p>
                     <p style="color: {COLORS['primary']}; font-size: 2rem; font-weight: bold; margin: 5px 0;">{conf_pct}%</p>
-                    <p style="color: #6e7681; font-size: 0.8rem; margin: 0;">
+                    <p style="color: #a8b8c8; font-size: 0.8rem; margin: 0;">
                         {high_cnt}/{len(conf_items_display)} data points verified
                     </p>
                 </div>
@@ -1106,7 +1106,7 @@ def render_valuation_results(player_data: dict):
             <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #2196F3;">
                 <h4 style="color: #2196F3; margin-top: 0;">📊 On3 Valuation Model</h4>
                 <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">On3 NIL valuations include:</p>
-                <ul style="color: #8b949e; font-size: 0.85rem;">
+                <ul style="color: #c9d6e3; font-size: 0.85rem;">
                     <li><strong>Social Media Value</strong> - Instagram, TikTok, Twitter following (40-50% of value)</li>
                     <li><strong>Existing NIL Deals</strong> - Current contract values inflate estimates</li>
                     <li><strong>Media Exposure</strong> - National TV appearances, media mentions</li>
@@ -1124,7 +1124,7 @@ def render_valuation_results(player_data: dict):
             <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #00C853;">
                 <h4 style="color: #00C853; margin-top: 0;">🏈 Portal IQ Model (Our Approach)</h4>
                 <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">Portal IQ valuations include <strong>ONLY</strong>:</p>
-                <ul style="color: #8b949e; font-size: 0.85rem;">
+                <ul style="color: #c9d6e3; font-size: 0.85rem;">
                     <li><strong>Position Market Value</strong> - NFL positional scarcity/demand</li>
                     <li><strong>Verified Production Stats</strong> - Yards, TDs, tackles, etc.</li>
                     <li><strong>Physical Measurables</strong> - Height/weight fit for position</li>
@@ -1391,7 +1391,7 @@ For questions about methodology, contact: support@portaliq.com
         tier_html = render_tier_badge(tier)
         st.markdown(f"""
         <div style="padding: 10px;">
-            <p style="color: #8b949e; margin-bottom: 5px;">Value Tier</p>
+            <p style="color: #c9d6e3; margin-bottom: 5px;">Value Tier</p>
             {tier_html}
         </div>
         """, unsafe_allow_html=True)
