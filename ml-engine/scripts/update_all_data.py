@@ -331,6 +331,13 @@ def train_model_and_predict(players_df, nil_df, team_df):
 
     results_df = pd.DataFrame(results)
 
+    # Deduplicate: keep highest NIL value per player
+    before_dedup = len(results_df)
+    results_df = results_df.sort_values("nil_value_predicted", ascending=False)
+    results_df = results_df.drop_duplicates(subset=["name"], keep="first")
+    results_df = results_df.reset_index(drop=True)
+    print(f"\nDeduplicated: {before_dedup} -> {len(results_df)} unique players")
+
     # Save
     output_path = PROJECT_ROOT / "data" / "processed" / "portal_nil_valuations.csv"
     results_df.to_csv(output_path, index=False)
