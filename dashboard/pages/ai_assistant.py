@@ -127,7 +127,7 @@ def get_data_context() -> str:
                 (portal_df["status"] == "Committed")
             ] if not portal_df.empty else pd.DataFrame()
 
-            tier, _ = get_school_tier(team_name)
+            tier, _ = get_school_tier_info(team_name)
 
             team_list.append(
                 f"  - {team_name} ({tier}): On3 Score {row['overall_score']:.0f}, "

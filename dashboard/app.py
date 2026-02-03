@@ -120,64 +120,72 @@ def render_main_page():
 
     st.divider()
 
-    # Feature Cards - Navy/Gold theme
+    # Feature Cards - Navy/Gold theme with clickable navigation
     st.markdown(f"### <span style='color: {COLORS['primary']};'>🚀</span> Explore Our Tools", unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
-                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
-            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">💰 NIL Valuator</h3>
-            <p style="color: {COLORS['text_secondary']};">
-                Real On3 NIL valuations plus our custom algorithm. Compare players,
-                analyze value breakdowns, and track market trends.
-            </p>
-            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Predict player market value</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # NIL Valuator Card
+        with st.container():
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                        padding: 25px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                        margin: 10px 0; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+                <h3 style="color: {COLORS['primary']}; margin-bottom: 10px;">💰 NIL Valuator</h3>
+                <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">
+                    Real On3 NIL valuations plus our custom algorithm. Compare players,
+                    analyze value breakdowns, and track market trends.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.page_link("pages/nil_valuator.py", label="→ Open NIL Valuator", icon="💰", use_container_width=True)
 
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
-                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
-            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">📈 Win Impact</h3>
-            <p style="color: {COLORS['text_secondary']};">
-                Understand how much value a player adds to their team. Win impact
-                directly correlates to NIL valuation and transfer market value.
-            </p>
-            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Player value analytics</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Win Impact Card
+        with st.container():
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                        padding: 25px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                        margin: 10px 0; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+                <h3 style="color: {COLORS['primary']}; margin-bottom: 10px;">📈 Win Impact</h3>
+                <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">
+                    Understand how much value a player adds to their team. Win impact
+                    directly correlates to NIL valuation and transfer market value.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.page_link("pages/win_impact.py", label="→ Open Win Impact", icon="📈", use_container_width=True)
 
     with col2:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
-                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
-            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">🔄 Portal Intelligence</h3>
-            <p style="color: {COLORS['text_secondary']};">
-                14,000+ transfer portal entries across 3 years. Track commitments,
-                analyze team rankings, and find the best portal targets.
-            </p>
-            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Transfer portal analytics</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Portal Intelligence Card
+        with st.container():
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                        padding: 25px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                        margin: 10px 0; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+                <h3 style="color: {COLORS['primary']}; margin-bottom: 10px;">🔄 Portal Intelligence</h3>
+                <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">
+                    14,000+ transfer portal entries across 3 years. Track commitments,
+                    analyze team rankings, and find the best portal targets.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.page_link("pages/portal_intelligence.py", label="→ Open Portal Intelligence", icon="🔄", use_container_width=True)
 
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
-                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
-            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">🤖 AI Assistant</h3>
-            <p style="color: {COLORS['text_secondary']};">
-                Chat with Claude AI about players, NIL values, and portal activity.
-                Get instant insights and recommendations powered by real data.
-            </p>
-            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Ask anything about the portal</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # AI Assistant Card
+        with st.container():
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                        padding: 25px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                        margin: 10px 0; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+                <h3 style="color: {COLORS['primary']}; margin-bottom: 10px;">🤖 AI Assistant</h3>
+                <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">
+                    Chat with Claude AI about players, NIL values, and portal activity.
+                    Get instant insights and recommendations powered by real data.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.page_link("pages/ai_assistant.py", label="→ Open AI Assistant", icon="🤖", use_container_width=True)
 
     st.divider()
 
