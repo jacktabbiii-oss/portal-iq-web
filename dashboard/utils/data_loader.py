@@ -277,26 +277,47 @@ def get_conferences() -> List[str]:
 
 
 def get_school_list() -> List[str]:
-    """Get list of schools from team rankings data."""
-    df = get_team_rankings()
-    if not df.empty and "name" in df.columns:
-        return sorted(df["name"].unique().tolist())
+    """Get list of all schools from portal and rankings data."""
+    schools = set()
+
+    # Get schools from team rankings
+    team_df = get_team_rankings()
+    if not team_df.empty and "name" in team_df.columns:
+        schools.update(team_df["name"].dropna().unique())
+
+    # Get schools from portal data (origin and destination)
+    portal_df = get_portal_players()
+    if not portal_df.empty:
+        if "origin_school" in portal_df.columns:
+            schools.update(portal_df["origin_school"].dropna().unique())
+        if "destination_school" in portal_df.columns:
+            schools.update(portal_df["destination_school"].dropna().unique())
+
+    # If we found schools from data, return sorted list
+    if schools:
+        return sorted([s for s in schools if s and str(s) != 'nan' and len(str(s)) > 1])
 
     # Fallback to common FBS schools
     return [
-        "Alabama", "Arizona", "Arkansas", "Auburn",
-        "Baylor", "Boise State", "BYU", "Clemson", "Colorado",
-        "Florida", "Florida State", "Georgia", "Georgia Tech",
-        "Houston", "Illinois", "Indiana", "Iowa", "Kansas",
-        "Kentucky", "Louisville", "LSU", "Maryland", "Miami",
-        "Michigan", "Michigan State", "Minnesota", "Mississippi State",
-        "Missouri", "Nebraska", "North Carolina", "Notre Dame",
-        "Ohio State", "Oklahoma", "Ole Miss", "Oregon", "Penn State",
-        "Pitt", "Purdue", "Rutgers", "South Carolina", "Stanford",
-        "Syracuse", "TCU", "Tennessee", "Texas", "Texas A&M",
-        "Texas Tech", "UCF", "UCLA", "USC", "Utah", "Vanderbilt",
-        "Virginia", "Virginia Tech", "Wake Forest", "Washington",
-        "West Virginia", "Wisconsin"
+        "Alabama", "Arizona", "Arizona State", "Arkansas", "Auburn",
+        "Ball State", "Baylor", "Boise State", "Boston College", "BYU",
+        "Cal", "Central Michigan", "Charlotte", "Cincinnati", "Clemson", "Colorado",
+        "Duke", "East Carolina", "Eastern Michigan", "Florida", "Florida State",
+        "Fresno State", "Georgia", "Georgia Southern", "Georgia State", "Georgia Tech",
+        "Hawaii", "Houston", "Illinois", "Indiana", "Iowa", "Iowa State",
+        "Kansas", "Kansas State", "Kent State", "Kentucky", "Liberty",
+        "Louisiana", "Louisville", "LSU", "Marshall", "Maryland", "Memphis", "Miami",
+        "Miami (OH)", "Michigan", "Michigan State", "Middle Tennessee", "Minnesota",
+        "Mississippi State", "Missouri", "NC State", "Nebraska", "Nevada", "New Mexico",
+        "North Carolina", "North Texas", "Northern Illinois", "Northwestern", "Notre Dame",
+        "Ohio", "Ohio State", "Oklahoma", "Oklahoma State", "Old Dominion", "Ole Miss",
+        "Oregon", "Oregon State", "Penn State", "Pitt", "Purdue", "Rice", "Rutgers",
+        "San Diego State", "San Jose State", "SMU", "South Alabama", "South Carolina",
+        "Southern Miss", "Stanford", "Syracuse", "TCU", "Temple", "Tennessee", "Texas",
+        "Texas A&M", "Texas State", "Texas Tech", "Toledo", "Troy", "Tulane", "Tulsa",
+        "UAB", "UCF", "UCLA", "UNLV", "USC", "USF", "Utah", "Utah State", "UTEP", "UTSA",
+        "Vanderbilt", "Virginia", "Virginia Tech", "Wake Forest", "Washington",
+        "Washington State", "West Virginia", "Western Kentucky", "Western Michigan", "Wisconsin", "Wyoming"
     ]
 
 
