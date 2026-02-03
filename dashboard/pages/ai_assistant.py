@@ -5,11 +5,13 @@ AI-powered chat assistant for Portal IQ using Claude.
 - Answer questions about players, NIL valuations, portal data
 - Provide insights and recommendations
 - Natural language queries
+- Chat archive feature
 """
 
 import streamlit as st
 import pandas as pd
 import os
+from datetime import datetime
 from anthropic import Anthropic
 
 import sys
@@ -239,9 +241,15 @@ def main():
 
         return
 
-    # Initialize chat history
+    # Initialize chat history and archives
     if "messages" not in st.session_state:
         st.session_state.messages = []
+
+    if "archived_chats" not in st.session_state:
+        st.session_state.archived_chats = []
+
+    if "current_chat_title" not in st.session_state:
+        st.session_state.current_chat_title = None
 
     # Quick actions
     st.markdown("### Quick Questions")
@@ -328,14 +336,34 @@ def main():
 
         st.rerun()
 
-    # Clear chat button
+    # Chat management buttons
     if st.session_state.messages:
         st.divider()
-        if st.button("🗑️ Clear Chat", key="clear_chat"):
-            st.session_state.messages = []
-            st.rerun()
+        col1, col2 = st.columns(2)
 
-    # Sidebar with data summary
+        with col1:
+            if st.button("📥 Archive Chat", key="archive_chat", use_container_width=True):
+                # Create archive entry
+                first_msg = st.session_state.messages[0]["content"] if st.session_state.messages else "Empty chat"
+                title = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
+
+                archive_entry = {
+                    "id": len(st.session_state.archived_chats),
+                    "title": title,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "messages": st.session_state.messages.copy()
+                }
+                st.session_state.archived_chats.insert(0, archive_entry)  # Add to front
+                st.session_state.messages = []
+                st.toast("Chat archived!", icon="✅")
+                st.rerun()
+
+        with col2:
+            if st.button("🗑️ Clear Chat", key="clear_chat", use_container_width=True):
+                st.session_state.messages = []
+                st.rerun()
+
+    # Sidebar with data summary and archives
     with st.sidebar:
         st.markdown("### 📊 Data Available")
 
@@ -356,6 +384,58 @@ def main():
         - "Compare QB NIL values"
         - "Which 5-stars are in the portal?"
         """)
+
+        # Archived chats section
+        if st.session_state.archived_chats:
+            st.divider()
+            st.markdown("### 📁 Archived Chats")
+
+            for i, archive in enumerate(st.session_state.archived_chats):
+                with st.expander(f"📄 {archive['title'][:30]}...", expanded=False):
+                    st.caption(f"Saved: {archive['timestamp']}")
+                    st.caption(f"{len(archive['messages'])} messages")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("↩️ Restore", key=f"restore_{i}", use_container_width=True):
+                            # Archive current chat first if it has messages
+                            if st.session_state.messages:
+                                first_msg = st.session_state.messages[0]["content"]
+                                title = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
+                                current_archive = {
+                                    "id": len(st.session_state.archived_chats),
+                                    "title": title,
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                    "messages": st.session_state.messages.copy()
+                                }
+                                st.session_state.archived_chats.insert(0, current_archive)
+
+                            # Restore selected chat
+                            st.session_state.messages = archive['messages'].copy()
+                            # Remove from archives
+                            st.session_state.archived_chats = [
+                                a for j, a in enumerate(st.session_state.archived_chats)
+                                if j != i + (1 if st.session_state.messages else 0)
+                            ]
+                            st.toast("Chat restored!", icon="✅")
+                            st.rerun()
+
+                    with col2:
+                        if st.button("🗑️ Delete", key=f"delete_{i}", use_container_width=True):
+                            st.session_state.archived_chats = [
+                                a for j, a in enumerate(st.session_state.archived_chats)
+                                if j != i
+                            ]
+                            st.toast("Archive deleted", icon="🗑️")
+                            st.rerun()
+
+            # Clear all archives button
+            if len(st.session_state.archived_chats) > 1:
+                st.divider()
+                if st.button("🗑️ Clear All Archives", key="clear_all_archives"):
+                    st.session_state.archived_chats = []
+                    st.toast("All archives cleared", icon="🗑️")
+                    st.rerun()
 
 
 # =============================================================================
