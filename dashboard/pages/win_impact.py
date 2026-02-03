@@ -129,14 +129,23 @@ def create_nil_war_scatter(df: pd.DataFrame) -> go.Figure:
         df = enrich_with_war(df)
 
     # Sample if too many points
-    plot_df = df.sample(min(500, len(df))) if len(df) > 500 else df
+    plot_df = df.sample(min(500, len(df))) if len(df) > 500 else df.copy()
+
+    # Ensure we have a school column for hover data
+    if "school" not in plot_df.columns:
+        plot_df["school"] = plot_df.get("destination_school", plot_df.get("origin_school", "Unknown"))
+
+    # Build hover_data with columns that exist
+    hover_cols = ["name"]
+    if "school" in plot_df.columns:
+        hover_cols.append("school")
 
     fig = px.scatter(
         plot_df,
         x="portaliq_war",
         y="nil_value",
         color="position",
-        hover_data=["name", "school"],
+        hover_data=hover_cols,
         title="NIL Value vs Win Impact",
         labels={"portaliq_war": "Portal IQ WAR", "nil_value": "NIL Value ($)"}
     )
