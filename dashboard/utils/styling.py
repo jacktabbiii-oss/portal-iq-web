@@ -5,22 +5,22 @@ Dark theme with green (#00C853) and white accents on dark gray (#1a1a2e) backgro
 
 import streamlit as st
 
-# Color palette
+# Color palette - High contrast dark theme
 COLORS = {
     # Primary colors
     "primary": "#00C853",  # Green
     "primary_dark": "#00A844",
     "primary_light": "#69F0AE",
 
-    # Background colors
-    "bg_dark": "#1a1a2e",
-    "bg_medium": "#2a2a4a",
-    "bg_light": "#3a3a5a",
+    # Background colors - Darker for better contrast
+    "bg_dark": "#0d1117",      # Near black
+    "bg_medium": "#161b22",    # Dark gray
+    "bg_light": "#21262d",     # Medium dark
 
-    # Text colors
+    # Text colors - Brighter for readability
     "text_primary": "#ffffff",
-    "text_secondary": "#cccccc",
-    "text_muted": "#888888",
+    "text_secondary": "#e6edf3",  # Very light gray (high contrast)
+    "text_muted": "#8b949e",      # Medium gray (still readable)
 
     # Tier colors (NIL)
     "tier_mega": "#FFD700",      # Gold
@@ -151,21 +151,56 @@ def apply_custom_css():
         .stTextInput > div > div > input,
         .stNumberInput > div > div > input,
         .stSelectbox > div > div > select {{
-            background-color: {COLORS['bg_medium']};
-            color: {COLORS['text_primary']};
-            border: 1px solid {COLORS['bg_light']};
+            background-color: {COLORS['bg_light']} !important;
+            color: {COLORS['text_primary']} !important;
+            border: 1px solid #30363d !important;
             border-radius: 8px;
         }}
 
         .stTextInput > div > div > input:focus,
         .stNumberInput > div > div > input:focus {{
-            border-color: {COLORS['primary']};
+            border-color: {COLORS['primary']} !important;
             box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.2);
         }}
 
-        /* Selectbox */
+        /* Selectbox and dropdowns */
         [data-testid="stSelectbox"] {{
-            background-color: {COLORS['bg_medium']};
+            background-color: transparent;
+        }}
+
+        [data-testid="stSelectbox"] > div > div {{
+            background-color: {COLORS['bg_light']} !important;
+            color: {COLORS['text_primary']} !important;
+        }}
+
+        /* Dropdown menu items */
+        [data-baseweb="menu"] {{
+            background-color: {COLORS['bg_medium']} !important;
+        }}
+
+        [data-baseweb="menu"] li {{
+            color: {COLORS['text_secondary']} !important;
+        }}
+
+        [data-baseweb="menu"] li:hover {{
+            background-color: {COLORS['bg_light']} !important;
+        }}
+
+        /* BaseWeb select */
+        [data-baseweb="select"] > div {{
+            background-color: {COLORS['bg_light']} !important;
+            border-color: #30363d !important;
+        }}
+
+        [data-baseweb="select"] [data-baseweb="tag"] {{
+            background-color: {COLORS['primary']} !important;
+            color: #000 !important;
+        }}
+
+        /* Multiselect dropdown */
+        .stMultiSelect > div > div {{
+            background-color: {COLORS['bg_light']} !important;
+            color: {COLORS['text_primary']} !important;
         }}
 
         /* Slider */

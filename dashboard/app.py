@@ -59,7 +59,7 @@ def render_sidebar():
         st.markdown("""
         <div style="text-align: center; padding: 20px 0;">
             <h1 style="color: #00C853; font-size: 2.5rem; margin: 0;">🏈 Portal IQ</h1>
-            <p style="color: #888; font-size: 0.9rem; margin-top: 5px;">
+            <p style="color: #8b949e; font-size: 0.9rem; margin-top: 5px;">
                 AI-Powered Intelligence
             </p>
         </div>
@@ -85,14 +85,14 @@ def render_sidebar():
         stats = get_database_stats()
 
         st.markdown(f"""
-        <div style="background: #2a2a4a; padding: 15px; border-radius: 8px; margin: 10px 0;">
-            <p style="margin: 5px 0; color: #aaa;">
+        <div style="background: #161b22; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #30363d;">
+            <p style="margin: 5px 0; color: #e6edf3;">
                 <strong style="color: #00C853;">Season:</strong> {st.session_state.current_season}
             </p>
-            <p style="margin: 5px 0; color: #aaa;">
+            <p style="margin: 5px 0; color: #e6edf3;">
                 <strong style="color: #00C853;">Last Updated:</strong> {stats.get('last_updated', 'N/A')}
             </p>
-            <p style="margin: 5px 0; color: #aaa;">
+            <p style="margin: 5px 0; color: #e6edf3;">
                 <strong style="color: #00C853;">Players:</strong> {stats.get('total_players', 0):,}
             </p>
         </div>
@@ -103,11 +103,11 @@ def render_sidebar():
         # Footer
         st.markdown("""
         <div style="text-align: center; padding: 20px 0; position: absolute; bottom: 20px; left: 0; right: 0;">
-            <p style="color: #666; font-size: 0.75rem;">
+            <p style="color: #8b949e; font-size: 0.75rem;">
                 Powered by<br>
                 <strong style="color: #00C853;">Elite Sports Solutions</strong>
             </p>
-            <p style="color: #555; font-size: 0.65rem; margin-top: 10px;">
+            <p style="color: #8b949e; font-size: 0.65rem; margin-top: 10px;">
                 © 2025 All Rights Reserved
             </p>
         </div>
@@ -177,11 +177,11 @@ def render_main_page():
 
     with col1:
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
                     padding: 30px; border-radius: 15px; border: 1px solid #00C853;
                     margin: 10px 0; height: 200px;">
             <h3 style="color: #00C853; margin-bottom: 15px;">💰 NIL Valuator</h3>
-            <p style="color: #aaa;">
+            <p style="color: #e6edf3;">
                 Real On3 NIL valuations plus our custom algorithm. Compare players,
                 analyze value breakdowns, and track market trends.
             </p>
@@ -190,11 +190,11 @@ def render_main_page():
         """, unsafe_allow_html=True)
 
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
                     padding: 30px; border-radius: 15px; border: 1px solid #00C853;
                     margin: 10px 0; height: 200px;">
             <h3 style="color: #00C853; margin-bottom: 15px;">📈 Win Impact</h3>
-            <p style="color: #aaa;">
+            <p style="color: #e6edf3;">
                 Understand how much value a player adds to their team. Win impact
                 directly correlates to NIL valuation and transfer market value.
             </p>
@@ -204,11 +204,11 @@ def render_main_page():
 
     with col2:
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
                     padding: 30px; border-radius: 15px; border: 1px solid #00C853;
                     margin: 10px 0; height: 200px;">
             <h3 style="color: #00C853; margin-bottom: 15px;">🔄 Portal Intelligence</h3>
-            <p style="color: #aaa;">
+            <p style="color: #e6edf3;">
                 14,000+ transfer portal entries across 3 years. Track commitments,
                 analyze team rankings, and find the best portal targets.
             </p>
@@ -217,11 +217,11 @@ def render_main_page():
         """, unsafe_allow_html=True)
 
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
                     padding: 30px; border-radius: 15px; border: 1px solid #00C853;
                     margin: 10px 0; height: 200px;">
             <h3 style="color: #00C853; margin-bottom: 15px;">🤖 AI Assistant</h3>
-            <p style="color: #aaa;">
+            <p style="color: #e6edf3;">
                 Chat with Claude AI about players, NIL values, and portal activity.
                 Get instant insights and recommendations powered by real data.
             </p>
