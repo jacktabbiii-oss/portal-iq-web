@@ -1,0 +1,273 @@
+school,conference,year,sp_overall,sp_offense,sp_defense
+Ohio State,Big Ten,2024,31.2,39.5,9.2
+Ole Miss,SEC,2024,27.9,37.7,11.9
+Oregon,Big Ten,2024,26.0,40.8,16.3
+Alabama,SEC,2024,25.0,37.9,14.6
+Penn State,Big Ten,2024,24.6,37.5,13.1
+Georgia,SEC,2024,24.3,37.3,14.9
+Texas,SEC,2024,24.1,36.6,10.8
+Notre Dame,FBS Independents,2024,23.9,38.6,14.1
+Tennessee,SEC,2024,22.0,33.7,13.5
+Miami,ACC,2024,21.6,44.2,24.3
+Indiana,Big Ten,2024,20.1,35.0,16.4
+SMU,ACC,2024,17.5,38.2,21.1
+Texas A&M,SEC,2024,17.0,34.0,18.6
+South Carolina,SEC,2024,16.9,32.1,16.0
+LSU,SEC,2024,15.9,36.8,21.7
+Iowa,Big Ten,2024,15.8,27.0,13.3
+BYU,Big 12,2024,15.3,32.0,18.8
+Kansas State,Big 12,2024,14.1,33.0,20.4
+Missouri,SEC,2024,14.0,33.7,18.7
+Florida,SEC,2024,13.8,31.7,20.0
+Louisville,ACC,2024,13.6,37.7,22.9
+Clemson,ACC,2024,13.3,35.4,20.9
+USC,Big Ten,2024,11.9,35.6,24.0
+Arkansas,SEC,2024,11.0,31.4,21.7
+TCU,Big 12,2024,10.8,34.6,22.8
+Michigan,Big Ten,2024,10.6,24.1,15.1
+Minnesota,Big Ten,2024,10.4,25.6,15.4
+Iowa State,Big 12,2024,10.3,30.8,20.2
+Boise State,Mountain West,2024,10.1,35.3,24.2
+Virginia Tech,ACC,2024,10.0,31.3,22.4
+Illinois,Big Ten,2024,9.6,29.0,20.9
+Memphis,American Athletic,2024,9.6,36.7,28.2
+Auburn,SEC,2024,9.5,27.9,17.8
+Oklahoma,SEC,2024,9.5,25.9,17.8
+Arizona State,Big 12,2024,9.4,32.4,20.9
+UNLV,Mountain West,2024,9.3,32.6,24.6
+Army,American Athletic,2024,9.2,31.1,21.7
+Baylor,Big 12,2024,8.4,33.5,26.2
+Colorado,Big 12,2024,8.1,33.3,23.5
+Utah,Big 12,2024,7.7,23.6,17.2
+James Madison,Sun Belt,2024,7.5,29.7,22.9
+Rutgers,Big Ten,2024,6.4,28.5,22.8
+Tulane,American Athletic,2024,5.7,32.9,27.1
+Duke,ACC,2024,5.6,26.7,21.3
+Kentucky,SEC,2024,5.5,24.5,20.9
+Syracuse,ACC,2024,5.5,35.8,28.9
+Nebraska,Big Ten,2024,5.5,23.1,15.8
+Texas State,Sun Belt,2024,5.4,34.2,28.4
+North Carolina,ACC,2024,5.0,31.5,26.3
+Vanderbilt,SEC,2024,4.9,28.2,25.4
+Pittsburgh,ACC,2024,4.9,29.3,26.3
+Kansas,Big 12,2024,4.9,32.4,26.5
+Louisiana,Sun Belt,2024,4.8,31.5,27.8
+Texas Tech,Big 12,2024,4.3,33.5,30.8
+California,ACC,2024,4.0,27.4,22.9
+NC State,ACC,2024,3.9,29.9,26.5
+Navy,American Athletic,2024,3.5,29.5,24.4
+Marshall,Sun Belt,2024,3.1,29.6,26.9
+Washington,Big Ten,2024,3.1,27.3,22.4
+Wisconsin,Big Ten,2024,3.0,23.0,19.8
+South Alabama,Sun Belt,2024,2.8,29.9,26.9
+UCF,Big 12,2024,2.8,29.0,25.8
+Ohio,Mid-American,2024,2.3,27.2,23.9
+UTSA,American Athletic,2024,2.2,32.3,31.5
+West Virginia,Big 12,2024,2.1,30.1,29.7
+Georgia Tech,ACC,2024,1.9,31.1,27.9
+UConn,FBS Independents,2024,1.5,26.9,25.7
+Miami (OH),Mid-American,2024,1.3,23.2,23.2
+Washington State,Pac-12,2024,1.3,34.0,31.1
+Boston College,ACC,2024,1.2,28.0,24.7
+Liberty,Conference USA,2024,0.2,28.2,26.6
+Cincinnati,Big 12,2024,-0.1,25.6,25.0
+East Carolina,American Athletic,2024,-1.0,28.5,29.7
+Jacksonville State,Conference USA,2024,-1.0,28.8,28.3
+UCLA,Big Ten,2024,-1.3,21.3,23.3
+Georgia Southern,Sun Belt,2024,-1.7,26.5,30.1
+Bowling Green,Mid-American,2024,-1.8,25.6,27.2
+Western Kentucky,Conference USA,2024,-2.2,22.1,26.1
+South Florida,American Athletic,2024,-2.3,29.5,33.4
+Toledo,Mid-American,2024,-2.5,24.5,26.3
+Oklahoma State,Big 12,2024,-2.6,29.4,31.7
+Arizona,Big 12,2024,-2.8,24.4,29.0
+Florida State,ACC,2024,-3.2,20.1,25.3
+Northern Illinois,Mid-American,2024,-3.5,20.0,21.6
+Fresno State,Mountain West,2024,-3.8,25.1,27.6
+Maryland,Big Ten,2024,-3.9,23.3,27.1
+Buffalo,Mid-American,2024,-4.0,25.4,30.2
+Mississippi State,SEC,2024,-4.1,25.5,31.2
+North Texas,American Athletic,2024,-4.5,33.3,37.0
+Michigan State,Big Ten,2024,-4.6,18.0,24.1
+Virginia,ACC,2024,-5.1,23.7,29.3
+San José State,Mountain West,2024,-5.5,26.1,30.1
+Wake Forest,ACC,2024,-5.7,25.8,31.8
+Colorado State,Mountain West,2024,-5.7,24.2,29.2
+Old Dominion,Sun Belt,2024,-6.0,25.7,31.3
+Troy,Sun Belt,2024,-6.6,24.1,30.1
+Oregon State,Pac-12,2024,-6.7,26.1,32.7
+Coastal Carolina,Sun Belt,2024,-6.9,25.5,33.4
+Sam Houston,Conference USA,2024,-6.9,19.0,23.8
+App State,Sun Belt,2024,-8.1,27.2,33.6
+Houston,Big 12,2024,-8.2,18.1,24.5
+Stanford,ACC,2024,-8.2,24.4,34.1
+Northwestern,Big Ten,2024,-8.2,17.5,24.3
+Arkansas State,Sun Belt,2024,-9.9,24.6,35.2
+Western Michigan,Mid-American,2024,-10.2,24.7,36.0
+Utah State,Mountain West,2024,-10.4,30.2,40.3
+Hawai'i,Mountain West,2024,-10.9,20.9,30.0
+UAB,American Athletic,2024,-11.3,25.9,38.0
+Rice,American Athletic,2024,-11.4,20.5,30.4
+Louisiana Tech,Conference USA,2024,-11.6,15.9,26.3
+Air Force,Mountain West,2024,-11.7,17.8,27.5
+Florida International,Conference USA,2024,-12.1,20.5,31.3
+Florida Atlantic,American Athletic,2024,-12.7,20.8,32.1
+Eastern Michigan,Mid-American,2024,-13.3,20.5,34.3
+Wyoming,Mountain West,2024,-13.6,16.3,30.8
+New Mexico,Mountain West,2024,-14.8,27.6,40.5
+Nevada,Mountain West,2024,-15.2,21.0,34.2
+Charlotte,American Athletic,2024,-15.3,21.4,37.6
+San Diego State,Mountain West,2024,-15.4,17.7,32.1
+Central Michigan,Mid-American,2024,-15.8,17.7,34.3
+Purdue,Big Ten,2024,-16.2,19.2,33.6
+UL Monroe,Sun Belt,2024,-16.7,16.9,32.5
+Georgia State,Sun Belt,2024,-17.9,21.0,37.4
+Akron,Mid-American,2024,-17.9,15.7,34.6
+New Mexico State,Conference USA,2024,-19.0,17.8,38.1
+Ball State,Mid-American,2024,-19.8,21.3,40.8
+Temple,American Athletic,2024,-20.3,17.3,37.8
+Tulsa,American Athletic,2024,-20.6,21.2,40.3
+Massachusetts,Mid-American,2024,-21.9,20.5,40.3
+UTEP,Conference USA,2024,-22.7,13.7,34.2
+Middle Tennessee,Conference USA,2024,-24.4,13.7,37.3
+Kennesaw State,Conference USA,2024,-25.1,10.2,35.1
+Southern Miss,Sun Belt,2024,-25.6,14.4,39.4
+Kent State,Mid-American,2024,-33.0,12.6,43.8
+nationalAverages,,2024,0.5522388059701493,27.144029850746268,26.60970149253731
+Indiana,Big Ten,2025,32.4,40.8,9.9
+Ohio State,Big Ten,2025,30.1,37.6,7.7
+Texas Tech,Big 12,2025,27.6,39.3,12.3
+Oregon,Big Ten,2025,25.9,38.7,13.5
+Notre Dame,FBS Independents,2025,24.4,40.0,16.3
+Georgia,SEC,2025,24.1,37.0,14.8
+Ole Miss,SEC,2025,24.0,40.4,18.3
+Utah,Big 12,2025,22.2,39.7,17.5
+Miami,ACC,2025,20.7,34.2,14.3
+Texas A&M,SEC,2025,20.7,38.0,16.4
+Vanderbilt,SEC,2025,20.3,39.9,21.4
+Iowa,Big Ten,2025,19.7,32.1,14.2
+Washington,Big Ten,2025,18.4,34.5,15.3
+Oklahoma,SEC,2025,18.3,30.1,12.9
+Penn State,Big Ten,2025,18.1,35.1,18.8
+USC,Big Ten,2025,16.9,38.9,21.0
+Texas,SEC,2025,16.2,32.9,17.9
+BYU,Big 12,2025,15.9,33.9,18.8
+Tennessee,SEC,2025,15.0,39.3,25.4
+Alabama,SEC,2025,14.8,32.2,16.1
+Missouri,SEC,2025,14.4,31.2,15.4
+North Texas,American Athletic,2025,13.8,43.1,28.6
+SMU,ACC,2025,13.4,34.2,19.5
+Illinois,Big Ten,2025,12.9,33.3,21.7
+Michigan,Big Ten,2025,12.4,30.9,17.0
+Louisville,ACC,2025,12.4,31.6,19.8
+James Madison,Sun Belt,2025,12.3,34.9,21.4
+Arizona,Big 12,2025,12.0,33.0,19.5
+Auburn,SEC,2025,11.6,28.3,17.4
+South Florida,American Athletic,2025,11.6,37.7,25.3
+Virginia,ACC,2025,11.1,28.8,18.1
+LSU,SEC,2025,10.3,25.8,16.1
+Iowa State,Big 12,2025,9.9,28.1,19.5
+Clemson,ACC,2025,9.5,27.5,18.9
+Georgia Tech,ACC,2025,9.3,32.5,24.9
+Pittsburgh,ACC,2025,8.4,31.6,23.5
+TCU,Big 12,2025,8.3,32.9,23.9
+East Carolina,American Athletic,2025,8.0,32.6,24.0
+Memphis,American Athletic,2025,7.6,34.3,28.3
+Houston,Big 12,2025,7.4,31.5,23.0
+Florida State,ACC,2025,7.2,29.3,21.2
+Kansas State,Big 12,2025,7.0,31.3,25.0
+San Diego State,Mountain West,2025,6.7,24.4,19.6
+Duke,ACC,2025,6.6,34.8,29.2
+Tulane,American Athletic,2025,6.3,32.4,27.6
+Nebraska,Big Ten,2025,6.2,28.8,22.7
+Navy,American Athletic,2025,6.2,33.6,27.9
+Toledo,Mid-American,2025,6.0,25.8,18.5
+Old Dominion,Sun Belt,2025,5.9,31.6,23.7
+South Carolina,SEC,2025,5.9,24.6,20.2
+Northwestern,Big Ten,2025,5.8,24.4,20.0
+Wake Forest,ACC,2025,5.7,26.6,20.9
+UConn,FBS Independents,2025,5.1,32.0,28.5
+Arkansas,SEC,2025,5.1,35.8,31.4
+NC State,ACC,2025,4.8,31.4,25.5
+Cincinnati,Big 12,2025,4.5,30.2,26.4
+UNLV,Mountain West,2025,4.3,33.8,29.8
+Kansas,Big 12,2025,4.1,30.9,28.5
+Mississippi State,SEC,2025,4.1,31.6,29.0
+Arizona State,Big 12,2025,3.9,28.3,22.7
+Washington State,Pac-12,2025,3.8,24.6,20.5
+UTSA,American Athletic,2025,3.7,33.3,30.0
+Florida,SEC,2025,3.5,24.5,22.6
+Boise State,Mountain West,2025,3.1,29.1,25.1
+Texas State,Sun Belt,2025,2.3,36.6,34.6
+Fresno State,Mountain West,2025,1.8,23.0,21.1
+Kentucky,SEC,2025,1.8,25.5,23.7
+Hawai'i,Mountain West,2025,1.7,27.3,27.3
+Western Kentucky,Conference USA,2025,1.6,28.8,28.6
+Minnesota,Big Ten,2025,1.5,23.8,20.8
+Baylor,Big 12,2025,1.4,32.8,33.3
+Rutgers,Big Ten,2025,1.0,31.6,30.7
+New Mexico,Mountain West,2025,0.9,25.4,26.1
+Army,American Athletic,2025,0.8,24.7,24.1
+Maryland,Big Ten,2025,0.6,24.4,24.7
+UCF,Big 12,2025,-1.2,23.2,24.0
+Louisiana Tech,Conference USA,2025,-1.3,25.6,27.0
+Western Michigan,Mid-American,2025,-1.4,21.7,21.8
+Utah State,Mountain West,2025,-3.1,29.5,31.2
+California,ACC,2025,-3.2,25.6,27.9
+Air Force,Mountain West,2025,-3.2,28.3,31.7
+Michigan State,Big Ten,2025,-3.4,26.6,28.7
+Miami (OH),Mid-American,2025,-3.4,19.3,24.2
+Ohio,Mid-American,2025,-4.0,23.2,25.2
+Wisconsin,Big Ten,2025,-4.4,17.4,20.9
+Marshall,Sun Belt,2025,-4.5,29.6,34.8
+Troy,Sun Belt,2025,-4.8,23.6,29.0
+Temple,American Athletic,2025,-5.1,27.1,33.2
+Kennesaw State,Conference USA,2025,-5.4,26.4,30.2
+Purdue,Big Ten,2025,-6.1,21.9,29.9
+North Carolina,ACC,2025,-6.6,17.2,25.0
+Jacksonville State,Conference USA,2025,-6.7,27.2,32.4
+West Virginia,Big 12,2025,-6.8,22.8,30.0
+Southern Miss,Sun Belt,2025,-7.1,27.0,32.8
+Buffalo,Mid-American,2025,-7.5,18.2,27.4
+Colorado,Big 12,2025,-8.3,22.6,29.5
+Boston College,ACC,2025,-8.5,23.3,33.1
+Florida Atlantic,American Athletic,2025,-8.7,27.8,38.1
+UCLA,Big Ten,2025,-8.7,21.7,30.4
+Central Michigan,Mid-American,2025,-8.8,17.6,25.7
+Arkansas State,Sun Belt,2025,-8.8,24.4,33.5
+Liberty,Conference USA,2025,-9.0,24.6,32.8
+Georgia Southern,Sun Belt,2025,-9.4,28.3,37.7
+Tulsa,American Athletic,2025,-10.0,21.7,33.1
+Louisiana,Sun Belt,2025,-10.1,25.3,34.0
+Virginia Tech,ACC,2025,-10.1,21.4,30.8
+Florida International,Conference USA,2025,-10.5,26.1,35.8
+Missouri State,Conference USA,2025,-10.7,25.6,34.8
+Delaware,Conference USA,2025,-10.9,26.2,36.2
+Wyoming,Mountain West,2025,-11.3,15.3,24.7
+App State,Sun Belt,2025,-11.4,23.0,35.2
+Stanford,ACC,2025,-11.8,18.4,28.6
+Bowling Green,Mid-American,2025,-12.6,15.4,28.8
+South Alabama,Sun Belt,2025,-12.7,25.4,36.0
+Syracuse,ACC,2025,-13.1,18.8,33.0
+Nevada,Mountain West,2025,-13.4,14.2,28.7
+Akron,Mid-American,2025,-13.9,17.2,29.3
+San José State,Mountain West,2025,-14.3,21.6,34.4
+Eastern Michigan,Mid-American,2025,-14.7,19.4,34.1
+Rice,American Athletic,2025,-14.8,17.7,33.9
+Coastal Carolina,Sun Belt,2025,-15.1,23.4,37.0
+Oklahoma State,Big 12,2025,-15.1,15.2,31.6
+New Mexico State,Conference USA,2025,-15.5,19.7,34.9
+Colorado State,Mountain West,2025,-15.6,17.6,32.9
+UAB,American Athletic,2025,-15.8,25.5,39.8
+Oregon State,Pac-12,2025,-15.9,17.0,30.8
+Middle Tennessee,Conference USA,2025,-16.0,20.4,37.0
+Northern Illinois,Mid-American,2025,-16.7,12.0,28.1
+UTEP,Conference USA,2025,-17.5,20.2,36.3
+Kent State,Mid-American,2025,-19.3,17.0,34.9
+UL Monroe,Sun Belt,2025,-21.6,16.1,35.7
+Ball State,Mid-American,2025,-23.0,13.4,34.4
+Georgia State,Sun Belt,2025,-24.5,18.6,41.1
+Charlotte,American Athletic,2025,-26.7,14.5,39.8
+Sam Houston,Conference USA,2025,-27.8,15.3,41.8
+Massachusetts,Mid-American,2025,-36.6,7.8,42.8
+nationalAverages,,2025,0.6970588235294117,27.158088235294116,26.459558823529413
