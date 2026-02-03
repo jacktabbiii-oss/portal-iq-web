@@ -1,0 +1,71 @@
+name: Update Portal IQ Data
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (1 AM EST)
+    - cron: '0 6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd ml-engine
+          pip install -r requirements.txt
+          pip install requests pandas numpy scikit-learn python-dotenv joblib
+
+      - name: Create .env file
+        run: |
+          cd ml-engine
+          echo "CFBD_API_KEY=${{ secrets.CFBD_API_KEY }}" >> .env
+          echo "ON3_EMAIL=${{ secrets.ON3_EMAIL }}" >> .env
+          echo "ON3_PASSWORD=${{ secrets.ON3_PASSWORD }}" >> .env
+
+      - name: Run data update
+        run: |
+          cd ml-engine
+          python scripts/update_all_data.py
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet ml-engine/data/processed/; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ml-engine/data/processed/portal_nil_valuations.csv
+          git add ml-engine/data/processed/cfbd_*.csv || true
+          git commit -m "Auto-update: NIL valuations $(date +'%Y-%m-%d')"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## Data Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Date: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Valuations file: ml-engine/data/processed/portal_nil_valuations.csv" >> $GITHUB_STEP_SUMMARY
+          if [ -f ml-engine/data/processed/portal_nil_valuations.csv ]; then
+            count=$(wc -l < ml-engine/data/processed/portal_nil_valuations.csv)
+            echo "- Total players: $count" >> $GITHUB_STEP_SUMMARY
+          fi
