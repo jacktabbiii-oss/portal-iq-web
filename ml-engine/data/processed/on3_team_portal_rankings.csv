@@ -1,0 +1,151 @@
+team,team_full,conference,year,overall_rank,overall_score,raw_score,transfers_in,avg_rating_in,raw_score_in,transfers_out,avg_rating_out,raw_score_out,five_stars_net,four_stars_net,three_stars_net,original_nil_valuation,adjusted_nil_valuation,nil_valuation_change,source
+Indiana,Indiana Hoosiers,,2026,1,56,615.217,17,76.706,531.214,10,62.7,-84.003,0,3,4,0,2833287,2833287,portal_team_rankings_2026
+LSU,LSU Tigers,,2026,2,51,560.489,40,73.9,817.125,33,71.061,256.636,1,6,0,0,7697003,7697003,portal_team_rankings_2026
+Texas Tech,Texas Tech Red Raiders,,2026,3,50,549.369,21,72.429,432.471,21,64.381,-116.898,0,6,-6,0,3483690,3483690,portal_team_rankings_2026
+Texas A&M,Texas A&M Aggies,,2026,4,45,494.461,18,76.222,516.466,14,68.286,22.006,0,6,0,0,107621,107621,portal_team_rankings_2026
+Louisville,Louisville Cardinals,,2026,5,43,470.939,31,69.677,532.794,30,64.1,61.855,0,5,0,0,120419,120419,portal_team_rankings_2026
+Virginia Tech,Virginia Tech Hokies,,2026,6,37,402.48,25,68.88,386.725,22,62.455,-15.755,0,3,1,0,1169344,1169344,portal_team_rankings_2026
+Houston,Houston Cougars,,2026,7,34,370.644,17,70.647,348.794,15,62.4,-21.85,0,3,4,1523027,1752097,229070,portal_team_rankings_2026
+Arkansas,Arkansas Razorbacks,,2026,8,33,364.209,41,68.073,454.28,38,65.184,90.071,0,2,2,0,-52968,-52968,portal_team_rankings_2026
+Notre Dame,Notre Dame Fighting Irish,,2026,9,31,345.274,7,87.714,412.864,15,69.733,67.59,0,3,-11,0,-146291,-146291,portal_team_rankings_2026
+Texas,Texas Longhorns,,2026,10,31,341.137,19,76.053,531.462,23,71.043,190.325,1,2,-7,6985047,9836041,2850994,portal_team_rankings_2026
+UCLA,UCLA Bruins,,2026,11,29,316.473,41,67.122,389.484,27,64.963,73.01,0,1,17,0,421924,421924,portal_team_rankings_2026
+Miami,Miami Hurricanes,,2026,12,27,296.134,13,74.923,322.852,19,68.368,26.718,0,5,-11,1564905,4860509,3295604,portal_team_rankings_2026
+Florida,Florida Gators,,2026,13,26,281.04,27,69.741,347.356,29,66.724,66.315,0,2,-3,0,-983832,-983832,portal_team_rankings_2026
+Mississippi State,Mississippi State Bulldogs,,2026,14,25,276.702,24,68.542,263.461,38,64.026,-13.241,0,0,-12,0,88570,88570,portal_team_rankings_2026
+BYU,BYU Cougars,,2026,15,21,229.888,9,72.333,223.447,13,62.923,-6.441,0,0,-3,0,82784,82784,portal_team_rankings_2026
+Wisconsin,Wisconsin Badgers,,2026,16,20,223.326,33,68.606,425.708,22,67.409,202.382,0,0,11,0,283434,283434,portal_team_rankings_2026
+Vanderbilt,Vanderbilt Commodores,,2026,17,19,207.768,17,71.176,352.415,15,67.4,144.646,0,0,6,0,325988,325988,portal_team_rankings_2026
+Ole Miss,Ole Miss Rebels,,2026,18,19,204.285,29,73.0,542.258,21,71.857,337.973,0,-1,9,1593846,1570017,-23829,portal_team_rankings_2026
+Arizona,Arizona Wildcats,,2026,19,18,201.33,21,66.619,214.265,21,63.143,12.935,0,0,7,0,169316,169316,portal_team_rankings_2026
+West Virginia,West Virginia Mountaineers,,2026,20,17,188.355,34,65.588,299.024,44,63.455,110.669,0,1,-11,0,332811,332811,portal_team_rankings_2026
+California,California Golden Bears,,2026,21,16,176.758,31,68.323,377.904,35,65.714,201.146,0,3,-2,1811056,2234136,423080,portal_team_rankings_2026
+Purdue,Purdue Boilermakers,,2026,22,14,154.212,28,65.286,188.623,19,63.474,34.411,0,0,10,0,189269,189269,portal_team_rankings_2026
+SMU,SMU Mustangs,,2026,23,13,146.41,16,67.5,133.564,18,64.389,-12.846,0,0,1,0,180339,180339,portal_team_rankings_2026
+Tennessee,Tennessee Volunteers,,2026,24,13,146.163,21,72.857,383.945,23,71.565,237.782,0,-1,-2,0,-1159278,-1159278,portal_team_rankings_2026
+Oklahoma,Oklahoma Sooners,,2026,25,13,146.013,16,70.0,196.418,27,67.519,50.405,0,1,-13,3904746,3008842,-895904,portal_team_rankings_2026
+South Carolina,South Carolina Gamecocks,,2026,26,13,140.366,25,66.64,177.843,20,65.65,37.477,1,1,3,5194201,6685482,1491281,portal_team_rankings_2026
+Oklahoma State,Oklahoma State Cowboys,,2026,27,13,139.221,54,66.056,431.562,64,65.125,292.342,0,0,-8,0,2657496,2657496,portal_team_rankings_2026
+Colorado,Colorado Buffaloes,,2026,28,13,138.562,41,68.61,531.968,34,68.324,393.407,0,0,8,1664984,502739,-1162245,portal_team_rankings_2026
+Oregon,Oregon Ducks,,2026,29,11,125.826,15,73.867,311.986,30,70.3,186.16,0,2,-17,4805369,5248611,443242,portal_team_rankings_2026
+Virginia,Virginia Cavaliers,,2026,30,11,116.021,27,67.481,318.596,19,67.158,202.575,0,1,6,0,1764062,1764062,portal_team_rankings_2026
+Clemson,Clemson Tigers,,2026,31,8,85.025,10,74.0,221.269,13,70.231,136.244,0,1,-4,0,-22615,-22615,portal_team_rankings_2026
+Nebraska,Nebraska Cornhuskers,,2026,32,7,74.673,16,66.875,128.349,17,65.235,53.676,0,0,0,0,-631972,-631972,portal_team_rankings_2026
+Maryland,Maryland Terrapins,,2026,33,4,46.786,10,68.2,114.727,13,66.462,67.94,0,0,-3,1903719,1843767,-59952,portal_team_rankings_2026
+Stanford,Stanford Cardinal,,2026,34,3,38.106,6,65.667,48.997,10,63.9,10.891,0,0,-3,0,-88536,-88536,portal_team_rankings_2026
+Ohio State,Ohio State Buckeyes,,2026,35,2,17.553,17,73.235,254.045,32,71.438,236.492,0,-2,-13,8162262,7065771,-1096491,portal_team_rankings_2026
+Washington State,Washington State Cougars,,2026,36,0,-3.907,12,63.917,77.422,34,62.206,81.329,0,-1,-23,0,-88159,-88159,portal_team_rankings_2026
+TCU,TCU Horned Frogs,,2026,37,-1,-6.431,12,66.583,93.551,10,68.3,99.982,0,0,3,2289390,-21006,-2310396,portal_team_rankings_2026
+Kentucky,Kentucky Wildcats,,2026,38,-1,-13.027,30,68.0,273.009,23,69.696,286.036,0,0,8,0,1580669,1580669,portal_team_rankings_2026
+Florida State,Florida State Seminoles,,2026,39,-1,-15.901,22,66.864,145.287,36,66.944,161.188,0,0,-13,0,-565175,-565175,portal_team_rankings_2026
+Arizona State,Arizona State Sun Devils,,2026,40,-2,-16.904,25,67.36,196.84,21,67.952,213.744,-1,1,12,4029364,1185758,-2843606,portal_team_rankings_2026
+Syracuse,Syracuse Orange,,2026,41,-2,-17.428,18,63.889,53.443,19,64.632,70.871,0,0,1,0,70332,70332,portal_team_rankings_2026
+Northwestern,Northwestern Wildcats,,2026,42,-2,-17.65,16,65.813,124.074,10,68.7,141.724,0,-1,7,0,238238,238238,portal_team_rankings_2026
+UCF,UCF Knights,,2026,43,-2,-18.846,31,63.71,94.142,33,64.424,112.987,0,0,-3,0,-236280,-236280,portal_team_rankings_2026
+Illinois,Illinois Fighting Illini,,2026,44,-2,-21.238,17,64.294,62.415,29,64.414,83.654,0,0,-12,0,-205123,-205123,portal_team_rankings_2026
+Penn State,Penn State Nittany Lions,,2026,45,-5,-53.349,37,71.243,546.255,46,71.848,599.605,0,3,-11,0,-219154,-219154,portal_team_rankings_2026
+Alabama,Alabama Crimson Tide,,2026,46,-6,-65.727,18,68.444,55.649,23,70.304,121.377,0,0,-5,1611211,78339,-1532872,portal_team_rankings_2026
+Missouri,Missouri Tigers,,2026,47,-6,-68.017,28,69.643,235.655,26,70.615,303.672,0,0,2,0,-2040221,-2040221,portal_team_rankings_2026
+Baylor,Baylor Bears,,2026,48,-7,-74.033,27,66.148,149.664,33,66.879,223.696,0,-2,2,0,688384,688384,portal_team_rankings_2026
+Rutgers,Rutgers Scarlet Knights,,2026,49,-7,-78.608,13,66.385,108.623,16,68.0,187.231,0,-1,-2,0,-495758,-495758,portal_team_rankings_2026
+Iowa,Iowa Hawkeyes,,2026,50,-8,-83.582,15,64.467,10.945,8,69.25,94.527,0,0,7,0,-38224,-38224,portal_team_rankings_2026
+Texas Tech,Texas Tech Red Raiders,,2025,1,100,1124.552,21,82.238,1060.059,31,63.226,-64.494,0,13,-22,0,4025111,4025111,portal_team_rankings_2025
+LSU,LSU Tigers,,2025,2,70,765.792,18,83.778,861.447,23,69.217,95.655,0,9,-14,0,1966063,1966063,portal_team_rankings_2025
+Ole Miss,Ole Miss Rebels,,2025,3,68,744.055,32,74.0,807.877,28,66.036,63.822,0,6,-1,0,4891530,4891530,portal_team_rankings_2025
+Oregon,Oregon Ducks,,2025,4,54,594.78,11,84.818,601.915,18,65.722,7.135,0,5,-11,2994313,4609640,1615327,portal_team_rankings_2025
+Miami,Miami Hurricanes,,2025,5,45,498.546,20,73.6,475.37,21,65.714,-23.176,1,6,-7,0,2132224,2132224,portal_team_rankings_2025
+Missouri,Missouri Tigers,,2025,6,44,479.218,22,75.273,684.299,24,67.667,205.08,0,4,-7,0,2945513,2945513,portal_team_rankings_2025
+Auburn,Auburn Tigers,,2025,7,36,392.936,20,73.15,463.168,26,66.5,70.232,0,5,-6,2860981,4951907,2090926,portal_team_rankings_2025
+North Carolina,North Carolina Tar Heels,,2025,8,32,352.342,42,68.857,496.679,41,66.317,144.336,0,0,0,0,-762000,-762000,portal_team_rankings_2025
+Rutgers,Rutgers Scarlet Knights,,2025,9,28,312.793,20,69.6,375.029,23,64.13,62.236,0,2,-8,0,524238,524238,portal_team_rankings_2025
+Ohio State,Ohio State Buckeyes,,2025,10,27,296.973,10,75.9,264.866,16,67.938,-32.107,0,3,-9,8162262,8193128,30866,portal_team_rankings_2025
+Washington,Washington Huskies,,2025,11,26,285.822,17,75.059,530.831,31,66.194,245.01,0,0,-11,0,408904,408904,portal_team_rankings_2025
+Kentucky,Kentucky Wildcats,,2025,12,26,281.822,26,71.115,456.342,31,67.065,174.52,0,0,-7,0,31601,31601,portal_team_rankings_2025
+Indiana,Indiana Hoosiers,,2025,13,26,280.908,23,68.261,305.059,24,64.5,24.151,0,2,-2,0,296854,296854,portal_team_rankings_2025
+Michigan,Michigan Wolverines,,2025,14,25,280.166,19,68.053,186.968,31,63.839,-93.198,0,3,-15,0,-225346,-225346,portal_team_rankings_2025
+Cincinnati,Cincinnati Bearcats,,2025,15,24,265.773,15,70.067,307.523,15,63.667,41.751,0,2,-2,3074907,3431805,356898,portal_team_rankings_2025
+Texas A&M,Texas A&M Aggies,,2025,16,24,264.645,14,78.571,508.599,24,69.417,243.955,0,1,-12,1523027,121843,-1401184,portal_team_rankings_2025
+Texas,Texas Longhorns,,2025,17,23,254.877,11,76.0,272.025,16,68.813,17.148,0,4,-9,6985047,7047355,62308,portal_team_rankings_2025
+SMU,SMU Mustangs,,2025,18,21,227.317,21,68.571,258.098,20,64.75,30.781,0,1,0,0,970356,970356,portal_team_rankings_2025
+Baylor,Baylor Bears,,2025,19,20,224.455,25,66.8,219.872,17,64.0,-4.583,0,0,7,0,63663,63663,portal_team_rankings_2025
+Kansas State,Kansas State Wildcats,,2025,20,20,223.902,16,69.688,245.714,26,63.846,21.812,0,0,-9,0,79717,79717,portal_team_rankings_2025
+Michigan State,Michigan State Spartans,,2025,21,19,213.526,21,68.238,273.923,19,65.211,60.397,0,-1,3,0,-267684,-267684,portal_team_rankings_2025
+Nebraska,Nebraska Cornhuskers,,2025,22,19,208.352,17,71.588,360.879,33,66.03,152.527,0,2,-18,0,-728596,-728596,portal_team_rankings_2025
+UCLA,UCLA Bruins,,2025,23,18,195.945,32,67.156,345.663,32,64.625,149.718,0,1,-2,0,964633,964633,portal_team_rankings_2025
+Colorado,Colorado Buffaloes,,2025,24,15,160.681,31,68.065,380.544,37,65.811,219.863,0,0,-4,1664984,1453233,-211751,portal_team_rankings_2025
+Duke,Duke Blue Devils,,2025,25,14,155.398,9,71.444,211.478,13,64.308,56.079,0,1,-4,0,2629930,2629930,portal_team_rankings_2025
+South Carolina,South Carolina Gamecocks,,2025,26,14,148.998,18,68.5,162.206,22,66.136,13.208,0,3,-8,5194201,5717471,523270,portal_team_rankings_2025
+Virginia,Virginia Cavaliers,,2025,27,13,139.03,31,65.774,301.614,20,65.3,162.584,0,1,7,0,-12461,-12461,portal_team_rankings_2025
+Vanderbilt,Vanderbilt Commodores,,2025,28,12,136.113,20,65.55,153.281,20,63.45,17.168,0,0,0,0,-342073,-342073,portal_team_rankings_2025
+Georgia,Georgia Bulldogs,,2025,29,11,122.91,10,78.7,306.998,18,72.5,184.089,-1,2,-9,1564905,-1480547,-3045452,portal_team_rankings_2025
+Oklahoma State,Oklahoma State Cowboys,,2025,30,11,120.584,40,65.45,252.931,26,65.192,132.346,0,-2,16,0,619218,619218,portal_team_rankings_2025
+Tennessee,Tennessee Volunteers,,2025,31,10,110.855,7,77.714,237.354,22,68.591,126.499,0,0,-14,0,-395268,-395268,portal_team_rankings_2025
+Maryland,Maryland Terrapins,,2025,32,10,105.958,15,68.4,205.384,31,64.839,99.426,0,0,-13,0,-141305,-141305,portal_team_rankings_2025
+Virginia Tech,Virginia Tech Hokies,,2025,33,9,103.143,30,68.167,363.571,32,66.813,260.427,0,1,-3,0,-913809,-913809,portal_team_rankings_2025
+Oregon State,Oregon State Beavers,,2025,34,9,97.951,14,65.286,122.426,18,62.389,24.475,0,0,-3,0,-13828,-13828,portal_team_rankings_2025
+Penn State,Penn State Nittany Lions,,2025,35,8,93.321,8,77.0,232.254,18,69.0,138.933,0,2,-12,0,-1057641,-1057641,portal_team_rankings_2025
+Florida State,Florida State Seminoles,,2025,36,8,91.174,23,71.783,433.419,31,69.355,342.245,0,2,-10,0,1849951,1849951,portal_team_rankings_2025
+Notre Dame,Notre Dame Fighting Irish,,2025,37,7,78.909,8,76.5,238.501,14,70.786,159.592,0,1,-7,0,-115894,-115894,portal_team_rankings_2025
+Minnesota,Minnesota Golden Gophers,,2025,38,7,76.776,21,64.238,68.297,19,63.158,-8.479,0,1,1,0,325602,325602,portal_team_rankings_2025
+Arizona State,Arizona State Sun Devils,,2025,39,6,71.039,16,65.625,91.967,25,63.44,20.928,0,1,-9,4029364,3893956,-135408,portal_team_rankings_2025
+UCF,UCF Knights,,2025,40,6,69.362,37,67.324,354.956,38,66.947,285.594,0,1,1,0,323363,323363,portal_team_rankings_2025
+Illinois,Illinois Fighting Illini,,2025,41,4,45.87,16,64.438,83.887,19,63.684,38.017,0,0,-3,0,-35360,-35360,portal_team_rankings_2025
+Louisville,Louisville Cardinals,,2025,42,4,42.469,31,66.161,185.482,29,66.276,143.013,0,0,1,0,-678615,-678615,portal_team_rankings_2025
+BYU,BYU Cougars,,2025,43,3,32.275,14,63.5,69.829,33,61.848,37.554,0,0,-18,0,414507,414507,portal_team_rankings_2025
+Houston,Houston Cougars,,2025,44,3,30.333,31,65.226,234.476,29,65.379,204.143,0,-1,5,0,2460894,2460894,portal_team_rankings_2025
+Clemson,Clemson Tigers,,2025,45,2,18.382,3,74.667,75.735,8,69.5,57.353,0,1,-6,0,689346,689346,portal_team_rankings_2025
+Utah,Utah Utes,,2025,46,2,17.822,22,65.818,142.382,34,65.059,124.56,0,1,-12,0,665856,665856,portal_team_rankings_2025
+Kansas,Kansas Jayhawks,,2025,47,1,12.873,27,64.852,111.063,13,66.231,98.19,0,1,13,0,678437,678437,portal_team_rankings_2025
+Mississippi State,Mississippi State Bulldogs,,2025,48,0,4.096,32,68.094,345.147,34,68.235,341.051,0,0,0,0,-1374724,-1374724,portal_team_rankings_2025
+Iowa State,Iowa State Cyclones,,2025,49,0,1.129,8,65.5,55.453,14,64.5,54.324,0,0,-5,0,-96743,-96743,portal_team_rankings_2025
+Oklahoma,Oklahoma Sooners,,2025,50,-1,-7.811,21,71.667,410.354,37,69.541,418.165,0,2,-16,1906501,2870711,964210,portal_team_rankings_2025
+Louisville,Louisville Cardinals,,2024,1,70,767.423,31,74.194,874.44,33,65.242,107.017,0,4,-6,0,379386,379386,portal_team_rankings_2024
+Colorado,Colorado Buffaloes,,2024,2,69,755.784,44,71.75,1030.702,45,65.178,274.918,0,5,-8,0,-204038,-204038,portal_team_rankings_2024
+Florida State,Florida State Seminoles,,2024,3,51,558.375,17,78.353,613.695,27,65.593,55.321,0,1,-7,0,990812,990812,portal_team_rankings_2024
+Ole Miss,Ole Miss Rebels,,2024,4,47,518.404,26,74.385,724.786,23,68.087,206.383,1,3,-2,0,1017716,1017716,portal_team_rankings_2024
+Oregon,Oregon Ducks,,2024,5,45,492.296,12,84.5,657.38,18,69.722,165.084,0,7,-12,0,4562063,4562063,portal_team_rankings_2024
+Texas,Texas Longhorns,,2024,6,41,447.236,11,82.727,492.943,25,68.16,45.707,0,7,-22,5440974,4759806,-681168,portal_team_rankings_2024
+NC State,NC State Wolfpack,,2024,7,36,400.946,15,73.667,431.107,24,63.333,30.161,0,2,-10,0,649884,649884,portal_team_rankings_2024
+Syracuse,Syracuse Orange,,2024,8,34,371.193,19,70.632,410.144,29,62.828,38.951,0,1,-10,0,-223205,-223205,portal_team_rankings_2024
+Missouri,Missouri Tigers,,2024,9,33,360.194,14,73.071,321.658,18,64.667,-38.535,0,4,-8,0,972081,972081,portal_team_rankings_2024
+Indiana,Indiana Hoosiers,,2024,10,32,350.745,31,68.548,505.617,38,64.526,154.872,0,4,-10,3074907,496373,-2578534,portal_team_rankings_2024
+South Carolina,South Carolina Gamecocks,,2024,11,30,333.792,21,70.667,384.422,26,65.115,50.631,0,2,-5,2715179,2352049,-363130,portal_team_rankings_2024
+Wisconsin,Wisconsin Badgers,,2024,12,29,319.971,15,73.8,422.474,23,65.174,102.503,0,3,-8,0,40,40,portal_team_rankings_2024
+California,California Golden Bears,,2024,13,24,267.818,24,68.375,377.344,22,64.773,109.526,0,1,3,0,-67831,-67831,portal_team_rankings_2024
+West Virginia,West Virginia Mountaineers,,2024,14,24,260.853,11,72.364,282.924,21,63.333,22.071,0,1,-11,0,-208864,-208864,portal_team_rankings_2024
+Notre Dame,Notre Dame Fighting Irish,,2024,15,24,259.683,9,80.889,387.212,18,69.667,127.529,0,2,-11,0,-205650,-205650,portal_team_rankings_2024
+Miami,Miami Hurricanes,,2024,16,23,250.573,15,79.8,606.278,35,69.857,355.705,0,5,-21,0,-396517,-396517,portal_team_rankings_2024
+UCF,UCF Knights,,2024,17,22,244.138,24,69.042,342.319,23,65.696,98.181,0,1,-2,0,143153,143153,portal_team_rankings_2024
+Auburn,Auburn Tigers,,2024,18,22,243.016,15,70.933,272.934,24,64.917,29.917,0,2,-10,0,170178,170178,portal_team_rankings_2024
+Illinois,Illinois Fighting Illini,,2024,19,20,224.937,13,70.0,271.607,22,63.0,46.67,0,2,-9,0,-153300,-153300,portal_team_rankings_2024
+Washington,Washington Huskies,,2024,20,18,202.627,24,72.792,542.296,28,69.036,339.669,0,0,-4,0,-849507,-849507,portal_team_rankings_2024
+USC,USC Trojans,,2024,21,18,197.686,16,75.063,438.925,28,69.036,241.24,0,3,-16,0,1689089,1689089,portal_team_rankings_2024
+Minnesota,Minnesota Golden Gophers,,2024,22,18,195.821,12,68.833,203.482,14,62.929,7.661,0,1,-3,0,40490,40490,portal_team_rankings_2024
+Kentucky,Kentucky Wildcats,,2024,23,17,189.963,12,73.667,294.726,21,66.476,104.764,0,3,-12,0,-80678,-80678,portal_team_rankings_2024
+Virginia Tech,Virginia Tech Hokies,,2024,24,14,156.988,7,75.429,240.445,17,64.647,83.458,0,1,-9,0,-96987,-96987,portal_team_rankings_2024
+Texas Tech,Texas Tech Red Raiders,,2024,25,14,151.296,15,71.667,346.176,24,66.583,194.88,0,4,-12,0,-854295,-854295,portal_team_rankings_2024
+Kansas,Kansas Jayhawks,,2024,26,13,141.276,11,66.091,120.497,9,61.111,-20.778,0,0,4,0,8067,8067,portal_team_rankings_2024
+Florida,Florida Gators,,2024,27,12,132.237,13,73.154,307.237,24,67.625,175.0,0,-1,-8,0,111145,111145,portal_team_rankings_2024
+TCU,TCU Horned Frogs,,2024,28,10,115.115,23,69.783,326.841,19,69.211,211.726,0,2,2,2289390,2175824,-113566,portal_team_rankings_2024
+SMU,SMU Mustangs,,2024,29,10,107.344,21,66.952,172.34,15,65.2,64.996,0,-1,11,0,129309,129309,portal_team_rankings_2024
+Utah,Utah Utes,,2024,30,10,106.219,12,68.833,186.219,22,64.273,80.0,0,0,-9,0,653532,653532,portal_team_rankings_2024
+Purdue,Purdue Boilermakers,,2024,31,9,95.183,18,68.667,280.835,28,65.25,185.651,0,-1,-10,0,-120597,-120597,portal_team_rankings_2024
+North Carolina,North Carolina Tar Heels,,2024,32,7,75.55,10,70.7,167.426,21,66.619,91.876,0,-1,-9,0,79795,79795,portal_team_rankings_2024
+Nebraska,Nebraska Cornhuskers,,2024,33,7,72.621,9,67.222,97.641,10,65.2,25.02,0,0,-1,0,-238621,-238621,portal_team_rankings_2024
+Oklahoma,Oklahoma Sooners,,2024,34,6,70.034,15,72.4,308.966,29,68.552,238.932,0,2,-15,0,-2054042,-2054042,portal_team_rankings_2024
+Virginia,Virginia Cavaliers,,2024,35,6,69.111,12,64.5,90.642,12,62.583,21.532,0,1,-1,0,-123517,-123517,portal_team_rankings_2024
+Vanderbilt,Vanderbilt Commodores,,2024,36,6,65.648,22,66.455,220.955,24,65.583,155.307,0,-2,1,0,-1212,-1212,portal_team_rankings_2024
+Tennessee,Tennessee Volunteers,,2024,37,6,62.735,10,71.6,175.382,13,69.308,112.647,0,2,-4,0,77178,77178,portal_team_rankings_2024
+Rutgers,Rutgers Scarlet Knights,,2024,38,6,61.42,5,67.0,64.109,15,62.333,2.689,0,1,-11,0,-272554,-272554,portal_team_rankings_2024
+Arkansas,Arkansas Razorbacks,,2024,39,5,59.044,20,71.55,425.954,34,67.706,366.91,0,0,-14,0,744570,744570,portal_team_rankings_2024
+Iowa State,Iowa State Cyclones,,2024,40,5,56.367,4,67.25,57.252,21,62.238,0.885,0,0,-14,0,-306752,-306752,portal_team_rankings_2024
+Arizona,Arizona Wildcats,,2024,41,5,54.103,23,68.087,295.623,27,66.63,241.52,0,1,-2,0,-521216,-521216,portal_team_rankings_2024
+Baylor,Baylor Bears,,2024,42,4,46.737,15,67.8,202.605,11,68.273,155.868,0,0,4,0,-16156,-16156,portal_team_rankings_2024
+Michigan,Michigan Wolverines,,2024,43,2,21.095,8,66.25,39.762,22,65.136,18.667,0,0,-13,0,-1205405,-1205405,portal_team_rankings_2024
+Mississippi State,Mississippi State Bulldogs,,2024,44,1,14.484,19,70.158,300.645,28,68.786,286.161,0,1,-5,0,-293938,-293938,portal_team_rankings_2024
+Penn State,Penn State Nittany Lions,,2024,45,1,11.725,6,74.167,146.861,16,68.188,135.137,0,-1,-9,0,204737,204737,portal_team_rankings_2024
+Boston College,Boston College Eagles,,2024,46,1,9.331,13,62.462,-6.862,16,62.375,-16.193,0,0,-3,0,-203699,-203699,portal_team_rankings_2024
+Wake Forest,Wake Forest Demon Deacons,,2024,47,0,2.781,6,66.0,66.019,13,63.923,63.238,0,0,-6,0,-174337,-174337,portal_team_rankings_2024
+BYU,BYU Cougars,,2024,48,-1,-9.904,8,62.375,27.899,13,62.154,37.803,0,0,-4,0,-752777,-752777,portal_team_rankings_2024
+LSU,LSU Tigers,,2024,49,-1,-11.407,9,70.667,108.549,21,69.143,119.957,0,-1,-10,0,-835016,-835016,portal_team_rankings_2024
+Kansas State,Kansas State Wildcats,,2024,50,-1,-15.171,10,69.5,176.542,15,68.2,191.713,0,0,-6,0,-373360,-373360,portal_team_rankings_2024
