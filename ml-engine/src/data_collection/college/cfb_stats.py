@@ -58,14 +58,14 @@ class CFBStatsCollector:
             logger.error("cfbd package not installed. Run: pip install cfbd")
             raise ImportError("cfbd package required but not installed")
 
-        # Configure CFBD API
+        # Configure CFBD API (v5+ uses access_token)
         self.api_key = os.getenv("CFBD_API_KEY")
         if not self.api_key:
             logger.warning("CFBD_API_KEY not found in environment. API calls will fail.")
 
-        self.configuration = cfbd.Configuration()
-        self.configuration.api_key["Authorization"] = self.api_key
-        self.configuration.api_key_prefix["Authorization"] = "Bearer"
+        self.configuration = cfbd.Configuration(
+            access_token=self.api_key
+        )
 
         # Find data directory
         if data_dir is None:
@@ -182,7 +182,8 @@ class CFBStatsCollector:
         logger.info(f"Collecting player stats for {start_year}-{end_year}")
 
         all_stats = []
-        players_api = cfbd.PlayersApi(cfbd.ApiClient(self.configuration))
+        # Use StatsApi for player season stats (not PlayersApi)
+        stats_api = cfbd.StatsApi(cfbd.ApiClient(self.configuration))
         # Include ALL stat categories for comprehensive player evaluation
         stat_categories = [
             "passing", "rushing", "receiving",  # Offense
@@ -202,7 +203,7 @@ class CFBStatsCollector:
                 for category in stat_categories:
                     try:
                         self._rate_limit()
-                        stats = players_api.get_player_season_stats(
+                        stats = stats_api.get_player_season_stats(
                             year=year,
                             category=category,
                         )
@@ -722,8 +723,8 @@ if __name__ == "__main__":
 
     collector = CFBStatsCollector()
 
-    # Collect all data for recent years
-    data = collector.collect_all(start_year=2020, end_year=2024)
+    # Collect all data for recent years (including 2025)
+    data = collector.collect_all(start_year=2020, end_year=2025)
 
     # Show sample of each dataset
     print("\n" + "=" * 60)
