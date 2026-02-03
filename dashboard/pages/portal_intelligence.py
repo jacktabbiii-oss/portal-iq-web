@@ -1106,6 +1106,14 @@ def render_player_detail(df: pd.DataFrame, player_name: str, target_school: str)
     # Get headshot HTML
     headshot_html = get_player_headshot_html(player)
 
+    # Handle NaN values for schools
+    origin_school = player.get('origin_school')
+    origin_school_display = origin_school if pd.notna(origin_school) and origin_school else 'Unknown'
+    dest_school = player.get('destination_school')
+    dest_school_display = dest_school if pd.notna(dest_school) and dest_school else 'TBD'
+    position = player.get('position')
+    position_display = position if pd.notna(position) and position else 'ATH'
+
     # Header with player photo and info
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, {COLORS['bg_medium']} 0%, {COLORS['bg_light']} 100%);
@@ -1117,7 +1125,7 @@ def render_player_detail(df: pd.DataFrame, player_name: str, target_school: str)
             <div>
                 <h2 style="color: {COLORS['primary']}; margin: 0 0 5px 0;">{player['name']}</h2>
                 <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem; margin: 0;">
-                    {player.get('position', 'ATH')} | {player.get('origin_school', 'Unknown')} → {player.get('destination_school', 'TBD')}
+                    {position_display} | {origin_school_display} → {dest_school_display}
                 </p>
             </div>
         </div>
@@ -2140,11 +2148,13 @@ def export_watchlist_csv():
     # Convert to DataFrame
     rows = []
     for player_id, player in watchlist.items():
+        dest = player.get("destination_school", "")
+        dest_display = dest if dest and str(dest) != "nan" else "TBD"
         row = {
             "Name": player.get("name", ""),
             "Position": player.get("position", ""),
             "Origin School": player.get("origin_school", ""),
-            "Destination": player.get("destination_school", "TBD"),
+            "Destination": dest_display,
             "Stars": player.get("stars", 0),
             "Portal IQ Value": player.get("portaliq_value", 0),
             "On3 Value": player.get("on3_nil_value", 0),
