@@ -23,6 +23,7 @@ from utils.data_loader import (
     get_nil_players, get_portal_players, get_team_rankings,
     get_database_stats, search_players
 )
+from utils.navigation import render_sidebar
 
 # Page config
 st.set_page_config(
@@ -202,6 +203,9 @@ def chat_with_claude(client: Anthropic, messages: list, user_message: str) -> st
 # =============================================================================
 
 def main():
+    # Render shared navigation sidebar
+    render_sidebar()
+
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">🤖 AI Assistant</h1>

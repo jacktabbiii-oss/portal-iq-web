@@ -1,0 +1,239 @@
+# Portal IQ Configuration
+# AI-powered transfer portal and NIL intelligence platform
+# Built by Elite Sports Solutions
+
+# Data Paths
+data_paths:
+  raw: data/raw
+  processed: data/processed
+  cache: data/cache
+  models: models
+
+# Season Settings
+current_season: 2025
+seasons_range:
+  - 2020
+  - 2025
+
+# School Tier Classifications
+school_tiers:
+  blue_blood:
+    - Alabama
+    - Ohio State
+    - USC
+    - Michigan
+    - Texas
+    - Oklahoma
+    - Notre Dame
+
+  elite:
+    - Georgia
+    - Clemson
+    - Oregon
+    - Penn State
+    - LSU
+    - Florida
+    - Florida State
+    - Tennessee
+    - Auburn
+    - Wisconsin
+    - Miami
+
+  power_brand:
+    - Texas A&M
+    - Ole Miss
+    - Michigan State
+    - UCLA
+    - Iowa
+    - Arkansas
+    - South Carolina
+    - NC State
+    - Virginia Tech
+    - Pittsburgh
+    - Louisville
+    - Colorado
+    - Arizona
+    - Utah
+    - Kansas State
+    - Missouri
+
+  p4_mid:
+    # Remaining Power 4 schools
+    - Washington
+    - Arizona State
+    - Stanford
+    - California
+    - Oregon State
+    - Washington State
+    - Vanderbilt
+    - Mississippi State
+    - Kentucky
+    - West Virginia
+    - Cincinnati
+    - UCF
+    - Houston
+    - BYU
+    - TCU
+    - Texas Tech
+    - Baylor
+    - Kansas
+    - Iowa State
+    - Oklahoma State
+    - Indiana
+    - Maryland
+    - Minnesota
+    - Northwestern
+    - Purdue
+    - Rutgers
+    - Illinois
+    - Nebraska
+    - Boston College
+    - Duke
+    - Georgia Tech
+    - North Carolina
+    - Syracuse
+    - Virginia
+    - Wake Forest
+    - California
+
+  g5_strong:
+    - Boise State
+    - Memphis
+    - SMU
+    - UNLV
+    - Tulane
+    - Liberty
+    - James Madison
+    - Jacksonville State
+    - Sam Houston
+
+  g5:
+    # Remaining Group of 5 schools
+    - Air Force
+    - Army
+    - Navy
+    - Appalachian State
+    - Arkansas State
+    - Ball State
+    - Bowling Green
+    - Buffalo
+    - Central Michigan
+    - Charlotte
+    - Coastal Carolina
+    - East Carolina
+    - Eastern Michigan
+    - FIU
+    - Florida Atlantic
+    - Fresno State
+    - Georgia Southern
+    - Georgia State
+    - Hawaii
+    - Kennesaw State
+    - Kent State
+    - Louisiana
+    - Louisiana Tech
+    - Marshall
+    - Miami (OH)
+    - Middle Tennessee
+    - Nevada
+    - New Mexico
+    - New Mexico State
+    - North Texas
+    - Northern Illinois
+    - Ohio
+    - Old Dominion
+    - Rice
+    - San Diego State
+    - San Jose State
+    - South Alabama
+    - South Florida
+    - Southern Miss
+    - Temple
+    - Texas State
+    - Toledo
+    - Troy
+    - Tulsa
+    - UAB
+    - UConn
+    - UL Monroe
+    - UTEP
+    - UTSA
+    - Western Kentucky
+    - Western Michigan
+    - Wyoming
+
+# Conference Tier Classifications
+conference_tiers:
+  tier1:
+    - SEC
+    - Big Ten
+
+  tier2:
+    - Big 12
+    - ACC
+
+  tier3:
+    - American
+    - Mountain West
+    - Sun Belt
+    - MAC
+    - CUSA
+
+# NIL Tier Thresholds (in USD)
+nil_tiers:
+  mega: 1000000
+  premium: 500000
+  solid: 100000
+  moderate: 25000
+  entry: 0
+
+# Model Hyperparameters
+model_params:
+  nil_valuator:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    min_child_weight: 3
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+
+  portal_predictor:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    min_child_weight: 3
+    subsample: 0.8
+    colsample_bytree: 0.8
+
+  draft_projector:
+    n_estimators: 150
+    max_depth: 8
+    learning_rate: 0.05
+    min_child_weight: 5
+    subsample: 0.7
+    colsample_bytree: 0.7
+
+  win_model:
+    n_estimators: 100
+    max_depth: 5
+    learning_rate: 0.1
+    min_child_weight: 10
+    subsample: 0.9
+
+# API Keys (loaded from environment variables)
+api_keys:
+  cfbd: ${CFBD_API_KEY}
+  database: ${DATABASE_URL}
+
+# Logging Configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Cache Settings
+cache:
+  enabled: true
+  ttl_hours: 24
+  max_size_mb: 500

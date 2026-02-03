@@ -26,6 +26,7 @@ from utils.api_client import get_api_client
 from utils.data_loader import (
     load_sample_data, get_school_list, get_positions, get_class_years
 )
+from utils.navigation import render_sidebar
 
 # Page config
 st.set_page_config(
@@ -57,6 +58,98 @@ def get_client():
 # Helper Functions
 # =============================================================================
 
+def calculate_size_multiplier(player_data: dict) -> tuple[float, str]:
+    """
+    Calculate size multiplier based on height/weight for position.
+    Returns (multiplier, description).
+    """
+    position = player_data.get("position", "ATH")
+    height = player_data.get("height")  # In inches
+    weight = player_data.get("weight")  # In pounds
+
+    # If no size data, return neutral multiplier
+    if pd.isna(height) or pd.isna(weight) or height is None or weight is None:
+        return 1.0, "Size data not available"
+
+    height = float(height)
+    weight = float(weight)
+
+    # Ideal size ranges by position (height in inches, weight in lbs)
+    # Format: (min_height, ideal_height, max_height, min_weight, ideal_weight, max_weight)
+    position_ideals = {
+        "QB": (73, 75, 78, 200, 220, 240),      # 6'1" - 6'6", 200-240 lbs
+        "RB": (68, 71, 73, 195, 215, 230),      # 5'8" - 6'1", 195-230 lbs
+        "WR": (70, 73, 76, 175, 200, 220),      # 5'10" - 6'4", 175-220 lbs
+        "TE": (75, 77, 79, 240, 255, 270),      # 6'3" - 6'7", 240-270 lbs
+        "OT": (76, 78, 81, 295, 315, 340),      # 6'4" - 6'9", 295-340 lbs
+        "OG": (74, 76, 78, 300, 320, 345),      # 6'2" - 6'6", 300-345 lbs
+        "C": (73, 75, 77, 290, 310, 330),       # 6'1" - 6'5", 290-330 lbs
+        "IOL": (74, 76, 78, 295, 315, 340),     # 6'2" - 6'6", 295-340 lbs
+        "EDGE": (74, 77, 79, 245, 265, 285),    # 6'2" - 6'7", 245-285 lbs
+        "DT": (73, 75, 78, 290, 310, 340),      # 6'1" - 6'6", 290-340 lbs
+        "DL": (74, 76, 79, 275, 295, 320),      # 6'2" - 6'7", 275-320 lbs
+        "LB": (72, 74, 76, 225, 240, 255),      # 6'0" - 6'4", 225-255 lbs
+        "CB": (69, 72, 74, 175, 195, 210),      # 5'9" - 6'2", 175-210 lbs
+        "S": (70, 73, 75, 190, 210, 225),       # 5'10" - 6'3", 190-225 lbs
+        "K": (70, 72, 75, 175, 195, 215),       # 5'10" - 6'3", 175-215 lbs
+        "P": (72, 74, 77, 190, 210, 230),       # 6'0" - 6'5", 190-230 lbs
+        "ATH": (71, 74, 77, 195, 215, 240),     # 5'11" - 6'5", 195-240 lbs
+    }
+
+    ideals = position_ideals.get(position, (71, 74, 77, 195, 215, 240))
+    min_h, ideal_h, max_h, min_w, ideal_w, max_w = ideals
+
+    # Calculate height score (0.0 to 1.0, peaks at ideal)
+    if height >= ideal_h:
+        # Above ideal - penalize if too tall
+        if height > max_h:
+            height_score = max(0.7, 1.0 - (height - max_h) * 0.1)
+        else:
+            height_score = 1.0 + (height - ideal_h) * 0.02  # Slight bonus for being tall
+    else:
+        # Below ideal
+        if height < min_h:
+            height_score = max(0.6, 1.0 - (min_h - height) * 0.1)
+        else:
+            height_score = 0.9 + (height - min_h) / (ideal_h - min_h) * 0.1
+
+    # Calculate weight score (0.0 to 1.0, peaks at ideal)
+    if weight >= ideal_w:
+        if weight > max_w:
+            weight_score = max(0.75, 1.0 - (weight - max_w) * 0.02)
+        else:
+            weight_score = 1.0
+    else:
+        if weight < min_w:
+            weight_score = max(0.7, 1.0 - (min_w - weight) * 0.02)
+        else:
+            weight_score = 0.85 + (weight - min_w) / (ideal_w - min_w) * 0.15
+
+    # Combined size multiplier
+    size_mult = (height_score * 0.5 + weight_score * 0.5)
+
+    # Determine description
+    height_ft = int(height // 12)
+    height_in = int(height % 12)
+    height_str = f"{height_ft}'{height_in}\""
+
+    if size_mult >= 1.1:
+        desc = f"Elite size ({height_str}, {weight:.0f} lbs)"
+    elif size_mult >= 1.0:
+        desc = f"Ideal size ({height_str}, {weight:.0f} lbs)"
+    elif size_mult >= 0.9:
+        desc = f"Good size ({height_str}, {weight:.0f} lbs)"
+    elif size_mult >= 0.8:
+        desc = f"Undersized ({height_str}, {weight:.0f} lbs)"
+    else:
+        desc = f"Size concerns ({height_str}, {weight:.0f} lbs)"
+
+    # Cap multiplier between 0.75 and 1.25
+    size_mult = max(0.75, min(1.25, size_mult))
+
+    return size_mult, desc
+
+
 def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
     """
     Calculate custom NIL value based on on-field performance metrics.
@@ -85,6 +178,9 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
     # Star rating multiplier (performance indicator)
     star_multipliers = {5: 2.5, 4: 1.5, 3: 1.0, 2: 0.6, 1: 0.3}
     star_mult = star_multipliers.get(stars, 1.0)
+
+    # Size multiplier (height/weight for position)
+    size_mult, size_desc = calculate_size_multiplier(player_data)
 
     # School brand multiplier
     blue_bloods = ["Alabama", "Ohio State", "Georgia", "Texas", "USC", "Michigan", "Notre Dame"]
@@ -168,14 +264,16 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             perf_bonus += 40000
             perf_factors.append(f"Playmaker ({ints} INTs)")
 
-    # Calculate total
-    custom_value = (base * star_mult * school_mult) + perf_bonus
+    # Calculate total with size factor
+    custom_value = (base * star_mult * school_mult * size_mult) + perf_bonus
 
     # Build breakdown for explanation
     breakdown = {
         "base_position_value": base,
         "star_multiplier": star_mult,
         "star_rating": stars,
+        "size_multiplier": size_mult,
+        "size_description": size_desc,
         "school_multiplier": school_mult,
         "school_tier": school_factor,
         "performance_bonus": perf_bonus,
@@ -362,6 +460,9 @@ def create_social_growth_chart(current_value: float, follower_increase: int) -> 
 # =============================================================================
 
 def main():
+    # Render shared navigation sidebar
+    render_sidebar()
+
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">💰 NIL Valuator</h1>
@@ -664,6 +765,9 @@ def render_valuation_results(player_data: dict):
             if custom_breakdown.get("star_rating", 3) >= 4:
                 explanation_items.append(f"• **{custom_breakdown['star_rating']}-star rating** indicates elite potential ({custom_breakdown['star_multiplier']}x multiplier)")
 
+            if custom_breakdown.get("size_multiplier", 1.0) >= 1.05:
+                explanation_items.append(f"• **{custom_breakdown['size_description']}** - premium size for position ({custom_breakdown['size_multiplier']:.2f}x multiplier)")
+
             if custom_breakdown.get("school_tier") in ["Blue Blood", "Elite Program"]:
                 explanation_items.append(f"• **{custom_breakdown['school_tier']} school** brand value ({custom_breakdown['school_multiplier']}x multiplier)")
 
@@ -676,6 +780,9 @@ def render_valuation_results(player_data: dict):
             explanation_items.append("• **Social media following** - On3 heavily weights social presence")
             explanation_items.append("• **NIL deal history** - existing deals may inflate market value")
             explanation_items.append("• **Hype/Brand deals** - marketing appeal beyond on-field stats")
+
+            if custom_breakdown.get("size_multiplier", 1.0) < 0.95:
+                explanation_items.append(f"• **Size concerns** - {custom_breakdown.get('size_description', 'undersized')} affects our valuation ({custom_breakdown.get('size_multiplier', 1.0):.2f}x)")
 
             if custom_breakdown.get("performance_bonus", 0) == 0:
                 explanation_items.append("")

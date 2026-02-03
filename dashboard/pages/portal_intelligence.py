@@ -27,6 +27,7 @@ from utils.data_loader import (
     get_roster_for_school, get_portal_players as get_portal_data,
     get_portal_statuses
 )
+from utils.navigation import render_sidebar
 
 # Page config
 st.set_page_config(
@@ -183,6 +184,9 @@ def style_risk_cell(val):
 # =============================================================================
 
 def main():
+    # Render shared navigation sidebar
+    render_sidebar()
+
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">🔄 Portal Intelligence</h1>

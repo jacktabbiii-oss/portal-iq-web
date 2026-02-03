@@ -23,6 +23,7 @@ from utils.styling import (
 from utils.data_loader import (
     get_nil_players, get_portal_players, get_team_rankings, get_school_list, get_positions
 )
+from utils.navigation import render_sidebar
 
 # Page config
 st.set_page_config(
@@ -206,6 +207,9 @@ def create_team_impact_chart(team_df: pd.DataFrame) -> go.Figure:
 # =============================================================================
 
 def main():
+    # Render shared navigation sidebar
+    render_sidebar()
+
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">📈 Win Impact</h1>
