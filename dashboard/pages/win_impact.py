@@ -42,7 +42,9 @@ def calculate_win_impact(player_data: dict) -> dict:
     """Calculate estimated win impact for a player based on position and metrics."""
     position = player_data.get("position", "ATH")
     nil_value = player_data.get("nil_value", 0)
-    stars = player_data.get("stars", 3)
+    stars_raw = player_data.get("stars", 3)
+    # Handle NaN values
+    stars = int(stars_raw) if pd.notna(stars_raw) else 3
 
     # Base win impact by position (expected wins above replacement)
     position_war = {
@@ -121,12 +123,18 @@ def create_nil_war_scatter(nil_df: pd.DataFrame) -> go.Figure:
     war_data = []
     for _, row in nil_df.iterrows():
         impact = calculate_win_impact(row.to_dict())
+        # Handle NaN stars values - default to 3
+        stars_val = row.get("stars", 3)
+        if pd.isna(stars_val):
+            stars_val = 3
+        else:
+            stars_val = int(stars_val)
         war_data.append({
             "name": row["name"],
             "position": row["position"],
             "war": impact["war"],
             "nil_value": row.get("nil_value", 0),
-            "stars": row.get("stars", 3)
+            "stars": stars_val
         })
 
     war_df = pd.DataFrame(war_data)
@@ -340,7 +348,7 @@ def render_player_tab():
                 <h2 style="color: {COLORS['primary']}; margin-bottom: 15px;">{player['name']}</h2>
                 <p><strong>Position:</strong> {player['position']}</p>
                 <p><strong>School:</strong> {player.get('school', 'Unknown')}</p>
-                <p><strong>Stars:</strong> {'*' * int(player.get('stars', 3))}</p>
+                <p><strong>Stars:</strong> {'⭐' * (int(player.get('stars', 3)) if pd.notna(player.get('stars')) else 3)}</p>
                 <p><strong>NIL Value:</strong> {format_currency(player.get('nil_value', 0))}</p>
             </div>
             """, unsafe_allow_html=True)
