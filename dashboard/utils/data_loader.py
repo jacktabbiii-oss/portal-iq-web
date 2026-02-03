@@ -34,17 +34,28 @@ def get_database_stats() -> Dict[str, Any]:
         "new_portal_today": 0,
         "nil_valuations": 0,
         "schools": 0,
-        "models_updated": "Feb 2, 2026",
+        "models_updated": "Feb 3, 2026",
         "last_updated": datetime.now().strftime("%b %d, %Y %H:%M"),
-        "data_version": "3.0.0",
+        "data_version": "3.1.0",
     }
 
-    # Load NIL data
-    nil_path = _get_data_path("on3_all_nil_rankings.csv")
-    if nil_path.exists():
-        df = pd.read_csv(nil_path)
+    # Load NIL valuations (proprietary model predictions + actual values)
+    valuations_path = _get_data_path("portal_nil_valuations.csv")
+    if valuations_path.exists():
+        df = pd.read_csv(valuations_path)
         stats["nil_valuations"] = len(df)
         stats["total_players"] = len(df["name"].unique())
+        # Count actual vs predicted
+        actual_count = (~df["is_predicted"]).sum() if "is_predicted" in df.columns else 0
+        stats["actual_nil_values"] = int(actual_count)
+        stats["predicted_nil_values"] = len(df) - int(actual_count)
+    else:
+        # Fallback to On3 NIL rankings
+        nil_path = _get_data_path("on3_all_nil_rankings.csv")
+        if nil_path.exists():
+            df = pd.read_csv(nil_path)
+            stats["nil_valuations"] = len(df)
+            stats["total_players"] = len(df["name"].unique())
 
     # Load portal data
     portal_path = _get_data_path("on3_transfer_portal.csv")
@@ -87,11 +98,35 @@ def load_sample_data(data_type: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=600)
 def get_nil_players() -> pd.DataFrame:
-    """Get NIL player data from On3."""
+    """Get NIL player data with proprietary valuations."""
+    # Try proprietary valuations first
+    valuations_path = _get_data_path("portal_nil_valuations.csv")
+
+    if valuations_path.exists():
+        df = pd.read_csv(valuations_path)
+
+        # Standardize column names for compatibility
+        df = df.rename(columns={
+            "nil_value_predicted": "nil_value",
+            "recruiting_stars": "stars",
+            "nil_tier": "tier",
+        })
+
+        # Add overall_rating based on stars
+        df["overall_rating"] = df["stars"] / 5
+
+        # Add source indicator
+        df["valuation_source"] = df["is_predicted"].apply(
+            lambda x: "Predicted" if x else "On3 Actual"
+        )
+
+        return df
+
+    # Fallback to On3 NIL rankings
     nil_path = _get_data_path("on3_all_nil_rankings.csv")
 
     if not nil_path.exists():
-        st.warning("NIL data not found. Run the On3 scraper first.")
+        st.warning("NIL data not found. Run the valuation model first.")
         return pd.DataFrame()
 
     df = pd.read_csv(nil_path)
@@ -124,6 +159,8 @@ def get_nil_players() -> pd.DataFrame:
         max_rating = df["overall_rating"].max()
         if max_rating > 1:
             df["overall_rating"] = df["overall_rating"] / 100
+
+    df["valuation_source"] = "On3 Actual"
 
     return df
 
