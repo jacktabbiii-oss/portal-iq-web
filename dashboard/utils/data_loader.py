@@ -541,6 +541,152 @@ def get_cfbd_rosters() -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def get_cfbd_player_stats() -> pd.DataFrame:
+    """Load CFBD player stats data."""
+    stats_path = _get_data_path("cfbd_player_stats.csv")
+
+    if not stats_path.exists():
+        # Try dated version
+        import glob
+        pattern = str(DATA_DIR / "cfbd_player_stats_*.csv")
+        files = glob.glob(pattern)
+        if files:
+            stats_path = Path(sorted(files)[-1])  # Most recent
+
+    if not stats_path.exists():
+        return pd.DataFrame()
+
+    df = pd.read_csv(stats_path)
+
+    # Rename columns to match expected format in nil_valuator
+    column_renames = {
+        # Offensive stats
+        "passing_YDS": "passing_yards",
+        "passing_TD": "passing_tds",
+        "passing_INT": "interceptions",
+        "passing_ATT": "passing_attempts",
+        "passing_COMPLETIONS": "completions",
+        "passing_PCT": "completion_pct",
+        "rushing_YDS": "rushing_yards",
+        "rushing_TD": "rushing_tds",
+        "rushing_CAR": "rushing_attempts",
+        "rushing_YPC": "yards_per_carry",
+        "receiving_YDS": "receiving_yards",
+        "receiving_TD": "receiving_tds",
+        "receiving_REC": "receptions",
+        "receiving_YPR": "yards_per_reception",
+        # Defensive stats
+        "defensive_TOT": "tackles",
+        "defensive_SOLO": "solo_tackles",
+        "defensive_TFL": "tackles_for_loss",
+        "defensive_SACKS": "sacks",
+        "defensive_QB HUR": "qb_hurries",
+        "defensive_PD": "passes_defended",
+        "interceptions_INT": "interceptions_def",
+        "interceptions_YDS": "int_return_yards",
+        "interceptions_TD": "int_return_tds",
+        "fumbles_FUM": "fumbles",
+        "fumbles_REC": "fumbles_recovered",
+        "fumbles_LOST": "fumbles_lost",
+        # Kicking stats
+        "kicking_FGM": "fg_made",
+        "kicking_FGA": "fg_attempted",
+        "kicking_XPM": "xp_made",
+        "kicking_XPA": "xp_attempted",
+        "kicking_PTS": "kicking_points",
+        # Punting stats
+        "punting_NO": "punts",
+        "punting_YDS": "punt_yards",
+        "punting_AVG": "punt_avg",
+        "punting_TB": "touchbacks",
+        "punting_In 20": "punts_inside_20",
+        # Return stats
+        "kickReturns_NO": "kick_returns",
+        "kickReturns_YDS": "kick_return_yards",
+        "kickReturns_TD": "kick_return_tds",
+        "puntReturns_NO": "punt_returns",
+        "puntReturns_YDS": "punt_return_yards",
+        "puntReturns_TD": "punt_return_tds",
+    }
+    df = df.rename(columns=column_renames)
+
+    return df
+
+
+def get_player_stats(player_name: str, team: str = None) -> Dict[str, Any]:
+    """Look up stats for a player from CFBD player stats data.
+
+    Args:
+        player_name: Player name to search
+        team: Optional team to narrow search
+
+    Returns:
+        Dict with passing_yards, rushing_yards, etc.
+    """
+    stats_df = get_cfbd_player_stats()
+
+    if stats_df.empty:
+        return {}
+
+    # Standardize name for matching
+    name_lower = str(player_name).lower().strip()
+
+    # Try exact match first
+    matches = stats_df[stats_df["player_name"].str.lower() == name_lower]
+
+    # If team provided, filter further
+    if not matches.empty and team:
+        team_lower = str(team).lower()
+        team_matches = matches[matches["team"].str.lower().str.contains(team_lower, na=False)]
+        if not team_matches.empty:
+            matches = team_matches
+
+    if matches.empty:
+        # Try fuzzy match on first/last name
+        name_parts = name_lower.split()
+        if len(name_parts) >= 2:
+            first, last = name_parts[0], name_parts[-1]
+            matches = stats_df[
+                stats_df["player_name"].str.lower().str.contains(first, na=False) &
+                stats_df["player_name"].str.lower().str.contains(last, na=False)
+            ]
+
+    if matches.empty:
+        return {}
+
+    # Get the most recent season's stats
+    if "season" in matches.columns:
+        matches = matches.sort_values("season", ascending=False)
+
+    player = matches.iloc[0]
+
+    # Return ALL stats as dict
+    stats_cols = [
+        # Offensive
+        "passing_yards", "passing_tds", "interceptions", "passing_attempts",
+        "completions", "completion_pct", "rushing_yards", "rushing_tds",
+        "rushing_attempts", "yards_per_carry", "receiving_yards", "receiving_tds",
+        "receptions", "yards_per_reception",
+        # Defensive
+        "tackles", "solo_tackles", "tackles_for_loss", "sacks", "qb_hurries",
+        "passes_defended", "interceptions_def", "int_return_yards", "fumbles_recovered",
+        # Kicking
+        "fg_made", "fg_attempted", "xp_made", "kicking_points",
+        # Punting
+        "punts", "punt_avg", "punts_inside_20",
+        # Returns
+        "kick_return_yards", "kick_return_tds", "punt_return_yards", "punt_return_tds",
+    ]
+
+    result = {}
+    for col in stats_cols:
+        if col in player.index and pd.notna(player[col]):
+            result[col] = player[col]
+
+    return result
+
+
 def get_player_measurables(player_name: str, team: str = None) -> Dict[str, Any]:
     """Look up measurables for a player from CFBD roster data.
 
@@ -626,9 +772,10 @@ def parse_height_to_inches(height_str: str) -> Optional[float]:
 
 @st.cache_data(ttl=600)
 def get_portal_players_with_measurables(year: int = 2026, status: str = None) -> pd.DataFrame:
-    """Get portal players enriched with measurables from CFBD rosters.
+    """Get portal players enriched with measurables AND stats from CFBD.
 
-    This adds height, weight, and formatted displays for each player.
+    This adds height, weight, formatted displays, AND performance stats for each player.
+    Stats are critical for accurate NIL valuations and WAR calculations.
     """
     # Get portal players with NIL enrichment
     portal_df = get_portal_players(year=year, status=status, enrich_nil=True)
@@ -639,40 +786,123 @@ def get_portal_players_with_measurables(year: int = 2026, status: str = None) ->
     # Load CFBD rosters for measurables lookup
     rosters = get_cfbd_rosters()
 
+    # Load CFBD player stats
+    stats_df = get_cfbd_player_stats()
+
+    # Initialize columns if no data
     if rosters.empty:
-        # No roster data, return as-is
         portal_df["height_inches"] = None
         portal_df["height_display"] = None
         portal_df["weight"] = None
-        return portal_df
 
     # Create lookup dict from rosters (name -> measurables)
     roster_lookup = {}
-    for _, row in rosters.iterrows():
-        name_key = str(row.get("player_name", "")).lower().strip()
-        if name_key and name_key not in roster_lookup:
-            roster_lookup[name_key] = {
-                "height_inches": row.get("height"),
-                "weight": row.get("weight"),
-                "year": row.get("year"),
-                "jersey": row.get("jersey"),
-            }
+    if not rosters.empty:
+        for _, row in rosters.iterrows():
+            name_key = str(row.get("player_name", "")).lower().strip()
+            if name_key and name_key not in roster_lookup:
+                roster_lookup[name_key] = {
+                    "height_inches": row.get("height"),
+                    "weight": row.get("weight"),
+                    "year": row.get("year"),
+                    "jersey": row.get("jersey"),
+                }
 
-    # Enrich portal players with measurables
+    # Create lookup dict from stats (name -> stats) - ALL stat types
+    stats_lookup = {}
+    if not stats_df.empty:
+        # Get most recent season for each player
+        if "season" in stats_df.columns:
+            stats_df = stats_df.sort_values("season", ascending=False)
+        for _, row in stats_df.iterrows():
+            name_key = str(row.get("player_name", "")).lower().strip()
+            if name_key and name_key not in stats_lookup:
+                stats_lookup[name_key] = {
+                    # Offensive stats
+                    "passing_yards": row.get("passing_yards"),
+                    "passing_tds": row.get("passing_tds"),
+                    "interceptions": row.get("interceptions"),
+                    "completion_pct": row.get("completion_pct"),
+                    "rushing_yards": row.get("rushing_yards"),
+                    "rushing_tds": row.get("rushing_tds"),
+                    "yards_per_carry": row.get("yards_per_carry"),
+                    "receiving_yards": row.get("receiving_yards"),
+                    "receiving_tds": row.get("receiving_tds"),
+                    "receptions": row.get("receptions"),
+                    "yards_per_reception": row.get("yards_per_reception"),
+                    # Defensive stats
+                    "tackles": row.get("tackles"),
+                    "solo_tackles": row.get("solo_tackles"),
+                    "tackles_for_loss": row.get("tackles_for_loss"),
+                    "sacks": row.get("sacks"),
+                    "qb_hurries": row.get("qb_hurries"),
+                    "passes_defended": row.get("passes_defended"),
+                    "interceptions_def": row.get("interceptions_def"),
+                    "int_return_yards": row.get("int_return_yards"),
+                    "fumbles_recovered": row.get("fumbles_recovered"),
+                    # Kicking stats
+                    "fg_made": row.get("fg_made"),
+                    "fg_attempted": row.get("fg_attempted"),
+                    "xp_made": row.get("xp_made"),
+                    "kicking_points": row.get("kicking_points"),
+                    # Punting stats
+                    "punts": row.get("punts"),
+                    "punt_avg": row.get("punt_avg"),
+                    "punts_inside_20": row.get("punts_inside_20"),
+                    # Return stats
+                    "kick_return_yards": row.get("kick_return_yards"),
+                    "kick_return_tds": row.get("kick_return_tds"),
+                    "punt_return_yards": row.get("punt_return_yards"),
+                    "punt_return_tds": row.get("punt_return_tds"),
+                }
+
+    # All stat columns to add
+    stat_columns = [
+        # Offensive
+        "passing_yards", "passing_tds", "interceptions", "completion_pct",
+        "rushing_yards", "rushing_tds", "yards_per_carry",
+        "receiving_yards", "receiving_tds", "receptions", "yards_per_reception",
+        # Defensive
+        "tackles", "solo_tackles", "tackles_for_loss", "sacks", "qb_hurries",
+        "passes_defended", "interceptions_def", "int_return_yards", "fumbles_recovered",
+        # Kicking
+        "fg_made", "fg_attempted", "xp_made", "kicking_points",
+        # Punting
+        "punts", "punt_avg", "punts_inside_20",
+        # Returns
+        "kick_return_yards", "kick_return_tds", "punt_return_yards", "punt_return_tds",
+    ]
+
+    # Initialize stat lists
+    stat_lists = {col: [] for col in stat_columns}
+
+    # Enrich portal players with measurables AND stats
     heights = []
     weights = []
+
     for _, row in portal_df.iterrows():
         name_key = str(row.get("name", "")).lower().strip()
-        measurables = roster_lookup.get(name_key, {})
 
+        # Measurables
+        measurables = roster_lookup.get(name_key, {})
         heights.append(measurables.get("height_inches"))
         weights.append(measurables.get("weight"))
 
+        # Stats - all columns
+        stats = stats_lookup.get(name_key, {})
+        for col in stat_columns:
+            stat_lists[col].append(stats.get(col))
+
+    # Add measurables columns
     portal_df["height_inches"] = heights
     portal_df["weight"] = weights
     portal_df["height_display"] = portal_df["height_inches"].apply(
         lambda x: format_height(x) if pd.notna(x) else None
     )
+
+    # Add all stats columns
+    for col in stat_columns:
+        portal_df[col] = stat_lists[col]
 
     return portal_df
 

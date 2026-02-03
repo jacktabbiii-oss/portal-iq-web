@@ -293,29 +293,94 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             perf_bonus += 60000
             perf_factors.append(f"High TD count ({rec_tds})")
 
-    # Defensive stats
+    # Defensive stats - DL/EDGE/LB
     elif position in ["EDGE", "DT", "DL", "LB"]:
         tackles = player_data.get("tackles", 0) or 0
         sacks = player_data.get("sacks", 0) or 0
+        tfls = player_data.get("tackles_for_loss", 0) or 0
+        qb_hurries = player_data.get("qb_hurries", 0) or 0
+
         if sacks > 8:
             perf_bonus += 100000
             perf_factors.append(f"Elite pass rusher ({sacks} sacks)")
         elif sacks > 5:
             perf_bonus += 50000
             perf_factors.append(f"Strong pass rush ({sacks} sacks)")
+        elif sacks > 3:
+            perf_bonus += 25000
+            perf_factors.append(f"Productive pass rusher ({sacks} sacks)")
+
+        if tfls > 12:
+            perf_bonus += 60000
+            perf_factors.append(f"Elite disruptor ({tfls} TFLs)")
+        elif tfls > 8:
+            perf_bonus += 30000
+            perf_factors.append(f"Strong TFL production ({tfls} TFLs)")
+
         if tackles > 80:
             perf_bonus += 40000
             perf_factors.append(f"High tackle count ({tackles})")
+        elif tackles > 60:
+            perf_bonus += 20000
+            perf_factors.append(f"Solid tackler ({tackles} tackles)")
 
-    # Secondary stats
+        if qb_hurries > 10:
+            perf_bonus += 25000
+            perf_factors.append(f"Constant pressure ({qb_hurries} QB hurries)")
+
+    # Secondary stats - CB/S
     elif position in ["CB", "S"]:
-        ints = player_data.get("interceptions", player_data.get("interceptions_def", 0)) or 0
+        ints = player_data.get("interceptions_def", player_data.get("interceptions", 0)) or 0
+        pds = player_data.get("passes_defended", 0) or 0
+        tackles = player_data.get("tackles", 0) or 0
+
         if ints > 4:
             perf_bonus += 80000
             perf_factors.append(f"Ball hawk ({ints} INTs)")
         elif ints > 2:
             perf_bonus += 40000
             perf_factors.append(f"Playmaker ({ints} INTs)")
+        elif ints > 0:
+            perf_bonus += 15000
+            perf_factors.append(f"Creates turnovers ({ints} INT)")
+
+        if pds > 12:
+            perf_bonus += 50000
+            perf_factors.append(f"Elite coverage ({pds} PDs)")
+        elif pds > 8:
+            perf_bonus += 25000
+            perf_factors.append(f"Strong coverage ({pds} PDs)")
+
+        if tackles > 60:
+            perf_bonus += 30000
+            perf_factors.append(f"Enforcer ({tackles} tackles)")
+        elif tackles > 40:
+            perf_bonus += 15000
+            perf_factors.append(f"Active tackler ({tackles} tackles)")
+
+    # Kicker stats
+    elif position == "K":
+        fg_made = player_data.get("fg_made", 0) or 0
+        fg_att = player_data.get("fg_attempted", 0) or 0
+        if fg_att > 0:
+            fg_pct = fg_made / fg_att
+            if fg_pct > 0.85 and fg_made > 15:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite accuracy ({fg_made}/{fg_att}, {fg_pct*100:.1f}%)")
+            elif fg_pct > 0.75 and fg_made > 10:
+                perf_bonus += 25000
+                perf_factors.append(f"Reliable kicker ({fg_made}/{fg_att})")
+
+    # Punter stats
+    elif position == "P":
+        punt_avg = player_data.get("punt_avg", 0) or 0
+        punts_in_20 = player_data.get("punts_inside_20", 0) or 0
+        if punt_avg > 45:
+            perf_bonus += 30000
+            perf_factors.append(f"Booming punts ({punt_avg:.1f} avg)")
+        if punts_in_20 > 20:
+            perf_bonus += 25000
+            perf_factors.append(f"Pin specialist ({punts_in_20} inside 20)")
 
     # Calculate total with size factor
     custom_value = (base * star_mult * school_mult * size_mult) + perf_bonus

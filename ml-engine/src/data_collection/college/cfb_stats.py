@@ -155,7 +155,7 @@ class CFBStatsCollector:
         end_year: int,
     ) -> pd.DataFrame:
         """
-        Collect player season statistics for passing, rushing, and receiving.
+        Collect comprehensive player season statistics from CFBD.
 
         Args:
             start_year: First season to collect
@@ -167,6 +167,12 @@ class CFBStatsCollector:
             - passing: attempts, completions, yards, TDs, INTs, rating
             - rushing: attempts, yards, TDs, yards per carry
             - receiving: receptions, yards, TDs, yards per reception
+            - defensive: tackles, TFLs, sacks, QB hurries
+            - interceptions: INTs, return yards, TDs
+            - fumbles: forced, recovered, lost
+            - kicking: FG made/att, PAT made/att, points
+            - punting: punts, avg, inside 20
+            - kick/punt returns: attempts, yards, TDs
         """
         # Check cache first
         cached = self._load_cache("player_stats", start_year, end_year)
@@ -177,7 +183,17 @@ class CFBStatsCollector:
 
         all_stats = []
         players_api = cfbd.PlayersApi(cfbd.ApiClient(self.configuration))
-        stat_categories = ["passing", "rushing", "receiving"]
+        # Include ALL stat categories for comprehensive player evaluation
+        stat_categories = [
+            "passing", "rushing", "receiving",  # Offense
+            "defensive",  # Tackles, TFLs, sacks, etc.
+            "interceptions",  # Defensive INTs, return yards
+            "fumbles",  # Fumbles lost/recovered, forced fumbles
+            "kicking",  # FGs, PATs, points
+            "punting",  # Punts, avg, inside 20
+            "kickReturns",  # KR yards, TDs
+            "puntReturns",  # PR yards, TDs
+        ]
 
         try:
             for year in range(start_year, end_year + 1):
