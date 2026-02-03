@@ -19,11 +19,15 @@ COPY ml-engine/data/processed/on3_all_nil_rankings.csv ./ml-engine/data/processe
 COPY ml-engine/data/processed/on3_transfer_portal.csv ./ml-engine/data/processed/
 COPY ml-engine/data/processed/on3_team_portal_rankings.csv ./ml-engine/data/processed/
 
+# Copy and setup start script
+COPY start.sh .
+RUN chmod +x start.sh
+
 # Railway sets PORT env var - default to 8501
 ENV PORT=8501
 
 # Expose port
-EXPOSE $PORT
+EXPOSE 8501
 
-# Run Streamlit (shell form to expand $PORT)
-CMD streamlit run dashboard/app.py --server.port=$PORT --server.address=0.0.0.0
+# Run via start script
+CMD ["./start.sh"]
