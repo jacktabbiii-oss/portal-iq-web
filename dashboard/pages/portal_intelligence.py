@@ -5,6 +5,7 @@ Transfer portal analytics for college football.
 - Roster Flight Risk analysis
 - Portal Player Search and filtering
 - Portal Fit Analyzer
+- Player Watchlist management
 """
 
 import streamlit as st
@@ -12,6 +13,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
+from datetime import datetime
+import json
 
 import sys
 from pathlib import Path
@@ -40,6 +43,73 @@ st.set_page_config(
 )
 
 apply_custom_css()
+
+
+# =============================================================================
+# Watchlist Management
+# =============================================================================
+
+def init_watchlist():
+    """Initialize watchlist in session state."""
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = {}
+    if "watchlist_notes" not in st.session_state:
+        st.session_state.watchlist_notes = {}
+
+
+def add_to_watchlist(player_data: dict):
+    """Add a player to the watchlist."""
+    init_watchlist()
+    player_id = f"{player_data.get('name', '')}_{player_data.get('origin_school', '')}"
+    st.session_state.watchlist[player_id] = {
+        "name": player_data.get("name", ""),
+        "position": player_data.get("position", ""),
+        "origin_school": player_data.get("origin_school", ""),
+        "destination_school": player_data.get("destination_school", ""),
+        "stars": player_data.get("stars", 0),
+        "portaliq_value": player_data.get("portaliq_value", 0),
+        "on3_nil_value": player_data.get("on3_nil_value", 0),
+        "status": player_data.get("status", ""),
+        "overall_rating": player_data.get("overall_rating", 0),
+        "height_display": player_data.get("height_display", ""),
+        "weight": player_data.get("weight", 0),
+        "added_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "headshot_url": player_data.get("headshot_url", ""),
+    }
+
+
+def remove_from_watchlist(player_id: str):
+    """Remove a player from the watchlist."""
+    init_watchlist()
+    if player_id in st.session_state.watchlist:
+        del st.session_state.watchlist[player_id]
+    if player_id in st.session_state.watchlist_notes:
+        del st.session_state.watchlist_notes[player_id]
+
+
+def is_in_watchlist(player_name: str, origin_school: str) -> bool:
+    """Check if a player is in the watchlist."""
+    init_watchlist()
+    player_id = f"{player_name}_{origin_school}"
+    return player_id in st.session_state.watchlist
+
+
+def get_watchlist() -> dict:
+    """Get the current watchlist."""
+    init_watchlist()
+    return st.session_state.watchlist
+
+
+def update_watchlist_note(player_id: str, note: str):
+    """Update the note for a watchlisted player."""
+    init_watchlist()
+    st.session_state.watchlist_notes[player_id] = note
+
+
+def get_watchlist_note(player_id: str) -> str:
+    """Get the note for a watchlisted player."""
+    init_watchlist()
+    return st.session_state.watchlist_notes.get(player_id, "")
 
 
 # =============================================================================
@@ -200,11 +270,20 @@ def main():
 
     st.divider()
 
+    # Initialize watchlist
+    init_watchlist()
+
+    # Watchlist badge count
+    watchlist_count = len(get_watchlist())
+    watchlist_label = f"⭐ Watchlist ({watchlist_count})" if watchlist_count > 0 else "⭐ Watchlist"
+
     # Tabs
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Roster Flight Risk",
         "🔍 Portal Player Search",
-        "🎯 Portal Fit Analyzer"
+        "🎯 Portal Fit Analyzer",
+        "📋 Team Needs Analysis",
+        watchlist_label
     ])
 
     with tab1:
@@ -215,6 +294,12 @@ def main():
 
     with tab3:
         render_fit_analyzer_tab()
+
+    with tab4:
+        render_team_needs_tab()
+
+    with tab5:
+        render_watchlist_tab()
 
 
 # =============================================================================
@@ -723,15 +808,36 @@ def render_portal_search_tab():
 
         # Show detail for selected player
         st.divider()
+
+        # Player details header with watchlist quick-add
         st.markdown("### Player Details")
 
-        selected_player = st.selectbox(
-            "Select player for details",
-            options=filtered_df["name"].tolist()[:100],
-            key="portal_detail_player"
-        )
+        col_select, col_watch = st.columns([4, 1])
+
+        with col_select:
+            selected_player = st.selectbox(
+                "Select player for details",
+                options=filtered_df["name"].tolist()[:100],
+                key="portal_detail_player"
+            )
 
         if selected_player:
+            player_row = filtered_df[filtered_df["name"] == selected_player].iloc[0]
+            origin_school = player_row.get("origin_school", "")
+
+            with col_watch:
+                st.write("")  # Spacing
+                if is_in_watchlist(selected_player, origin_school):
+                    if st.button("⭐ Remove", key="detail_watch_btn", help="Remove from watchlist", use_container_width=True):
+                        player_id = f"{selected_player}_{origin_school}"
+                        remove_from_watchlist(player_id)
+                        st.rerun()
+                else:
+                    if st.button("☆ Add to Watchlist", key="detail_watch_btn", help="Add to watchlist", use_container_width=True):
+                        add_to_watchlist(player_row.to_dict())
+                        st.success(f"Added {selected_player} to watchlist!")
+                        st.rerun()
+
             render_player_detail(filtered_df, selected_player, target_school)
     else:
         st.info("No players match your filters. Try adjusting the criteria.")
@@ -1451,6 +1557,472 @@ def get_factor_explanation(factor: str, score: float, player: pd.Series, target_
 
     level = "high" if score >= 0.75 else "medium" if score >= 0.6 else "low"
     return explanations.get(factor, {}).get(level, "Analysis not available.")
+
+
+# =============================================================================
+# Tab 4: Team Needs Analysis
+# =============================================================================
+
+def render_team_needs_tab():
+    """Render the team needs analysis tab."""
+    st.markdown("### 📋 Team Needs Analysis")
+    st.markdown("_Analyze roster gaps and identify positions of need for any school_")
+
+    # Get selected season
+    selected_season = get_selected_season()
+    portal_year = selected_season + 1
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        selected_school = st.selectbox(
+            "Select School to Analyze",
+            options=get_school_list(),
+            key="needs_school"
+        )
+
+    with col2:
+        st.write("")
+        analyze_btn = st.button("🔍 Analyze Roster Needs", type="primary", use_container_width=True)
+
+    if selected_school and analyze_btn:
+        render_team_needs_results(selected_school, portal_year)
+
+
+def render_team_needs_results(school: str, year: int):
+    """Render team needs analysis results."""
+    st.divider()
+
+    # Get portal data for analysis
+    portal_df = get_portal_data(year=year, enrich_nil=True)
+
+    if portal_df.empty:
+        st.warning("No portal data available for analysis.")
+        return
+
+    # Find incoming and outgoing transfers
+    incoming = portal_df[
+        portal_df["destination_school"].str.contains(school, case=False, na=False) &
+        (portal_df["status"] == "Committed")
+    ].copy()
+
+    outgoing = portal_df[
+        portal_df["origin_school"].str.contains(school, case=False, na=False)
+    ].copy()
+
+    st.markdown(f"## {school} - Roster Needs Analysis")
+
+    # Define position groups and ideal roster counts
+    POSITION_GROUPS = {
+        "Quarterback": {"positions": ["QB"], "ideal_count": 3, "scholarship_weight": 0.9},
+        "Running Back": {"positions": ["RB"], "ideal_count": 4, "scholarship_weight": 0.8},
+        "Wide Receiver": {"positions": ["WR"], "ideal_count": 8, "scholarship_weight": 0.85},
+        "Tight End": {"positions": ["TE"], "ideal_count": 3, "scholarship_weight": 0.75},
+        "Offensive Line": {"positions": ["OT", "OG", "C", "OL", "IOL"], "ideal_count": 15, "scholarship_weight": 0.8},
+        "Defensive Line": {"positions": ["DT", "DE", "DL", "NT"], "ideal_count": 8, "scholarship_weight": 0.8},
+        "Edge Rusher": {"positions": ["EDGE"], "ideal_count": 4, "scholarship_weight": 0.9},
+        "Linebacker": {"positions": ["LB", "ILB", "OLB"], "ideal_count": 6, "scholarship_weight": 0.8},
+        "Cornerback": {"positions": ["CB"], "ideal_count": 6, "scholarship_weight": 0.85},
+        "Safety": {"positions": ["S", "FS", "SS"], "ideal_count": 4, "scholarship_weight": 0.8},
+        "Special Teams": {"positions": ["K", "P", "LS"], "ideal_count": 3, "scholarship_weight": 0.3},
+    }
+
+    # Calculate needs by position group
+    needs_analysis = []
+
+    for group_name, group_data in POSITION_GROUPS.items():
+        positions = group_data["positions"]
+        ideal = group_data["ideal_count"]
+        weight = group_data["scholarship_weight"]
+
+        # Count incoming and outgoing
+        inc_count = len(incoming[incoming["position"].isin(positions)]) if not incoming.empty else 0
+        out_count = len(outgoing[outgoing["position"].isin(positions)]) if not outgoing.empty else 0
+
+        # Calculate NIL values
+        inc_nil = incoming[incoming["position"].isin(positions)]["portaliq_value"].sum() if not incoming.empty else 0
+        out_nil = outgoing[outgoing["position"].isin(positions)]["portaliq_value"].sum() if not outgoing.empty else 0
+
+        # Calculate star rating averages
+        inc_stars = incoming[incoming["position"].isin(positions)]["stars"].mean() if not incoming.empty and len(incoming[incoming["position"].isin(positions)]) > 0 else 0
+        out_stars = outgoing[outgoing["position"].isin(positions)]["stars"].mean() if not outgoing.empty and len(outgoing[outgoing["position"].isin(positions)]) > 0 else 0
+
+        # Net movement
+        net = inc_count - out_count
+        net_nil = inc_nil - out_nil
+
+        # Calculate need score (higher = more need)
+        need_score = 0
+        if out_count > inc_count:
+            need_score += (out_count - inc_count) * 2  # Losing players
+        if out_stars > inc_stars and out_count > 0:
+            need_score += (out_stars - inc_stars) * 1.5  # Losing talent
+        need_score *= weight  # Apply position importance
+
+        # Determine need level
+        if need_score >= 4:
+            need_level = "Critical"
+            need_color = COLORS["risk_critical"]
+        elif need_score >= 2:
+            need_level = "High"
+            need_color = COLORS["risk_high"]
+        elif need_score >= 1:
+            need_level = "Moderate"
+            need_color = COLORS["risk_moderate"]
+        else:
+            need_level = "Stable"
+            need_color = COLORS["primary"]
+
+        needs_analysis.append({
+            "Group": group_name,
+            "Incoming": inc_count,
+            "Outgoing": out_count,
+            "Net": net,
+            "Avg Stars In": inc_stars,
+            "Avg Stars Out": out_stars,
+            "NIL In": inc_nil,
+            "NIL Out": out_nil,
+            "Net NIL": net_nil,
+            "Need Score": need_score,
+            "Need Level": need_level,
+            "Need Color": need_color,
+        })
+
+    # Sort by need score
+    needs_analysis.sort(key=lambda x: x["Need Score"], reverse=True)
+
+    # Display summary cards
+    st.markdown("### 🚨 Priority Needs")
+
+    critical_needs = [n for n in needs_analysis if n["Need Level"] == "Critical"]
+    high_needs = [n for n in needs_analysis if n["Need Level"] == "High"]
+
+    if critical_needs or high_needs:
+        priority_needs = critical_needs + high_needs
+
+        cols = st.columns(min(len(priority_needs), 4))
+        for idx, need in enumerate(priority_needs[:4]):
+            with cols[idx % 4]:
+                st.markdown(f"""
+                <div style="background: {need['Need Color']}22; padding: 15px; border-radius: 10px;
+                            border-left: 4px solid {need['Need Color']};">
+                    <h4 style="color: {need['Need Color']}; margin: 0;">{need['Group']}</h4>
+                    <p style="color: {COLORS['text_secondary']}; margin: 5px 0;">
+                        <strong>{need['Need Level']}</strong> - Lost {need['Outgoing']}, Gained {need['Incoming']}
+                    </p>
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+                        Net NIL: {format_currency(need['Net NIL'])}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.success("No critical or high priority needs identified. Roster appears balanced.")
+
+    st.divider()
+
+    # Full needs breakdown table
+    st.markdown("### 📊 Position Group Breakdown")
+
+    # Prepare display dataframe
+    display_data = []
+    for need in needs_analysis:
+        display_data.append({
+            "Position Group": need["Group"],
+            "Need Level": need["Need Level"],
+            "Incoming": need["Incoming"],
+            "Outgoing": need["Outgoing"],
+            "Net": need["Net"],
+            "⭐ In": f"{need['Avg Stars In']:.1f}" if need['Avg Stars In'] > 0 else "—",
+            "⭐ Out": f"{need['Avg Stars Out']:.1f}" if need['Avg Stars Out'] > 0 else "—",
+            "NIL Impact": format_currency(need["Net NIL"]),
+        })
+
+    df = pd.DataFrame(display_data)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Portal targets recommendation
+    st.markdown("### 🎯 Recommended Portal Targets")
+    st.markdown("_Available portal players that match your needs_")
+
+    # Get available portal players
+    available = portal_df[portal_df["status"] == "Entered"].copy()
+
+    if not available.empty:
+        # Find top 3 need areas
+        top_needs = [n for n in needs_analysis if n["Need Level"] in ["Critical", "High", "Moderate"]][:3]
+
+        for need in top_needs:
+            positions = POSITION_GROUPS[need["Group"]]["positions"]
+            matches = available[available["position"].isin(positions)]
+
+            if not matches.empty:
+                st.markdown(f"#### {need['Group']} ({need['Need Level']} Need)")
+
+                # Sort by portal IQ value and stars
+                matches = matches.sort_values(["stars", "portaliq_value"], ascending=[False, False])
+
+                display_matches = matches[["name", "position", "origin_school", "stars", "portaliq_value"]].head(5).copy()
+                display_matches["stars"] = display_matches["stars"].apply(
+                    lambda x: f"{'⭐' * int(x)}" if pd.notna(x) and x > 0 else "—"
+                )
+                display_matches["portaliq_value"] = display_matches["portaliq_value"].apply(format_currency)
+                display_matches.columns = ["Player", "Position", "From", "Stars", "Est. NIL"]
+
+                st.dataframe(display_matches, use_container_width=True, hide_index=True)
+    else:
+        st.info("No available portal players found for recommendations.")
+
+    st.divider()
+
+    # Needs chart visualization
+    st.markdown("### 📈 Needs Visualization")
+
+    # Bar chart of net changes
+    fig = go.Figure()
+
+    groups = [n["Group"] for n in needs_analysis]
+    net_values = [n["Net"] for n in needs_analysis]
+    colors = [COLORS["primary"] if v >= 0 else COLORS["risk_high"] for v in net_values]
+
+    fig.add_trace(go.Bar(
+        x=groups,
+        y=net_values,
+        marker_color=colors,
+        text=net_values,
+        textposition="outside",
+    ))
+
+    fig.update_layout(
+        title="Net Player Movement by Position Group",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLORS["text_secondary"]),
+        xaxis=dict(tickangle=-45),
+        yaxis=dict(gridcolor=COLORS["bg_light"], title="Net Players (In - Out)"),
+        height=400,
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Export needs analysis
+    st.divider()
+    st.markdown("### 📤 Export Analysis")
+
+    if st.button("📋 Export Needs Analysis", use_container_width=True):
+        export_df = pd.DataFrame(needs_analysis)
+        export_df = export_df.drop(columns=["Need Color"])
+        csv = export_df.to_csv(index=False)
+
+        st.download_button(
+            label="⬇️ Download CSV",
+            data=csv,
+            file_name=f"{school.replace(' ', '_')}_needs_analysis.csv",
+            mime="text/csv",
+        )
+
+
+# =============================================================================
+# Tab 5: Watchlist
+# =============================================================================
+
+def render_watchlist_tab():
+    """Render the player watchlist tab."""
+    st.markdown("### ⭐ Player Watchlist")
+    st.markdown("_Track your favorite portal players and add notes_")
+
+    watchlist = get_watchlist()
+
+    if not watchlist:
+        st.info("Your watchlist is empty. Add players from the Portal Player Search tab by clicking the ⭐ button.")
+        st.markdown(f"""
+        <div style="background: {COLORS['bg_medium']}; padding: 30px; border-radius: 12px; text-align: center; margin-top: 20px;">
+            <p style="font-size: 4rem; margin: 0;">⭐</p>
+            <h3 style="color: {COLORS['primary']};">Start Building Your Watchlist</h3>
+            <p style="color: {COLORS['text_secondary']};">
+                Go to the <strong>Portal Player Search</strong> tab to find players and add them to your watchlist.
+                Track their status, NIL values, and add your own notes.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    # Watchlist controls
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        st.markdown(f"**{len(watchlist)} players** in your watchlist")
+
+    with col2:
+        # Filter by position
+        positions = list(set([p.get("position", "") for p in watchlist.values()]))
+        filter_pos = st.selectbox("Filter by Position", ["All"] + positions, key="watchlist_pos_filter")
+
+    with col3:
+        # Sort options
+        sort_by = st.selectbox("Sort By", ["Date Added", "NIL Value", "Stars", "Name"], key="watchlist_sort")
+
+    st.divider()
+
+    # Apply filters
+    filtered_watchlist = watchlist.copy()
+    if filter_pos != "All":
+        filtered_watchlist = {k: v for k, v in filtered_watchlist.items() if v.get("position") == filter_pos}
+
+    # Sort watchlist
+    sort_key_map = {
+        "Date Added": lambda x: x[1].get("added_date", ""),
+        "NIL Value": lambda x: x[1].get("portaliq_value", 0),
+        "Stars": lambda x: x[1].get("stars", 0),
+        "Name": lambda x: x[1].get("name", ""),
+    }
+    sorted_items = sorted(filtered_watchlist.items(), key=sort_key_map.get(sort_by, sort_key_map["Date Added"]), reverse=(sort_by != "Name"))
+
+    # Display watchlist cards
+    for player_id, player in sorted_items:
+        render_watchlist_card(player_id, player)
+
+    st.divider()
+
+    # Export watchlist
+    st.markdown("### 📤 Export Watchlist")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("📋 Export to CSV", use_container_width=True):
+            export_watchlist_csv()
+
+    with col2:
+        if st.button("🗑️ Clear All", use_container_width=True):
+            if st.session_state.get("confirm_clear_watchlist"):
+                st.session_state.watchlist = {}
+                st.session_state.watchlist_notes = {}
+                st.session_state.confirm_clear_watchlist = False
+                st.rerun()
+            else:
+                st.session_state.confirm_clear_watchlist = True
+                st.warning("Click 'Clear All' again to confirm.")
+
+
+def render_watchlist_card(player_id: str, player: dict):
+    """Render a single watchlist player card."""
+    with st.container():
+        col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+
+        with col1:
+            stars = int(player.get("stars", 0)) if player.get("stars") else 0
+            stars_display = "⭐" * stars if stars > 0 else "—"
+            status = player.get("status", "Unknown")
+            status_color = COLORS["primary"] if status == "Committed" else COLORS["risk_moderate"] if status == "Entered" else COLORS["text_muted"]
+
+            st.markdown(f"""
+            <div style="padding: 5px 0;">
+                <strong style="color: {COLORS['text_primary']}; font-size: 1.1rem;">{player.get('name', 'Unknown')}</strong>
+                <span style="color: {COLORS['text_muted']};">{stars_display}</span>
+                <br>
+                <span style="color: {COLORS['text_secondary']};">{player.get('position', 'ATH')} | {player.get('origin_school', 'Unknown')}</span>
+                <br>
+                <span style="color: {status_color}; font-size: 0.85rem;">● {status}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            nil_val = player.get("portaliq_value", 0) or 0
+            st.markdown(f"""
+            <div style="text-align: center; padding: 10px 0;">
+                <span style="color: {COLORS['text_muted']}; font-size: 0.8rem;">Portal IQ Est.</span><br>
+                <strong style="color: {COLORS['primary']}; font-size: 1.1rem;">{format_currency(nil_val)}</strong>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            destination = player.get("destination_school", "")
+            if destination and str(destination) != "nan":
+                st.markdown(f"""
+                <div style="text-align: center; padding: 10px 0;">
+                    <span style="color: {COLORS['text_muted']}; font-size: 0.8rem;">Destination</span><br>
+                    <strong style="color: {COLORS['text_primary']};">{destination}</strong>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="text-align: center; padding: 10px 0;">
+                    <span style="color: {COLORS['text_muted']}; font-size: 0.8rem;">Destination</span><br>
+                    <span style="color: {COLORS['text_muted']};">TBD</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+        with col4:
+            added = player.get("added_date", "Unknown")
+            st.markdown(f"""
+            <div style="text-align: center; padding: 10px 0;">
+                <span style="color: {COLORS['text_muted']}; font-size: 0.8rem;">Added</span><br>
+                <span style="color: {COLORS['text_secondary']}; font-size: 0.85rem;">{added}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col5:
+            if st.button("🗑️", key=f"remove_{player_id}", help="Remove from watchlist"):
+                remove_from_watchlist(player_id)
+                st.rerun()
+
+        # Note section (collapsible)
+        with st.expander("📝 Add Note", expanded=False):
+            current_note = get_watchlist_note(player_id)
+            new_note = st.text_area(
+                "Notes",
+                value=current_note,
+                key=f"note_{player_id}",
+                placeholder="Add your notes about this player...",
+                label_visibility="collapsed"
+            )
+            if new_note != current_note:
+                update_watchlist_note(player_id, new_note)
+
+        st.markdown(f"<hr style='border-color: {COLORS['bg_light']}; margin: 10px 0;'>", unsafe_allow_html=True)
+
+
+def export_watchlist_csv():
+    """Export watchlist to CSV and trigger download."""
+    watchlist = get_watchlist()
+
+    if not watchlist:
+        st.warning("Watchlist is empty.")
+        return
+
+    # Convert to DataFrame
+    rows = []
+    for player_id, player in watchlist.items():
+        row = {
+            "Name": player.get("name", ""),
+            "Position": player.get("position", ""),
+            "Origin School": player.get("origin_school", ""),
+            "Destination": player.get("destination_school", "TBD"),
+            "Stars": player.get("stars", 0),
+            "Portal IQ Value": player.get("portaliq_value", 0),
+            "On3 Value": player.get("on3_nil_value", 0),
+            "Status": player.get("status", ""),
+            "Rating": player.get("overall_rating", 0),
+            "Height": player.get("height_display", ""),
+            "Weight": player.get("weight", 0),
+            "Added Date": player.get("added_date", ""),
+            "Notes": get_watchlist_note(player_id),
+        }
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+
+    # Convert to CSV
+    csv = df.to_csv(index=False)
+
+    st.download_button(
+        label="⬇️ Download CSV",
+        data=csv,
+        file_name=f"portal_iq_watchlist_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv",
+    )
 
 
 # =============================================================================

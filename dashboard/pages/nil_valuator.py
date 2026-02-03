@@ -3,6 +3,7 @@ NIL Valuator Page
 
 AI-powered NIL valuation for college football players.
 - Search existing players or create custom profiles
+- Player Comparison (side-by-side analysis)
 - Value breakdown visualization
 - Transfer impact simulator
 - Social media growth simulator
@@ -36,6 +37,58 @@ st.set_page_config(
 )
 
 apply_custom_css()
+
+
+# =============================================================================
+# Player Comparison State
+# =============================================================================
+
+def init_comparison():
+    """Initialize comparison state."""
+    if "compare_players" not in st.session_state:
+        st.session_state.compare_players = []
+
+
+def add_to_comparison(player_data: dict):
+    """Add a player to comparison (max 3)."""
+    init_comparison()
+    if len(st.session_state.compare_players) >= 3:
+        st.warning("Maximum 3 players can be compared. Remove one first.")
+        return False
+
+    # Check if already in comparison
+    for p in st.session_state.compare_players:
+        if p.get("name") == player_data.get("name"):
+            return False
+
+    st.session_state.compare_players.append(player_data)
+    return True
+
+
+def remove_from_comparison(player_name: str):
+    """Remove a player from comparison."""
+    init_comparison()
+    st.session_state.compare_players = [
+        p for p in st.session_state.compare_players
+        if p.get("name") != player_name
+    ]
+
+
+def get_comparison_players() -> list:
+    """Get players in comparison."""
+    init_comparison()
+    return st.session_state.compare_players
+
+
+def clear_comparison():
+    """Clear all players from comparison."""
+    st.session_state.compare_players = []
+
+
+def is_in_comparison(player_name: str) -> bool:
+    """Check if player is in comparison."""
+    init_comparison()
+    return any(p.get("name") == player_name for p in st.session_state.compare_players)
 
 
 # =============================================================================
@@ -463,6 +516,9 @@ def main():
     # Render shared navigation sidebar
     render_sidebar()
 
+    # Initialize comparison state
+    init_comparison()
+
     # Header - Navy/Gold branding
     st.markdown(f"""
     <h1 style="color: {COLORS['primary']};">💰 NIL Valuator</h1>
@@ -473,24 +529,91 @@ def main():
 
     st.divider()
 
-    # Mode selection
-    mode = st.radio(
-        "Select Mode",
-        ["Search Existing Player", "Custom Player Profile"],
-        horizontal=True,
-    )
+    # Comparison badge count
+    compare_count = len(get_comparison_players())
+    compare_label = f"⚖️ Compare Players ({compare_count})" if compare_count > 0 else "⚖️ Compare Players"
 
-    st.divider()
+    # Tabs
+    tab1, tab2, tab3 = st.tabs([
+        "🔍 Search Players",
+        "✏️ Custom Profile",
+        compare_label
+    ])
 
-    if mode == "Search Existing Player":
+    with tab1:
         render_search_mode()
-    else:
+
+    with tab2:
         render_custom_mode()
+
+    with tab3:
+        render_comparison_mode()
 
 
 def render_search_mode():
-    """Render search existing player mode."""
+    """Render search existing player mode with advanced filters."""
     players_df = get_sample_players()
+
+    # Advanced Filters expander
+    with st.expander("🔧 Advanced Filters", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            # Position filter
+            position_filter = st.multiselect(
+                "Position",
+                options=get_positions(),
+                default=[],
+                key="nil_pos_filter"
+            )
+
+        with col2:
+            # NIL Value range
+            nil_range_options = ["Any", "$0-$50K", "$50K-$250K", "$250K-$1M", "$1M+", "Custom"]
+            nil_range = st.selectbox(
+                "NIL Value Range",
+                options=nil_range_options,
+                key="nil_range_filter"
+            )
+
+        with col3:
+            # Star rating filter
+            stars_filter = st.slider(
+                "Star Rating",
+                min_value=0,
+                max_value=5,
+                value=(0, 5),
+                key="nil_stars_filter"
+            )
+
+        with col4:
+            # School filter
+            school_filter = st.multiselect(
+                "School",
+                options=["Blue Bloods Only", "Power 4"] + get_school_list()[:20],
+                default=[],
+                key="nil_school_filter"
+            )
+
+        # Custom NIL range if selected
+        if nil_range == "Custom":
+            col1, col2 = st.columns(2)
+            with col1:
+                min_nil = st.number_input("Min NIL Value ($)", min_value=0, value=0, step=10000, key="nil_min")
+            with col2:
+                max_nil = st.number_input("Max NIL Value ($)", min_value=0, value=10000000, step=10000, key="nil_max")
+        else:
+            min_nil, max_nil = 0, float('inf')
+            if nil_range == "$0-$50K":
+                min_nil, max_nil = 0, 50000
+            elif nil_range == "$50K-$250K":
+                min_nil, max_nil = 50000, 250000
+            elif nil_range == "$250K-$1M":
+                min_nil, max_nil = 250000, 1000000
+            elif nil_range == "$1M+":
+                min_nil, max_nil = 1000000, float('inf')
+
+    st.divider()
 
     # Text search input
     search_query = st.text_input(
@@ -499,21 +622,65 @@ def render_search_mode():
         help="Start typing to search players"
     )
 
-    # Filter players based on search
+    # Filter players based on search and advanced filters
+    filtered_df = players_df.copy()
+
+    # Apply text search
     if search_query:
-        filtered_df = players_df[
-            players_df["name"].str.lower().str.contains(search_query.lower(), na=False)
+        filtered_df = filtered_df[
+            filtered_df["name"].str.lower().str.contains(search_query.lower(), na=False)
         ]
-    else:
-        filtered_df = players_df.head(10)  # Show top 10 by default
+
+    # Apply position filter
+    if position_filter:
+        filtered_df = filtered_df[filtered_df["position"].isin(position_filter)]
+
+    # Apply NIL range filter
+    if nil_range != "Any":
+        filtered_df = filtered_df[
+            (filtered_df["nil_value"].fillna(0) >= min_nil) &
+            (filtered_df["nil_value"].fillna(0) <= max_nil)
+        ]
+
+    # Apply stars filter
+    if stars_filter != (0, 5):
+        stars_col = filtered_df["stars"].fillna(0)
+        filtered_df = filtered_df[
+            (stars_col >= stars_filter[0]) &
+            (stars_col <= stars_filter[1])
+        ]
+
+    # Apply school filter
+    blue_bloods = ["Alabama", "Ohio State", "Georgia", "Texas", "USC", "Michigan", "Notre Dame"]
+    power_4 = blue_bloods + ["LSU", "Florida", "Oregon", "Penn State", "Clemson", "Tennessee", "Oklahoma", "Miami", "Auburn", "Florida State", "Wisconsin", "Iowa", "UCLA", "Arizona State"]
+
+    if school_filter:
+        if "Blue Bloods Only" in school_filter:
+            filtered_df = filtered_df[filtered_df["school"].isin(blue_bloods)]
+        elif "Power 4" in school_filter:
+            filtered_df = filtered_df[filtered_df["school"].isin(power_4)]
+        else:
+            specific_schools = [s for s in school_filter if s not in ["Blue Bloods Only", "Power 4"]]
+            if specific_schools:
+                filtered_df = filtered_df[filtered_df["school"].isin(specific_schools)]
+
+    # Default to top 20 if no search or filters
+    if not search_query and not position_filter and nil_range == "Any" and stars_filter == (0, 5) and not school_filter:
+        filtered_df = filtered_df.head(20)
 
     # Show matching players
     if not filtered_df.empty:
-        st.markdown(f"**{len(filtered_df)} players found**" if search_query else "**Top 10 Players**")
+        col_info, col_compare_hint = st.columns([2, 1])
+        with col_info:
+            st.markdown(f"**{len(filtered_df)} players found**" if search_query else "**Top 10 Players**")
+        with col_compare_hint:
+            compare_count = len(get_comparison_players())
+            if compare_count > 0:
+                st.markdown(f"<span style='color: {COLORS['primary']};'>⚖️ {compare_count}/3 players selected for comparison</span>", unsafe_allow_html=True)
 
-        # Display as clickable cards
+        # Display as clickable cards with comparison option
         for idx, (_, player) in enumerate(filtered_df.head(20).iterrows()):
-            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+            col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
             with col1:
                 st.markdown(f"**{player['name']}**")
             with col2:
@@ -524,6 +691,16 @@ def render_search_mode():
             with col4:
                 if st.button("View", key=f"view_{idx}_{player['name']}", use_container_width=True):
                     st.session_state.selected_player = player['name']
+            with col5:
+                player_name = player['name']
+                if is_in_comparison(player_name):
+                    if st.button("➖", key=f"cmp_rm_{idx}_{player_name}", help="Remove from comparison"):
+                        remove_from_comparison(player_name)
+                        st.rerun()
+                else:
+                    if st.button("➕", key=f"cmp_add_{idx}_{player_name}", help="Add to comparison"):
+                        if add_to_comparison(player.to_dict()):
+                            st.rerun()
 
         st.divider()
 
@@ -962,6 +1139,266 @@ def render_valuation_results(player_data: dict):
     with col2:
         fig = create_social_growth_chart(nil_value, follower_growth)
         st.plotly_chart(fig, use_container_width=True)
+
+
+# =============================================================================
+# Player Comparison Mode
+# =============================================================================
+
+def render_comparison_mode():
+    """Render the player comparison mode."""
+    st.markdown("### ⚖️ Player Comparison")
+    st.markdown("_Compare up to 3 players side-by-side_")
+
+    players = get_comparison_players()
+
+    if not players:
+        st.info("No players selected for comparison. Add players from the Search Players tab using the ➕ button.")
+        st.markdown(f"""
+        <div style="background: {COLORS['bg_medium']}; padding: 30px; border-radius: 12px; text-align: center; margin-top: 20px;">
+            <p style="font-size: 4rem; margin: 0;">⚖️</p>
+            <h3 style="color: {COLORS['primary']};">Side-by-Side Comparison</h3>
+            <p style="color: {COLORS['text_secondary']};">
+                Compare NIL values, stats, and projections for up to 3 players.
+                Go to the <strong>Search Players</strong> tab and click ➕ to add players.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    # Clear all button
+    if st.button("🗑️ Clear All", key="clear_comparison"):
+        clear_comparison()
+        st.rerun()
+
+    st.divider()
+
+    # Create columns for each player
+    cols = st.columns(len(players))
+
+    # Player headers and basic info
+    for idx, (col, player) in enumerate(zip(cols, players)):
+        with col:
+            # Remove button
+            if st.button(f"✖ Remove", key=f"rm_cmp_{idx}"):
+                remove_from_comparison(player.get("name", ""))
+                st.rerun()
+
+            # Player card header
+            stars = int(player.get("stars", 0)) if player.get("stars") else 0
+            stars_display = "⭐" * stars if stars > 0 else "—"
+
+            st.markdown(f"""
+            <div style="background: {COLORS['bg_medium']}; padding: 20px; border-radius: 12px; text-align: center;
+                        border-top: 4px solid {COLORS['primary']};">
+                <h3 style="color: {COLORS['text_primary']}; margin: 0;">{player.get('name', 'Unknown')}</h3>
+                <p style="color: {COLORS['text_secondary']}; margin: 5px 0;">{player.get('position', 'ATH')} | {player.get('school', 'Unknown')}</p>
+                <p style="margin: 5px 0;">{stars_display}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # NIL Values comparison
+    st.markdown("### 💰 NIL Value Comparison")
+
+    for idx, (col, player) in enumerate(zip(cols, players)):
+        with col:
+            on3_value = player.get("nil_value", 0) or 0
+            custom_value, breakdown = calculate_custom_nil_value(player)
+
+            st.metric("On3 NIL Value", format_currency(on3_value) if on3_value > 0 else "N/A")
+            st.metric("Portal IQ Value", format_currency(custom_value))
+
+            diff = custom_value - on3_value if on3_value > 0 else 0
+            diff_pct = (diff / on3_value * 100) if on3_value > 0 else 0
+            if on3_value > 0:
+                color = COLORS["primary"] if diff >= 0 else COLORS["risk_high"]
+                st.markdown(f"<span style='color: {color};'>{'+' if diff >= 0 else ''}{diff_pct:.1f}% difference</span>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # Stats comparison
+    st.markdown("### 📊 Performance Metrics")
+
+    metrics_to_compare = [
+        ("Stars", "stars", lambda x: f"{'⭐' * int(x)}" if x else "—"),
+        ("Overall Rating", "overall_rating", lambda x: f"{x:.2f}" if x else "N/A"),
+        ("Games Played", "games_played", lambda x: str(int(x)) if x else "—"),
+        ("Games Started", "games_started", lambda x: str(int(x)) if x else "—"),
+    ]
+
+    # Position-specific stats
+    positions = [p.get("position", "") for p in players]
+
+    if any(pos == "QB" for pos in positions):
+        metrics_to_compare.extend([
+            ("Passing Yards", "passing_yards", lambda x: f"{int(x):,}" if x else "—"),
+            ("Passing TDs", "passing_tds", lambda x: str(int(x)) if x else "—"),
+            ("QBR", "qbr", lambda x: f"{x:.1f}" if x else "—"),
+        ])
+
+    if any(pos == "RB" for pos in positions):
+        metrics_to_compare.extend([
+            ("Rushing Yards", "rushing_yards", lambda x: f"{int(x):,}" if x else "—"),
+            ("Rushing TDs", "rushing_tds", lambda x: str(int(x)) if x else "—"),
+            ("Yards/Carry", "yards_per_carry", lambda x: f"{x:.1f}" if x else "—"),
+        ])
+
+    if any(pos == "WR" for pos in positions):
+        metrics_to_compare.extend([
+            ("Receptions", "receptions", lambda x: str(int(x)) if x else "—"),
+            ("Receiving Yards", "receiving_yards", lambda x: f"{int(x):,}" if x else "—"),
+            ("Receiving TDs", "receiving_tds", lambda x: str(int(x)) if x else "—"),
+        ])
+
+    if any(pos in ["EDGE", "DT", "LB", "DL"] for pos in positions):
+        metrics_to_compare.extend([
+            ("Tackles", "tackles", lambda x: str(int(x)) if x else "—"),
+            ("Sacks", "sacks", lambda x: f"{x:.1f}" if x else "—"),
+            ("TFLs", "tackles_for_loss", lambda x: f"{x:.1f}" if x else "—"),
+        ])
+
+    if any(pos in ["CB", "S"] for pos in positions):
+        metrics_to_compare.extend([
+            ("Interceptions", "interceptions_def", lambda x: str(int(x)) if x else "—"),
+            ("Passes Defended", "passes_defended", lambda x: str(int(x)) if x else "—"),
+        ])
+
+    # Display metrics in a table format
+    for metric_name, metric_key, formatter in metrics_to_compare:
+        metric_cols = st.columns(len(players) + 1)
+
+        with metric_cols[0]:
+            st.markdown(f"**{metric_name}**")
+
+        for idx, (col, player) in enumerate(zip(metric_cols[1:], players)):
+            with col:
+                value = player.get(metric_key)
+                st.markdown(formatter(value))
+
+    st.divider()
+
+    # Value breakdown chart comparison
+    st.markdown("### 📈 Value Breakdown Comparison")
+
+    comparison_data = []
+    for player in players:
+        custom_value, breakdown = calculate_custom_nil_value(player)
+        comparison_data.append({
+            "name": player.get("name", "Unknown"),
+            "Position Base": breakdown.get("base_position_value", 0),
+            "Star Rating": breakdown.get("base_position_value", 0) * (breakdown.get("star_multiplier", 1) - 1),
+            "Size Factor": breakdown.get("base_position_value", 0) * (breakdown.get("size_multiplier", 1) - 1),
+            "School Brand": breakdown.get("base_position_value", 0) * (breakdown.get("school_multiplier", 1) - 1),
+            "Performance": breakdown.get("performance_bonus", 0),
+        })
+
+    # Create grouped bar chart
+    fig = go.Figure()
+
+    categories = ["Position Base", "Star Rating", "Size Factor", "School Brand", "Performance"]
+    colors = [COLORS["chart_1"], COLORS["chart_2"], COLORS["chart_3"], COLORS["chart_4"], COLORS["chart_5"]]
+
+    for i, cat in enumerate(categories):
+        fig.add_trace(go.Bar(
+            name=cat,
+            x=[d["name"] for d in comparison_data],
+            y=[d[cat] for d in comparison_data],
+            marker_color=colors[i],
+        ))
+
+    fig.update_layout(
+        barmode='stack',
+        title="Value Components by Player",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLORS["text_secondary"]),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis=dict(gridcolor=COLORS["bg_light"], title="Value ($)"),
+        height=400,
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    # Transfer value comparison
+    st.markdown("### 🔄 Transfer Value Analysis")
+
+    target_school = st.selectbox(
+        "Compare Transfer Value To:",
+        options=get_school_list(),
+        key="comparison_transfer_school"
+    )
+
+    if target_school:
+        blue_bloods = ["Alabama", "Ohio State", "Georgia", "Texas", "USC", "Michigan", "Notre Dame"]
+        elite = ["LSU", "Florida", "Oregon", "Penn State", "Clemson", "Tennessee"]
+        target_mult = 2.5 if target_school in blue_bloods else 1.8 if target_school in elite else 1.2
+
+        comparison_results = []
+        for player in players:
+            current_school = player.get("school", "Unknown")
+            current_mult = 2.5 if current_school in blue_bloods else 1.8 if current_school in elite else 1.2
+
+            custom_value, _ = calculate_custom_nil_value(player)
+            projected_value = custom_value * (target_mult / current_mult)
+            change = projected_value - custom_value
+
+            comparison_results.append({
+                "name": player.get("name", "Unknown"),
+                "current": custom_value,
+                "projected": projected_value,
+                "change": change,
+                "change_pct": (change / custom_value * 100) if custom_value > 0 else 0,
+            })
+
+        # Display results
+        for idx, (col, result) in enumerate(zip(cols, comparison_results)):
+            with col:
+                st.metric(
+                    "Current Value",
+                    format_currency(result["current"])
+                )
+                st.metric(
+                    f"At {target_school}",
+                    format_currency(result["projected"]),
+                    delta=f"{result['change_pct']:+.1f}%"
+                )
+
+    st.divider()
+
+    # Export comparison
+    st.markdown("### 📤 Export Comparison")
+
+    if st.button("📋 Export to CSV", key="export_comparison", use_container_width=True):
+        # Build comparison DataFrame
+        export_data = []
+        for player in players:
+            custom_value, breakdown = calculate_custom_nil_value(player)
+            export_data.append({
+                "Name": player.get("name", ""),
+                "Position": player.get("position", ""),
+                "School": player.get("school", ""),
+                "Stars": player.get("stars", 0),
+                "On3 NIL Value": player.get("nil_value", 0),
+                "Portal IQ Value": custom_value,
+                "Star Multiplier": breakdown.get("star_multiplier", 1),
+                "Size Multiplier": breakdown.get("size_multiplier", 1),
+                "School Multiplier": breakdown.get("school_multiplier", 1),
+                "Performance Bonus": breakdown.get("performance_bonus", 0),
+            })
+
+        df = pd.DataFrame(export_data)
+        csv = df.to_csv(index=False)
+
+        st.download_button(
+            label="⬇️ Download Comparison CSV",
+            data=csv,
+            file_name="nil_comparison.csv",
+            mime="text/csv",
+        )
 
 
 # =============================================================================
