@@ -495,7 +495,7 @@ def render_portal_search_tab():
                     <h3 style="color: {COLORS['primary']};">{player['name']}</h3>
                     <p>Position: {player['position']}</p>
                     <p>Origin: {player['origin_school']}</p>
-                    <p>Stars: {'⭐' * player['stars']}</p>
+                    <p>Stars: {'⭐' * int(player['stars']) if player.get('stars') else 'N/A'}</p>
                     <p>Rating: {player['overall_rating']:.2f}</p>
                 </div>
                 """, unsafe_allow_html=True)
