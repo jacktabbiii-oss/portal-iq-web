@@ -15,9 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY dashboard/ ./dashboard/
 
 # Copy data files
-COPY ml-engine/data/processed/on3_all_nil_rankings.csv ./ml-engine/data/processed/
-COPY ml-engine/data/processed/on3_transfer_portal.csv ./ml-engine/data/processed/
-COPY ml-engine/data/processed/on3_team_portal_rankings.csv ./ml-engine/data/processed/
+COPY ml-engine/data/processed/ ./ml-engine/data/processed/
 
 # Copy and setup start script
 COPY start.sh .
