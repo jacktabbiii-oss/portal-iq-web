@@ -262,23 +262,53 @@ def render_search_mode():
     """Render search existing player mode."""
     players_df = get_sample_players()
 
-    col1, col2 = st.columns([2, 1])
+    # Text search input
+    search_query = st.text_input(
+        "Search Player",
+        placeholder="Type player name (e.g., Arch Manning, Jeremiah Smith...)",
+        help="Start typing to search players"
+    )
 
-    with col1:
-        player_options = players_df["name"].tolist()
-        selected_player = st.selectbox(
-            "Search Player",
-            options=player_options,
-            help="Select a player from the database",
-        )
+    # Filter players based on search
+    if search_query:
+        filtered_df = players_df[
+            players_df["name"].str.lower().str.contains(search_query.lower(), na=False)
+        ]
+    else:
+        filtered_df = players_df.head(10)  # Show top 10 by default
 
-    with col2:
-        st.write("")  # Spacer
-        search_btn = st.button("🔍 Get Valuation", type="primary", use_container_width=True)
+    # Show matching players
+    if not filtered_df.empty:
+        st.markdown(f"**{len(filtered_df)} players found**" if search_query else "**Top 10 Players**")
 
-    if selected_player and search_btn:
-        player_data = players_df[players_df["name"] == selected_player].iloc[0].to_dict()
-        render_valuation_results(player_data)
+        # Display as clickable cards
+        for idx, (_, player) in enumerate(filtered_df.head(20).iterrows()):
+            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+            with col1:
+                st.markdown(f"**{player['name']}**")
+            with col2:
+                st.markdown(f"{player.get('position', 'N/A')}")
+            with col3:
+                nil_val = player.get('nil_value', 0)
+                st.markdown(f"${nil_val:,.0f}" if nil_val else "N/A")
+            with col4:
+                if st.button("View", key=f"view_{idx}_{player['name']}", use_container_width=True):
+                    st.session_state.selected_player = player['name']
+
+        st.divider()
+
+    # Show valuation if player selected
+    if "selected_player" in st.session_state and st.session_state.selected_player:
+        player_match = players_df[players_df["name"] == st.session_state.selected_player]
+        if not player_match.empty:
+            player_data = player_match.iloc[0].to_dict()
+            render_valuation_results(player_data)
+    elif search_query and not filtered_df.empty:
+        # Auto-select first result if exact match
+        exact_match = filtered_df[filtered_df["name"].str.lower() == search_query.lower()]
+        if not exact_match.empty:
+            player_data = exact_match.iloc[0].to_dict()
+            render_valuation_results(player_data)
 
 
 def render_custom_mode():
