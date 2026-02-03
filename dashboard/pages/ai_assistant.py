@@ -21,9 +21,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.styling import apply_custom_css, COLORS, format_currency
 from utils.data_loader import (
     get_nil_players, get_portal_players, get_team_rankings,
-    get_database_stats, search_players
+    get_database_stats, search_players, get_portal_players_with_measurables,
+    get_positions, get_school_list
 )
 from utils.navigation import render_sidebar
+from utils.win_impact_calculator import (
+    calculate_player_war, calculate_team_portal_score, enrich_with_war,
+    get_school_tier as get_school_tier_info  # Returns (tier_name, tier_data)
+)
+from utils.nil_estimator import (
+    estimate_nil_value, get_tier_from_value,
+    get_school_tier as get_school_tier_num  # Returns int (1-6)
+)
 
 # Page config
 st.set_page_config(
@@ -49,62 +58,156 @@ def get_anthropic_client():
 
 
 def get_data_context() -> str:
-    """Build context string from current data for the AI."""
+    """Build comprehensive context string from ALL available data for the AI."""
     context_parts = []
 
     # Database stats
     stats = get_database_stats()
     context_parts.append(f"""
-DATABASE OVERVIEW:
-- Total NIL Players: {stats.get('nil_valuations', 0):,}
-- Portal Entries: {stats.get('portal_players', 0):,}
+=== PORTAL IQ DATABASE OVERVIEW ===
+- Total Players with NIL Values: {stats.get('nil_valuations', 0):,}
+- Transfer Portal Entries: {stats.get('portal_players', 0):,}
 - Teams Tracked: {stats.get('schools', 0)}
+- Actual On3 NIL Values: {stats.get('actual_nil_values', 0):,}
+- Predicted NIL Values: {stats.get('predicted_nil_values', 0):,}
 - Last Updated: {stats.get('last_updated', 'Unknown')}
 """)
 
-    # Top NIL players
+    # Top NIL players with Portal IQ analysis
     nil_df = get_nil_players()
     if not nil_df.empty:
-        top_nil = nil_df.nlargest(10, "nil_value")
-        nil_list = "\n".join([
-            f"  - {row['name']} ({row['position']}, {row.get('school', 'Unknown')}): ${row['nil_value']:,.0f}"
-            for _, row in top_nil.iterrows()
-        ])
+        # Enrich with WAR
+        try:
+            nil_df = enrich_with_war(nil_df, school_col="school")
+        except Exception:
+            nil_df["portaliq_war"] = 0
+
+        top_nil = nil_df.nlargest(15, "nil_value")
+        nil_list = []
+        for _, row in top_nil.iterrows():
+            war_val = row.get('portaliq_war', 0)
+            confidence = row.get('valuation_source', 'Unknown')
+            nil_list.append(
+                f"  - {row['name']} ({row['position']}, {row.get('school', 'Unknown')}): "
+                f"${row['nil_value']:,.0f} | WAR: {war_val:.2f} | Source: {confidence}"
+            )
         context_parts.append(f"""
-TOP 10 NIL VALUATIONS:
-{nil_list}
+=== TOP 15 NIL VALUATIONS (with Portal IQ WAR) ===
+{chr(10).join(nil_list)}
 """)
 
-    # Top portal classes
+        # Position breakdown
+        position_stats = nil_df.groupby("position").agg({
+            "nil_value": ["mean", "count"],
+            "portaliq_war": "mean"
+        }).round(2)
+        position_stats.columns = ["avg_nil", "count", "avg_war"]
+        position_stats = position_stats.sort_values("avg_nil", ascending=False)
+
+        pos_list = []
+        for pos, row in position_stats.head(10).iterrows():
+            pos_list.append(f"  - {pos}: Avg NIL ${row['avg_nil']:,.0f}, Avg WAR {row['avg_war']:.2f}, Count: {int(row['count'])}")
+        context_parts.append(f"""
+=== POSITION MARKET ANALYSIS ===
+{chr(10).join(pos_list)}
+""")
+
+    # Top portal classes with Portal IQ scoring
     team_df = get_team_rankings(year=2026)
+    portal_df = get_portal_players(year=2026)
+
     if not team_df.empty:
-        top_teams = team_df.nlargest(10, "overall_score")
-        team_list = "\n".join([
-            f"  - {row['name']}: Score {row['overall_score']:.0f}, {int(row.get('transfers_in', 0))} transfers in"
-            for _, row in top_teams.iterrows()
-        ])
+        team_list = []
+        for _, row in team_df.nlargest(15, "overall_score").iterrows():
+            team_name = row['name']
+
+            # Get incoming transfers for this team
+            incoming = portal_df[
+                portal_df["destination_school"].str.contains(str(team_name).split()[0], case=False, na=False) &
+                (portal_df["status"] == "Committed")
+            ] if not portal_df.empty else pd.DataFrame()
+
+            tier, _ = get_school_tier(team_name)
+
+            team_list.append(
+                f"  - {team_name} ({tier}): On3 Score {row['overall_score']:.0f}, "
+                f"Transfers In: {int(row.get('transfers_in', 0))}, "
+                f"5★ Net: {int(row.get('five_stars_net', 0)):+d}, "
+                f"4★ Net: {int(row.get('four_stars_net', 0)):+d}"
+            )
         context_parts.append(f"""
-TOP 10 PORTAL CLASSES (2026):
-{team_list}
+=== TOP 15 PORTAL CLASSES (2026) ===
+{chr(10).join(team_list)}
 """)
 
-    # Portal status breakdown
-    portal_df = get_portal_players(year=2026)
+    # Portal status and available players
     if not portal_df.empty:
         status_counts = portal_df["status"].value_counts().to_dict()
+
+        # Get available players by position
+        available = portal_df[portal_df["status"].isin(["Entered", "Expected"])]
+        if not available.empty:
+            avail_by_pos = available["position"].value_counts().head(8).to_dict()
+            avail_pos_str = ", ".join([f"{pos}: {cnt}" for pos, cnt in avail_by_pos.items()])
+        else:
+            avail_pos_str = "N/A"
+
         context_parts.append(f"""
-2026 PORTAL STATUS:
-- Entered: {status_counts.get('Entered', 0):,}
+=== 2026 PORTAL STATUS ===
+- Entered (Available): {status_counts.get('Entered', 0):,}
 - Committed: {status_counts.get('Committed', 0):,}
 - Expected: {status_counts.get('Expected', 0):,}
 - Withdrawn: {status_counts.get('Withdrawn', 0):,}
+Available by Position: {avail_pos_str}
+""")
+
+        # Top available players (not committed)
+        available_with_nil = available[available.get("nil_value", available.get("portaliq_value", pd.Series(dtype=float))).notna()]
+        if not available_with_nil.empty:
+            top_available = available_with_nil.nlargest(10, "nil_value" if "nil_value" in available_with_nil.columns else "stars")
+            avail_list = []
+            for _, row in top_available.iterrows():
+                stars = int(row.get('stars', 3)) if pd.notna(row.get('stars')) else 3
+                nil_val = row.get('nil_value', row.get('portaliq_value', 0)) or 0
+                avail_list.append(
+                    f"  - {row['name']} ({row['position']}, {'⭐'*stars}) from {row.get('origin_school', 'Unknown')}: "
+                    f"${nil_val:,.0f}"
+                )
+            context_parts.append(f"""
+=== TOP 10 AVAILABLE PORTAL PLAYERS ===
+{chr(10).join(avail_list)}
+""")
+
+    # School tier reference
+    context_parts.append("""
+=== SCHOOL TIER REFERENCE ===
+Elite Tier (1.3x multiplier): Alabama, Georgia, Ohio State, Michigan, Texas, Oregon, Penn State, Notre Dame, USC, Clemson
+Power Tier (1.15x): LSU, Oklahoma, Florida, Miami, Tennessee, Auburn, Texas A&M, Wisconsin, UCLA, Washington, Utah, Ole Miss
+Rising Tier (1.0x): Colorado, Indiana, Illinois, Iowa State, Kansas State, Arizona, NC State, Virginia Tech
+Developmental Tier (0.85x): All other schools
+""")
+
+    # WAR explanation for the AI
+    context_parts.append("""
+=== PORTAL IQ PROPRIETARY METRICS ===
+WAR (Wins Above Replacement): Our proprietary player impact score based on:
+- Position value & scarcity (QB highest at 3.0 base)
+- Star rating multiplier (5★=2.0x, 4★=1.5x, 3★=1.0x)
+- NIL market signal (higher NIL = market believes in value)
+- School tier factor (elite schools maximize player potential)
+- Physical measurables (height/weight fit for position)
+- Experience factor (juniors typically peak)
+
+NIL Confidence Levels:
+- "On3 Actual" = Real On3 valuation data
+- "Predicted" = Portal IQ proprietary estimate based on recruiting stars, position, school tier
 """)
 
     return "\n".join(context_parts)
 
 
 def get_player_info(player_name: str) -> str:
-    """Get detailed info about a specific player."""
+    """Get comprehensive info about a specific player including Portal IQ analysis."""
     results = search_players(player_name)
     if results.empty:
         return f"No player found matching '{player_name}'"
@@ -112,16 +215,70 @@ def get_player_info(player_name: str) -> str:
     info_parts = []
     for _, row in results.iterrows():
         source = row.get("data_source", "unknown")
+
+        # Get school for tier lookup
+        school = row.get('school', row.get('destination_school', row.get('origin_school', 'Unknown')))
+        tier_name, tier_data = get_school_tier_info(school)
+
+        # Calculate Portal IQ WAR
+        stars_val = row.get('stars', 3)
+        if pd.isna(stars_val):
+            stars_val = 3
+
+        war_result = calculate_player_war(
+            position=row.get('position', 'ATH'),
+            stars=stars_val,
+            rating=row.get('overall_rating'),
+            nil_value=row.get('nil_value', 0) or row.get('portaliq_value', 0),
+            destination_school=school,
+            height=row.get('height_inches'),
+            weight=row.get('weight'),
+            year=row.get('year'),
+            is_predicted_nil=row.get('is_predicted', True)
+        )
+
+        # Calculate NIL estimate if not present
+        nil_value = row.get('nil_value', 0) or 0
+        if nil_value == 0:
+            nil_estimate = estimate_nil_value(
+                school_tier=tier_name,
+                position=row.get('position', 'ATH'),
+                stars=int(stars_val),
+                rating=row.get('overall_rating')
+            )
+            nil_value = nil_estimate.get('value', 0)
+            nil_confidence = nil_estimate.get('confidence', 'low')
+        else:
+            nil_confidence = "actual" if not row.get('is_predicted', True) else "predicted"
+
         info = f"""
-PLAYER: {row['name']}
+=== PLAYER: {row['name']} ===
+Basic Info:
 - Position: {row.get('position', 'Unknown')}
-- School: {row.get('school', row.get('origin_school', 'Unknown'))}
-- NIL Value: ${row.get('nil_value', 0):,.0f}
-- Stars: {row.get('stars', 'N/A')}
-- Source: {source}
+- School: {school} ({tier_name} tier)
+- Stars: {int(stars_val)}⭐
+- Year: {row.get('year', 'Unknown')}
+
+NIL Valuation:
+- NIL Value: ${nil_value:,.0f}
+- Confidence: {nil_confidence}
+- NIL Tier: {get_tier_from_value(nil_value)}
+
+Portal IQ Win Impact:
+- WAR: {war_result['war']:.2f} (range: {war_result['war_low']:.2f} - {war_result['war_high']:.2f})
+- WAR Confidence: {war_result['confidence']}
+
+WAR Breakdown:
+- Base Position WAR: {war_result['breakdown']['base_war']}
+- Position Scarcity: ×{war_result['breakdown']['position_scarcity']}
+- Star Multiplier: ×{war_result['breakdown']['star_multiplier']}
+- School Multiplier: ×{war_result['breakdown']['school_multiplier']}
+- NIL Market Bonus: +{war_result['breakdown']['nil_bonus']}
 """
         if source == "transfer_portal":
-            info += f"""- Portal Status: {row.get('status', 'Unknown')}
+            info += f"""
+Portal Status:
+- Status: {row.get('status', 'Unknown')}
 - From: {row.get('origin_school', 'Unknown')}
 - To: {row.get('destination_school', 'TBD')}
 """
@@ -130,22 +287,47 @@ PLAYER: {row['name']}
     return "\n".join(info_parts[:3])  # Limit to top 3 matches
 
 
-SYSTEM_PROMPT = """You are the Portal IQ AI Assistant, an expert on college football transfer portal and NIL (Name, Image, Likeness) valuations.
+SYSTEM_PROMPT = """You are the Portal IQ AI Assistant, an elite expert on college football transfer portal and NIL (Name, Image, Likeness) valuations. You have access to Portal IQ's proprietary analytics and 17,500+ player database.
 
-You have access to real-time data from On3 including:
-- NIL valuations for top college football players
-- Transfer portal entries and commitments (2024-2026)
-- Team portal class rankings
-- Player recruiting ratings and stats
+=== YOUR DATA ACCESS ===
+1. NIL Valuations: Both actual On3 values AND Portal IQ's proprietary estimates
+2. Portal IQ WAR: Our proprietary Wins Above Replacement metric for player impact
+3. Transfer Portal: 14,000+ entries across 2024-2026 with status tracking
+4. Team Rankings: Portal class scores, transfer counts, star distribution
+5. School Tiers: Elite/Power/Rising/Developmental with multipliers
+6. Player Measurables: Height, weight, year for position fit analysis
 
-Your role is to:
-1. Answer questions about specific players, their NIL values, and portal status
-2. Provide insights on team portal classes and recruiting
-3. Explain NIL valuation factors and market trends
-4. Help users find players that match specific criteria
-5. Offer analysis on transfer impact and win projections
+=== PORTAL IQ PROPRIETARY METRICS ===
+**WAR (Wins Above Replacement)**: 0-15+ scale measuring projected wins a player adds
+- Factors: Position value, star rating, NIL signal, school tier, measurables, experience
+- QB highest base (3.0), EDGE rushers (1.5), RBs lower (0.9) due to replaceability
 
-Be concise but informative. Use specific data when available. If you don't have data on something, say so clearly.
+**NIL Confidence Levels**:
+- "actual" = Real On3 valuation
+- "predicted" = Portal IQ estimate based on our algorithm
+- "high/medium/low" = Data completeness for prediction
+
+**School Tiers** (affect both NIL and WAR):
+- Elite (1.3x): Alabama, Georgia, Ohio State, Michigan, Texas, Oregon, etc.
+- Power (1.15x): LSU, Oklahoma, Florida, Miami, Tennessee, etc.
+- Rising (1.0x): Colorado, Indiana, Illinois, etc.
+- Developmental (0.85x): All others
+
+=== YOUR CAPABILITIES ===
+1. Look up any player's NIL value, WAR, and full analytics breakdown
+2. Analyze team portal classes with Portal IQ scoring
+3. Explain WHY players have certain valuations (with factor breakdown)
+4. Compare players, positions, and schools
+5. Identify undervalued/overvalued players based on WAR vs NIL
+6. Project transfer impact using school tier multipliers
+7. Find available portal players by position, stars, or school
+
+=== RESPONSE GUIDELINES ===
+- Always cite specific numbers when available (NIL value, WAR, stars)
+- Explain Portal IQ metrics when users ask about methodology
+- Be direct and concise - users want actionable insights
+- If data is missing, say so clearly and explain what we do have
+- Use WAR to contextualize NIL value (high WAR + low NIL = undervalued)
 
 Current data context will be provided with each message."""
 
