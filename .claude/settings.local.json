@@ -22,7 +22,11 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd start script for Railway PORT handling\n\nUse bash script to properly expand PORT env var\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git config:*)",
       "Bash(git rm:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp list:*)",
+      "mcp__stitch__list_projects",
+      "mcp__stitch__create_project"
     ]
   }
 }

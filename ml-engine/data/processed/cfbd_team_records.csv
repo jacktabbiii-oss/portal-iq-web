@@ -3,8 +3,8 @@ Tuskegee,SIAC,2024,5,6,5,3
 St. Scholastica,Minnesota,2024,4,6,3,5
 Greensboro College,USA South,2024,1,9,1,7
 SUNY Maritime,NEWMAC,2024,7,3,5,2
-Northern Iowa,MVFC,2024,3,9,1,7
 BYU,Big 12,2024,11,2,7,2
+Northern Iowa,MVFC,2024,3,9,1,7
 Wisconsin,Big Ten,2024,5,7,3,6
 UL Monroe,Sun Belt,2024,5,7,3,5
 Minnesota State Moorhead,Northern Sun,2024,6,5,6,4
@@ -16,8 +16,8 @@ Bethel (MN),Minnesota,2024,11,3,6,2
 Saint Vincent,Presidents',2024,1,9,1,9
 Kenyon,North Coast,2024,5,5,4,4
 Manchester,Heartland,2024,0,10,0,7
-Shaw,CIAA,2024,6,4,5,3
 Buena Vista,American Rivers,2024,2,8,2,6
+Shaw,CIAA,2024,6,4,5,3
 Valparaiso,Pioneer,2024,4,7,2,5
 Coastal Carolina,Sun Belt,2024,6,7,3,5
 Monmouth (IL),Midwest,2024,8,2,8,1
@@ -27,10 +27,10 @@ Coe College,American Rivers,2024,9,2,7,1
 New Mexico Highlands,Rocky Mountain,2024,2,9,2,7
 Wisconsin-Eau Claire,Wisconsin,2024,2,8,1,6
 North Park,CCIW,2024,5,5,4,5
-Lane College,SIAC,2024,4,6,3,5
 Morgan State,MEAC,2024,6,6,3,2
-Stonehill,NEC,2024,1,10,0,6
+Lane College,SIAC,2024,4,6,3,5
 Mississippi Valley State,SWAC,2024,1,11,1,7
+Stonehill,NEC,2024,1,10,0,6
 Mercer,Southern,2024,11,3,7,1
 Millersville,Pennsylvania State Athletic,2024,1,10,1,9
 Hanover College,Heartland,2024,7,3,5,1
@@ -69,8 +69,8 @@ Miami (OH),Mid-American,2024,9,5,7,2
 Carthage,CCIW,2024,2,8,2,7
 Mercyhurst,NEC,2024,4,7,1,3
 Reading,Mid Atlantic,2024,1,9,1,8
-Carroll University (WI),CCIW,2024,5,5,4,5
 Kalamazoo,Michigan,2024,4,6,1,6
+Carroll University (WI),CCIW,2024,5,5,4,5
 Averett,Old Dominion,2024,3,7,1,7
 Keystone,Landmark Conference,2024,1,9,0,6
 Lewis & Clark College,Northwest,2024,5,5,5,4
@@ -96,25 +96,25 @@ Temple,American Athletic,2024,3,9,2,6
 Bloomsburg,Pennsylvania State Athletic,2024,6,5,5,5
 Bemidji State,Northern Sun,2024,10,4,7,4
 Presbyterian,Pioneer,2024,6,6,4,4
-Sioux Falls,Northern Sun,2024,8,3,7,3
 Husson,Commonwealth Coast,2024,6,4,3,2
+Sioux Falls,Northern Sun,2024,8,3,7,3
 Idaho State,Big Sky,2024,5,7,3,5
-Pennsylvania,Ivy,2024,4,6,2,5
 North Texas,American Athletic,2024,6,7,3,5
+Pennsylvania,Ivy,2024,4,6,2,5
 Chapman,So. Cal.,2024,7,3,6,2
 Concordia University Chicago,NACC,2024,2,8,1,7
 Heidelberg,Ohio,2024,5,5,4,5
 Campbell,CAA,2024,3,9,1,7
-Missouri Southern State,Mid America,2024,2,9,1,8
 Hampden-Sydney,Old Dominion,2024,5,5,3,4
+Missouri Southern State,Mid America,2024,2,9,1,8
 San José State,Mountain West,2024,7,6,3,4
 Texas Southern,SWAC,2024,5,6,4,4
 Michigan Tech,GLIAC,2024,7,4,4,3
 Alabama,SEC,2024,9,4,5,3
 Arizona,Big 12,2024,4,8,2,7
 Jacksonville State,Conference USA,2024,9,5,8,1
-Johnson C Smith,CIAA,2024,8,2,6,2
 Adams State,Rocky Mountain,2024,0,11,0,9
+Johnson C Smith,CIAA,2024,8,2,6,2
 Tennessee,SEC,2024,10,3,6,2
 Air Force,Mountain West,2024,5,7,3,4
 Dean College,ECFC,2024,0,8,0,3
@@ -125,21 +125,21 @@ Northwestern Oklahoma State,Great American,2024,2,9,2,9
 Washington University (St. Louis),CCIW,2024,8,2,7,2
 Apprentice School,Independent DIII,2024,2,2,1,0
 Findlay,Great Midwest Athletic,2024,9,2,7,2
-South Dakota State,MVFC,2024,12,3,7,2
 Augustana (IL),CCIW,2024,4,6,3,6
+South Dakota State,MVFC,2024,12,3,7,2
 Stevenson,Mid Atlantic,2024,5,5,5,4
 Navy,American Athletic,2024,10,3,7,2
 Northwest Missouri St,Mid America,2024,6,5,5,4
-St. Anselm,Northeast 10,2024,5,5,5,4
 Stetson,Pioneer,2024,2,9,0,7
+St. Anselm,Northeast 10,2024,5,5,5,4
 Army,American Athletic,2024,12,2,9,1
 North Central College,CCIW,2024,15,0,9,0
 Brockport,Empire 8,2024,7,3,5,2
 Hardin-Simmons,American Southwest,2024,10,1,6,1
 Tulane,American Athletic,2024,9,5,7,2
-Toledo,Mid-American,2024,8,5,4,4
-Rensselaer,Liberty League,2024,5,5,3,3
 College Of New Jersey,New Jersey,2024,6,4,3,3
+Rensselaer,Liberty League,2024,5,5,3,3
+Toledo,Mid-American,2024,8,5,4,4
 Bethune-Cookman,SWAC,2024,2,10,2,6
 Georgia Southern,Sun Belt,2024,8,5,6,2
 John Carroll University,Ohio,2024,9,3,8,2
@@ -232,16 +232,16 @@ VMI,Southern,2024,1,11,1,7
 Samford,Southern,2024,4,7,3,4
 Eastern University,Mid Atlantic,2024,5,5,5,4
 Fort Lewis,Rocky Mountain,2024,3,8,2,7
-Purdue,Big Ten,2024,1,11,0,9
 Washburn,Mid America,2024,3,8,2,7
+Purdue,Big Ten,2024,1,11,0,9
 Troy,Sun Belt,2024,4,8,3,5
 Western Illinois,Big South-OVC,2024,4,8,3,5
 Wisconsin-Lutheran,NACC,2024,7,3,6,2
 Austin Peay,UAC,2024,4,8,3,5
 South Carolina State,MEAC,2024,9,3,5,0
-San Diego State,Mountain West,2024,3,9,2,5
 Nichols College,Commonwealth Coast,2024,3,7,0,5
 CSU Pueblo,Rocky Mountain,2024,10,2,9,0
+San Diego State,Mountain West,2024,3,9,2,5
 Towson,CAA,2024,7,5,5,3
 UCF,Big 12,2024,4,8,2,7
 Vanderbilt,SEC,2024,7,6,3,5
@@ -255,8 +255,8 @@ Gustavus Adolphus,Minnesota,2024,5,5,4,4
 Norwich,NEWMAC,2024,0,10,0,7
 Grinnell,Midwest,2024,2,8,2,7
 Hobart College,Liberty League,2024,9,2,6,0
-St. Norbert,NACC,2024,7,3,7,1
 Kean,New Jersey,2024,2,8,2,4
+St. Norbert,NACC,2024,7,3,7,1
 Alma,Michigan,2024,8,2,6,1
 Norfolk State,MEAC,2024,4,8,2,3
 Arizona State,Big 12,2024,11,3,8,2
@@ -277,8 +277,8 @@ Olivet College,Michigan,2024,3,7,2,5
 Roosevelt,GLIAC,2024,1,9,1,6
 Arkansas-Monticello,Great American,2024,4,7,4,7
 McNeese,Southland,2024,6,6,3,4
-Hope College,Michigan,2024,11,1,7,0
 Chowan,Gulf South,2024,3,7,3,5
+Hope College,Michigan,2024,11,1,7,0
 UTEP,Conference USA,2024,3,9,3,5
 Rhodes College,Southern Athletic,2024,3,7,2,5
 Castleton,MSCAC,2024,3,7,2,7
@@ -356,8 +356,8 @@ Lenoir-Rhyne,South Atlantic,2024,10,3,7,2
 Virginia Tech,ACC,2024,6,7,4,4
 Baldwin Wallace,Ohio,2024,7,3,6,3
 PennWest California,Pennsylvania State Athletic,2024,10,3,9,2
-Union (NY),Liberty League,2024,3,7,2,4
 Curry College,Commonwealth Coast,2024,4,6,2,3
+Union (NY),Liberty League,2024,3,7,2,4
 Tarleton State,UAC,2024,10,4,6,2
 Lake Forest College,Midwest,2024,10,1,9,0
 Mary Hardin-Baylor,American Southwest,2024,8,4,5,2
@@ -449,8 +449,8 @@ Harvard,Ivy,2024,8,2,5,2
 Pittsburg St,Mid America,2024,8,3,7,2
 West Texas A&M,Lone Star,2024,5,6,5,4
 Lycoming,Landmark Conference,2024,4,6,2,4
-St. Olaf,Minnesota,2024,7,3,5,3
 Allegheny,Presidents',2024,1,9,1,9
+St. Olaf,Minnesota,2024,7,3,5,3
 St. Thomas (MN),Pioneer,2024,6,6,5,3
 Auburn,SEC,2024,5,7,2,6
 SUNY Morrisville,Empire 8,2024,6,4,5,2
@@ -534,8 +534,8 @@ Millikin,CCIW,2024,0,10,0,9
 Missouri Western,Mid America,2024,4,7,2,7
 Colby College,NESCAC,2024,4,5,4,5
 Montclair State,New Jersey,2024,3,7,1,5
-Pacific (OR),Northwest,2024,5,5,4,4
 Ripon,Midwest,2024,4,6,4,5
+Pacific (OR),Northwest,2024,5,5,4,4
 Clark Atlanta,SIAC,2024,7,3,6,3
 Allen,SIAC,2024,2,8,1,7
 CENTENARY,Southern Collegiate Athletic,2024,4,6,4,4
@@ -559,18 +559,18 @@ Westfield State,MSCAC,2024,4,6,4,5
 Wingate,South Atlantic,2024,9,2,7,1
 North Carolina,ACC,2024,6,7,3,5
 Illinois,Big Ten,2024,10,3,6,3
-Elmhurst,CCIW,2024,3,7,3,6
 Wheaton,CCIW,2024,8,2,8,1
-Benedict College,SIAC,2024,4,6,4,4
+Elmhurst,CCIW,2024,3,7,3,6
 Central Missouri,Mid America,2024,8,3,6,3
+Benedict College,SIAC,2024,4,6,4,4
 Marshall,Sun Belt,2024,10,3,8,1
 Eastern Michigan,Mid-American,2024,5,7,2,6
 Black Hills State,Rocky Mountain,2024,6,5,5,4
 UT Martin,Big South-OVC,2024,9,5,6,2
 Maryville College (TN),USA South,2024,9,2,7,0
 American International,Northeast 10,2024,4,7,3,6
-Worcester St,MSCAC,2024,3,7,3,6
 Western New Mexico,Lone Star,2024,2,9,0,9
+Worcester St,MSCAC,2024,3,7,3,6
 Northern Illinois,Mid-American,2024,8,5,4,4
 St. Francis (PA),NEC,2024,4,7,2,5
 Idaho,Big Sky,2024,10,4,6,3
@@ -773,8 +773,8 @@ Chapman,So. Cal.,2025,9,3,8,0
 Concordia University Chicago,NACC,2025,4,6,2,6
 Heidelberg,Ohio,2025,6,4,5,3
 Campbell,CAA,2025,2,10,2,6
-Hampden-Sydney,Old Dominion,2025,7,3,3,3
 Missouri Southern State,Mid America,2025,3,8,1,8
+Hampden-Sydney,Old Dominion,2025,7,3,3,3
 San José State,Mountain West,2025,3,9,2,6
 Texas Southern,SWAC,2025,6,5,5,3
 Michigan Tech,GLIAC,2025,7,4,4,3
@@ -790,8 +790,8 @@ Lafayette,Patriot,2025,8,4,5,1
 Arkansas,SEC,2025,2,10,0,8
 Keystone,Independent DIII,2025,1,1,0,0
 Chowan,Carolinas,2025,4,7,3,4
-Northwestern Oklahoma State,Great American,2025,2,9,2,9
 Washington University (St. Louis),CCIW,2025,8,3,7,2
+Northwestern Oklahoma State,Great American,2025,2,9,2,9
 Apprentice School,Independent DIII,2025,0,3,0,0
 Findlay,Great Midwest Athletic,2025,10,2,8,1
 Augustana (IL),CCIW,2025,7,3,6,3
@@ -847,8 +847,8 @@ Boise State,Mountain West,2025,9,5,7,2
 Tennessee Tech,Big South-OVC,2025,11,2,8,0
 Texas A&M,SEC,2025,11,2,7,1
 Wisconsin-Stevens Pt,Wisconsin,2025,4,6,1,6
-Middlebury,NESCAC,2025,5,4,5,4
 Wesleyan University (CT),NESCAC,2025,7,2,7,2
+Middlebury,NESCAC,2025,5,4,5,4
 Illinois Wesleyan,CCIW,2025,4,6,4,5
 North Carolina A&T,CAA,2025,2,10,2,6
 Truman State,Great Lakes,2025,8,4,7,2
@@ -1114,8 +1114,8 @@ Harvard,Ivy,2025,9,2,6,1
 Pittsburg St,Mid America,2025,10,3,8,1
 West Texas A&M,Lone Star,2025,8,4,7,2
 Lycoming,Landmark Conference,2025,5,6,4,1
-Allegheny,Presidents',2025,4,6,3,4
 St. Olaf,Minnesota,2025,4,6,3,6
+Allegheny,Presidents',2025,4,6,3,4
 St. Thomas (MN),Pioneer,2025,7,5,5,3
 Auburn,SEC,2025,5,7,1,7
 Anna Maria College,MSCAC,2025,7,3,1,0
@@ -1172,8 +1172,8 @@ Carson-Newman College,South Atlantic,2025,7,3,6,3
 Whitworth,Northwest,2025,8,3,7,0
 Waynesburg,Presidents',2025,4,6,3,4
 Bowdoin,NESCAC,2025,2,7,2,7
-Benedictine University,NACC,2025,7,3,5,3
 UT Permian Basin,Lone Star,2025,11,3,7,2
+Benedictine University,NACC,2025,7,3,5,3
 UCLA,Big Ten,2025,3,9,3,6
 Ohio,Mid-American,2025,9,4,6,2
 Willamette,Northwest,2025,1,9,0,8
@@ -1192,8 +1192,8 @@ Lebanon Valley,Mid Atlantic,2025,6,5,6,3
 Montana,Big Sky,2025,13,2,7,2
 Thomas More College,Great Midwest Athletic,2025,1,10,1,8
 Jackson State,SWAC,2025,9,3,7,2
-Missouri Western,Mid America,2025,3,8,2,7
 Millikin,CCIW,2025,3,7,2,7
+Missouri Western,Mid America,2025,3,8,2,7
 Colby College,NESCAC,2025,6,3,6,3
 Montclair State,New Jersey,2025,5,5,3,3
 Ripon,Midwest,2025,5,5,5,4
@@ -1222,8 +1222,8 @@ Westfield State,MSCAC,2025,3,7,2,6
 Lincoln (CA),Independent DII,2025,0,8,0,1
 North Carolina,ACC,2025,4,8,2,6
 Illinois,Big Ten,2025,9,4,5,4
-Elmhurst,CCIW,2025,1,9,0,9
 Wheaton,CCIW,2025,11,3,8,1
+Elmhurst,CCIW,2025,1,9,0,9
 Benedict College,SIAC,2025,10,3,7,3
 Central Missouri,Mid America,2025,5,6,5,4
 Marshall,Sun Belt,2025,5,7,3,5
@@ -1233,8 +1233,8 @@ Black Hills State,Rocky Mountain,2025,3,8,3,6
 UT Martin,Big South-OVC,2025,6,6,6,2
 Maryville College (TN),USA South,2025,7,3,0,0
 American International,Northeast 10,2025,2,8,2,7
-Western New Mexico,Lone Star,2025,2,9,1,8
 Worcester St,MSCAC,2025,3,7,2,5
+Western New Mexico,Lone Star,2025,2,9,1,8
 Northern Illinois,Mid-American,2025,3,9,2,6
 St. Francis (PA),NEC,2025,0,11,0,7
 Idaho,Big Sky,2025,4,8,2,6
@@ -1294,8 +1294,8 @@ Morehead State,Pioneer,2025,6,6,4,4
 Illinois State,MVFC,2025,12,5,6,3
 Southern Illinois,MVFC,2025,7,5,4,4
 Southern Connecticut State,Northeast 10,2025,4,6,4,4
-Albion,Michigan,2025,3,7,1,6
 Delaware State,MEAC,2025,8,4,4,1
+Albion,Michigan,2025,3,7,1,6
 Catawba,South Atlantic,2025,7,4,5,4
 Jamestown College,Northern Sun,2025,1,9,0,0
 Cornell College (IA),Midwest,2025,4,6,4,5
