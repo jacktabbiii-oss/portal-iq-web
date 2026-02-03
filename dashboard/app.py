@@ -70,24 +70,12 @@ def render_sidebar():
         # Navigation
         st.markdown("### Navigation")
 
-        # Navigation links styled as buttons
-        # Portal IQ Core Features (Draft & Roster moved to CapIQ)
-        pages = {
-            "🏠 Home": "app",
-            "💰 NIL Valuator": "pages/nil_valuator",
-            "🔄 Portal Intelligence": "pages/portal_intelligence",
-            "📈 Win Impact": "pages/win_impact",
-            "🤖 AI Assistant": "pages/ai_assistant",
-        }
-
-        # Display current page indicator
-        current_page = st.session_state.get("current_page", "Home")
-
-        for page_name, page_path in pages.items():
-            if page_name == "🏠 Home":
-                if st.button(page_name, key=f"nav_{page_name}", use_container_width=True):
-                    st.session_state.current_page = "Home"
-            # Other pages will be handled by Streamlit's multipage system
+        # Navigation links - use st.page_link for multipage navigation
+        st.page_link("app.py", label="🏠 Home", use_container_width=True)
+        st.page_link("pages/nil_valuator.py", label="💰 NIL Valuator", use_container_width=True)
+        st.page_link("pages/portal_intelligence.py", label="🔄 Portal Intelligence", use_container_width=True)
+        st.page_link("pages/win_impact.py", label="📈 Win Impact", use_container_width=True)
+        st.page_link("pages/ai_assistant.py", label="🤖 AI Assistant", use_container_width=True)
 
         st.divider()
 
