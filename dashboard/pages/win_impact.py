@@ -1,10 +1,11 @@
 """
-Win Impact Page
+Win Impact Page - Portal IQ Proprietary Analytics
 
-Analyze player contribution to team wins and NIL correlation.
-- Win Impact metrics by position
-- NIL-to-Win correlation
-- Transfer impact projections
+Advanced player impact analysis using Portal IQ's proprietary algorithms:
+- WAR (Wins Above Replacement) based on 6 factors
+- Team Portal Impact Scoring
+- Transfer Value Analysis
+- Impact Projections
 """
 
 import streamlit as st
@@ -21,9 +22,14 @@ from utils.styling import (
     apply_custom_css, COLORS, format_currency, get_tier_color
 )
 from utils.data_loader import (
-    get_nil_players, get_portal_players, get_team_rankings, get_school_list, get_positions
+    get_nil_players, get_portal_players, get_team_rankings, get_school_list,
+    get_portal_players_with_measurables
 )
 from utils.navigation import render_sidebar, get_selected_season
+from utils.win_impact_calculator import (
+    calculate_player_war, calculate_team_portal_score, analyze_transfer_value,
+    project_team_improvement, enrich_with_war, get_school_tier
+)
 
 # Page config
 st.set_page_config(
@@ -39,74 +45,39 @@ apply_custom_css()
 # Helper Functions
 # =============================================================================
 
-def calculate_win_impact(player_data: dict) -> dict:
-    """Calculate estimated win impact for a player based on position and metrics."""
-    position = player_data.get("position", "ATH")
-    nil_value = player_data.get("nil_value", 0)
-    stars_raw = player_data.get("stars", 3)
-    # Handle NaN values
-    stars = int(stars_raw) if pd.notna(stars_raw) else 3
+def create_position_war_chart(df: pd.DataFrame) -> go.Figure:
+    """Create bar chart showing average WAR by position using Portal IQ algorithm."""
+    if "portaliq_war" not in df.columns:
+        df = enrich_with_war(df)
 
-    # Base win impact by position (expected wins above replacement)
-    position_war = {
-        "QB": 2.5, "RB": 0.8, "WR": 0.6, "TE": 0.4,
-        "OT": 0.7, "OG": 0.5, "C": 0.4, "IOL": 0.5,
-        "EDGE": 1.2, "DT": 0.6, "DL": 0.7, "LB": 0.8,
-        "CB": 0.9, "S": 0.7, "K": 0.3, "P": 0.2, "ATH": 0.5
-    }
-
-    base_war = position_war.get(position, 0.5)
-
-    # Adjust by star rating
-    star_mult = {5: 1.8, 4: 1.3, 3: 1.0, 2: 0.7}
-    war = base_war * star_mult.get(stars, 1.0)
-
-    # NIL correlation - higher NIL usually means higher impact
-    nil_bonus = min(nil_value / 2000000, 0.5) if nil_value else 0
-    war += nil_bonus
-
-    return {
-        "war": round(war, 2),
-        "position_impact": position_war.get(position, 0.5),
-        "star_multiplier": star_mult.get(stars, 1.0),
-        "nil_bonus": round(nil_bonus, 2),
-    }
-
-
-def create_position_war_chart(nil_df: pd.DataFrame) -> go.Figure:
-    """Create bar chart showing average WAR by position."""
-    # Calculate WAR for each player
-    war_data = []
-    for _, row in nil_df.iterrows():
-        impact = calculate_win_impact(row.to_dict())
-        war_data.append({
-            "position": row["position"],
-            "war": impact["war"],
-            "nil_value": row.get("nil_value", 0)
-        })
-
-    war_df = pd.DataFrame(war_data)
-    pos_avg = war_df.groupby("position").agg({
-        "war": "mean",
+    pos_avg = df.groupby("position").agg({
+        "portaliq_war": ["mean", "count"],
         "nil_value": "mean"
     }).reset_index()
-    pos_avg = pos_avg.sort_values("war", ascending=True)
+    pos_avg.columns = ["position", "avg_war", "player_count", "avg_nil"]
+    pos_avg = pos_avg[pos_avg["player_count"] >= 5]  # Filter small samples
+    pos_avg = pos_avg.sort_values("avg_war", ascending=True)
 
     fig = go.Figure()
 
     fig.add_trace(go.Bar(
-        x=pos_avg["war"],
+        x=pos_avg["avg_war"],
         y=pos_avg["position"],
         orientation='h',
         marker_color=COLORS["primary"],
-        text=[f"{w:.2f}" for w in pos_avg["war"]],
+        text=[f"{w:.2f}" for w in pos_avg["avg_war"]],
         textposition='outside',
         textfont=dict(color=COLORS["text_secondary"]),
-        name="Avg WAR"
+        name="Avg WAR",
+        hovertemplate="<b>%{y}</b><br>Avg WAR: %{x:.2f}<br>Players: %{customdata}<extra></extra>",
+        customdata=pos_avg["player_count"]
     ))
 
     fig.update_layout(
-        title=dict(text="Average Win Impact by Position", font=dict(color=COLORS["text_primary"])),
+        title=dict(
+            text="Portal IQ Average WAR by Position",
+            font=dict(color=COLORS["text_primary"])
+        ),
         xaxis_title="Wins Above Replacement (WAR)",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -119,36 +90,55 @@ def create_position_war_chart(nil_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_nil_war_scatter(nil_df: pd.DataFrame) -> go.Figure:
-    """Create scatter plot of NIL value vs WAR."""
-    war_data = []
-    for _, row in nil_df.iterrows():
-        impact = calculate_win_impact(row.to_dict())
-        # Handle NaN stars values - default to 3
-        stars_val = row.get("stars", 3)
-        if pd.isna(stars_val):
-            stars_val = 3
-        else:
-            stars_val = int(stars_val)
-        war_data.append({
-            "name": row["name"],
-            "position": row["position"],
-            "war": impact["war"],
-            "nil_value": row.get("nil_value", 0),
-            "stars": stars_val
-        })
+def create_war_distribution_chart(df: pd.DataFrame) -> go.Figure:
+    """Create histogram of WAR distribution."""
+    if "portaliq_war" not in df.columns:
+        df = enrich_with_war(df)
 
-    war_df = pd.DataFrame(war_data)
+    fig = go.Figure()
+
+    fig.add_trace(go.Histogram(
+        x=df["portaliq_war"],
+        nbinsx=30,
+        marker_color=COLORS["primary"],
+        opacity=0.8,
+        name="Players"
+    ))
+
+    fig.update_layout(
+        title=dict(
+            text="WAR Distribution Across All Players",
+            font=dict(color=COLORS["text_primary"])
+        ),
+        xaxis_title="Wins Above Replacement (WAR)",
+        yaxis_title="Number of Players",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLORS["text_secondary"]),
+        xaxis=dict(gridcolor=COLORS["bg_light"]),
+        yaxis=dict(gridcolor=COLORS["bg_light"]),
+        height=350,
+    )
+
+    return fig
+
+
+def create_nil_war_scatter(df: pd.DataFrame) -> go.Figure:
+    """Create scatter plot of NIL value vs WAR."""
+    if "portaliq_war" not in df.columns:
+        df = enrich_with_war(df)
+
+    # Sample if too many points
+    plot_df = df.sample(min(500, len(df))) if len(df) > 500 else df
 
     fig = px.scatter(
-        war_df,
-        x="war",
+        plot_df,
+        x="portaliq_war",
         y="nil_value",
         color="position",
-        size="stars",
-        hover_data=["name"],
+        hover_data=["name", "school"],
         title="NIL Value vs Win Impact",
-        labels={"war": "Win Impact (WAR)", "nil_value": "NIL Value ($)"}
+        labels={"portaliq_war": "Portal IQ WAR", "nil_value": "NIL Value ($)"}
     )
 
     fig.update_layout(
@@ -161,42 +151,58 @@ def create_nil_war_scatter(nil_df: pd.DataFrame) -> go.Figure:
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLORS["text_secondary"])
         ),
-        height=500,
+        height=450,
     )
 
     return fig
 
 
-def create_team_impact_chart(team_df: pd.DataFrame) -> go.Figure:
-    """Create chart showing team portal impact."""
-    if team_df.empty:
+def create_team_impact_chart(teams_data: list) -> go.Figure:
+    """Create bar chart for team portal scores."""
+    if not teams_data:
         return go.Figure()
 
-    # Sort by overall score
-    team_df = team_df.nlargest(15, "overall_score")
+    teams_df = pd.DataFrame(teams_data)
+    teams_df = teams_df.nlargest(20, "portal_score")
 
     fig = go.Figure()
 
+    # Add bars with grade-based coloring
+    colors = []
+    for grade in teams_df["grade"]:
+        if grade in ["A+", "A"]:
+            colors.append(COLORS["primary"])
+        elif grade in ["B+", "B"]:
+            colors.append(COLORS["chart_2"])
+        elif grade in ["C+", "C"]:
+            colors.append(COLORS["chart_4"])
+        else:
+            colors.append(COLORS["text_muted"])
+
     fig.add_trace(go.Bar(
-        x=team_df["name"],
-        y=team_df["overall_score"],
-        marker_color=COLORS["primary"],
-        text=[f"{s:.0f}" for s in team_df["overall_score"]],
+        x=teams_df["team"],
+        y=teams_df["portal_score"],
+        marker_color=colors,
+        text=[f"{s:.0f} ({g})" for s, g in zip(teams_df["portal_score"], teams_df["grade"])],
         textposition='outside',
-        name="Portal Score"
+        hovertemplate="<b>%{x}</b><br>Score: %{y:.1f}<br>WAR Added: %{customdata:.2f}<extra></extra>",
+        customdata=teams_df["war_added"]
     ))
 
     fig.update_layout(
-        title=dict(text="Top 15 Portal Classes by Impact Score", font=dict(color=COLORS["text_primary"])),
+        title=dict(
+            text="Portal IQ Team Impact Scores (Top 20)",
+            font=dict(color=COLORS["text_primary"])
+        ),
         xaxis_title="Team",
-        yaxis_title="Portal Impact Score",
+        yaxis_title="Portal IQ Score",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=COLORS["text_secondary"]),
         yaxis=dict(gridcolor=COLORS["bg_light"]),
         xaxis=dict(tickangle=45),
         margin=dict(l=50, r=50, t=50, b=100),
-        height=400,
+        height=450,
     )
 
     return fig
@@ -214,9 +220,26 @@ def main():
     st.markdown(f"""
     <h1 style="color: {COLORS['primary']};">📈 Win Impact</h1>
     <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem;">
-        Analyze player contribution to team wins and NIL correlation
+        Portal IQ's proprietary player impact analysis powered by advanced WAR algorithms
     </p>
     """, unsafe_allow_html=True)
+
+    # Algorithm info expander
+    with st.expander("ℹ️ About Portal IQ's WAR Algorithm"):
+        st.markdown(f"""
+        <div style="color: {COLORS['text_secondary']};">
+        <p><strong>Portal IQ WAR (Wins Above Replacement)</strong> is our proprietary algorithm that considers:</p>
+        <ul>
+            <li><strong>Position Value & Scarcity</strong> - QBs and EDGE rushers have highest impact</li>
+            <li><strong>Recruiting Profile</strong> - Star rating plus recruiting rating bonuses</li>
+            <li><strong>NIL Market Signal</strong> - Market valuation as indicator of perceived value</li>
+            <li><strong>Destination School Tier</strong> - Elite programs maximize player potential</li>
+            <li><strong>Physical Measurables</strong> - Height/weight fit for position</li>
+            <li><strong>Experience Factor</strong> - Juniors typically peak, freshmen developing</li>
+        </ul>
+        <p>Unlike basic portal rankings, our algorithm creates a holistic view of true on-field impact.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
 
@@ -239,22 +262,30 @@ def main():
 
 def render_overview_tab():
     """Render the overview tab with aggregate analytics."""
-    nil_df = get_nil_players()
+    selected_season = get_selected_season()
+    portal_year = selected_season + 1
 
-    if nil_df.empty:
-        st.warning("No NIL data available. Run the On3 scraper first.")
-        return
+    with st.spinner("Loading player data and calculating WAR..."):
+        # Try to get players with measurables for better WAR calculation
+        try:
+            nil_df = get_portal_players_with_measurables(year=portal_year)
+        except Exception:
+            nil_df = get_nil_players()
+
+        if nil_df.empty:
+            st.warning("No player data available. Check data sources.")
+            return
+
+        # Enrich with Portal IQ WAR
+        nil_df = enrich_with_war(nil_df)
 
     # Summary metrics
     st.markdown("### Win Impact Summary")
 
-    # Calculate aggregate stats
     total_players = len(nil_df)
-    avg_nil = nil_df["nil_value"].mean()
-
-    # Calculate average WAR
-    wars = [calculate_win_impact(row.to_dict())["war"] for _, row in nil_df.iterrows()]
-    avg_war = np.mean(wars)
+    avg_nil = nil_df["nil_value"].mean() if "nil_value" in nil_df.columns else 0
+    avg_war = nil_df["portaliq_war"].mean()
+    total_war = nil_df["portaliq_war"].sum()
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -262,15 +293,14 @@ def render_overview_tab():
         st.metric("Players Analyzed", f"{total_players:,}")
 
     with col2:
-        st.metric("Avg NIL Value", format_currency(avg_nil))
+        st.metric("Avg Portal IQ WAR", f"{avg_war:.2f}")
 
     with col3:
-        st.metric("Avg Win Impact", f"{avg_war:.2f} WAR")
+        st.metric("Total WAR Pool", f"{total_war:.1f}")
 
     with col4:
-        # NIL per WAR
         nil_per_war = avg_nil / avg_war if avg_war > 0 else 0
-        st.metric("NIL per Win", format_currency(nil_per_war))
+        st.metric("Avg NIL per WAR", format_currency(nil_per_war))
 
     st.divider()
 
@@ -278,7 +308,7 @@ def render_overview_tab():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### Win Impact by Position")
+        st.markdown("### WAR by Position")
         fig = create_position_war_chart(nil_df)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -287,38 +317,46 @@ def render_overview_tab():
         fig = create_nil_war_scatter(nil_df)
         st.plotly_chart(fig, use_container_width=True)
 
+    # WAR distribution
+    st.markdown("### WAR Distribution")
+    fig = create_war_distribution_chart(nil_df)
+    st.plotly_chart(fig, use_container_width=True)
+
     st.divider()
 
     # Top impact players
     st.markdown("### Top Win Impact Players")
 
-    war_data = []
-    for _, row in nil_df.iterrows():
-        impact = calculate_win_impact(row.to_dict())
-        war_data.append({
-            "name": row["name"],
-            "position": row["position"],
-            "school": row.get("school", "Unknown"),
-            "nil_value": row.get("nil_value", 0),
-            "war": impact["war"],
+    top_war = nil_df.nlargest(15, "portaliq_war")
+
+    display_data = []
+    for _, row in top_war.iterrows():
+        display_data.append({
+            "Player": row["name"],
+            "Position": row["position"],
+            "School": row.get("school") or row.get("destination_school", "Unknown"),
+            "NIL Value": format_currency(row.get("nil_value", 0)),
+            "Portal IQ WAR": f"{row['portaliq_war']:.2f}",
+            "Confidence": row.get("war_confidence", "medium").title()
         })
 
-    war_df = pd.DataFrame(war_data)
-    top_war = war_df.nlargest(10, "war")
-
-    display_df = top_war.copy()
-    display_df["nil_value"] = display_df["nil_value"].apply(format_currency)
-    display_df.columns = ["Player", "Position", "School", "NIL Value", "Win Impact (WAR)"]
-
+    display_df = pd.DataFrame(display_data)
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 
 def render_player_tab():
-    """Render the player analysis tab."""
-    nil_df = get_nil_players()
+    """Render the player analysis tab with detailed WAR breakdown."""
+    selected_season = get_selected_season()
+    portal_year = selected_season + 1
+
+    # Load data
+    try:
+        nil_df = get_portal_players_with_measurables(year=portal_year)
+    except Exception:
+        nil_df = get_nil_players()
 
     if nil_df.empty:
-        st.warning("No NIL data available.")
+        st.warning("No player data available.")
         return
 
     st.markdown("### Analyze Player Win Impact")
@@ -326,20 +364,38 @@ def render_player_tab():
     col1, col2 = st.columns([2, 1])
 
     with col1:
+        # Search/select player
+        player_names = nil_df["name"].dropna().unique().tolist()
         selected_player = st.selectbox(
             "Select Player",
-            options=nil_df["name"].tolist(),
+            options=sorted(player_names),
             key="win_impact_player"
         )
 
     with col2:
         st.write("")
-        analyze_btn = st.button("📊 Analyze", type="primary", use_container_width=True)
+        analyze_btn = st.button("📊 Analyze Impact", type="primary", use_container_width=True)
 
     if selected_player and analyze_btn:
-        player = nil_df[nil_df["name"] == selected_player].iloc[0]
-        player_dict = player.to_dict()
-        impact = calculate_win_impact(player_dict)
+        player_row = nil_df[nil_df["name"] == selected_player]
+        if player_row.empty:
+            st.error("Player not found")
+            return
+
+        player = player_row.iloc[0]
+
+        # Calculate detailed WAR
+        war_result = calculate_player_war(
+            position=player.get("position"),
+            stars=player.get("stars"),
+            rating=player.get("overall_rating"),
+            nil_value=player.get("portaliq_value") or player.get("nil_value", 0),
+            destination_school=player.get("destination_school") or player.get("school"),
+            height=player.get("height_inches"),
+            weight=player.get("weight"),
+            year=player.get("year"),
+            is_predicted_nil=player.get("is_predicted", True)
+        )
 
         st.divider()
 
@@ -347,50 +403,114 @@ def render_player_tab():
         col1, col2 = st.columns([1, 2])
 
         with col1:
+            stars_val = int(player.get("stars", 3)) if pd.notna(player.get("stars")) else 3
+            school = player.get("destination_school") or player.get("school", "Unknown")
+
             st.markdown(f"""
-            <div style="background: {COLORS['bg_medium']}; padding: 20px; border-radius: 10px;">
+            <div style="background: {COLORS['bg_medium']}; padding: 20px; border-radius: 10px; border-left: 4px solid {COLORS['primary']};">
                 <h2 style="color: {COLORS['primary']}; margin-bottom: 15px;">{player['name']}</h2>
-                <p><strong>Position:</strong> {player['position']}</p>
-                <p><strong>School:</strong> {player.get('school', 'Unknown')}</p>
-                <p><strong>Stars:</strong> {'⭐' * (int(player.get('stars', 3)) if pd.notna(player.get('stars')) else 3)}</p>
-                <p><strong>NIL Value:</strong> {format_currency(player.get('nil_value', 0))}</p>
+                <p style="color: {COLORS['text_secondary']}; margin: 5px 0;"><strong>Position:</strong> {player['position']}</p>
+                <p style="color: {COLORS['text_secondary']}; margin: 5px 0;"><strong>School:</strong> {school}</p>
+                <p style="color: {COLORS['text_secondary']}; margin: 5px 0;"><strong>Stars:</strong> {'⭐' * stars_val}</p>
+                <p style="color: {COLORS['text_secondary']}; margin: 5px 0;"><strong>NIL Value:</strong> {format_currency(player.get('nil_value', 0) or player.get('portaliq_value', 0))}</p>
             </div>
             """, unsafe_allow_html=True)
 
         with col2:
-            # Win Impact breakdown
-            st.markdown("### Win Impact Breakdown")
+            # WAR breakdown
+            st.markdown("### Portal IQ WAR Breakdown")
 
-            col_a, col_b, col_c, col_d = st.columns(4)
+            breakdown = war_result["breakdown"]
 
-            with col_a:
-                st.metric("Total WAR", f"{impact['war']:.2f}")
+            cols = st.columns(4)
+            with cols[0]:
+                st.metric("Total WAR", f"{war_result['war']:.2f}")
+            with cols[1]:
+                st.metric("WAR Range", f"{war_result['war_low']:.2f} - {war_result['war_high']:.2f}")
+            with cols[2]:
+                st.metric("Confidence", war_result['confidence'].title())
+            with cols[3]:
+                st.metric("School Tier", breakdown['school_tier'].title())
 
-            with col_b:
-                st.metric("Position Impact", f"{impact['position_impact']:.2f}")
+            # Detailed breakdown
+            st.markdown("#### Factor Breakdown")
 
-            with col_c:
-                st.metric("Star Multiplier", f"{impact['star_multiplier']:.1f}x")
+            factor_cols = st.columns(3)
+            with factor_cols[0]:
+                st.markdown(f"""
+                <div style="background: {COLORS['bg_light']}; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 0;">Base WAR (Position)</p>
+                    <p style="color: {COLORS['text_primary']}; font-size: 1.2rem; margin: 0; font-weight: bold;">{breakdown['base_war']:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="background: {COLORS['bg_light']}; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 0;">Position Scarcity</p>
+                    <p style="color: {COLORS['text_primary']}; font-size: 1.2rem; margin: 0; font-weight: bold;">×{breakdown['position_scarcity']:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-            with col_d:
-                st.metric("NIL Bonus", f"+{impact['nil_bonus']:.2f}")
+            with factor_cols[1]:
+                st.markdown(f"""
+                <div style="background: {COLORS['bg_light']}; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 0;">Star Multiplier</p>
+                    <p style="color: {COLORS['text_primary']}; font-size: 1.2rem; margin: 0; font-weight: bold;">×{breakdown['star_multiplier']:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="background: {COLORS['bg_light']}; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 0;">School Multiplier</p>
+                    <p style="color: {COLORS['text_primary']}; font-size: 1.2rem; margin: 0; font-weight: bold;">×{breakdown['school_multiplier']:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-            # Value per win
-            nil_value = player.get('nil_value', 0)
-            value_per_war = nil_value / impact['war'] if impact['war'] > 0 else 0
-
-            st.markdown(f"""
-            <div style="background: {COLORS['bg_light']}; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <h4 style="color: {COLORS['primary']};">Value Analysis</h4>
-                <p>This player's NIL value of <strong>{format_currency(nil_value)}</strong>
-                   with a win impact of <strong>{impact['war']:.2f} WAR</strong> means
-                   their effective cost per win is <strong>{format_currency(value_per_war)}</strong>.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            with factor_cols[2]:
+                st.markdown(f"""
+                <div style="background: {COLORS['bg_light']}; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 0;">Measurables Factor</p>
+                    <p style="color: {COLORS['text_primary']}; font-size: 1.2rem; margin: 0; font-weight: bold;">×{breakdown['measurables_factor']:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="background: {COLORS['bg_light']}; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 0;">NIL Market Bonus</p>
+                    <p style="color: {COLORS['primary']}; font-size: 1.2rem; margin: 0; font-weight: bold;">+{breakdown['nil_bonus']:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
         st.divider()
 
-        # Transfer impact projection
+        # Transfer Value Analysis
+        st.markdown("### Transfer Value Analysis")
+
+        nil_val = player.get("portaliq_value") or player.get("nil_value", 0)
+        value_analysis = analyze_transfer_value(
+            player_war=war_result["war"],
+            nil_value=nil_val,
+            position=player.get("position", "ATH")
+        )
+
+        val_cols = st.columns(4)
+        with val_cols[0]:
+            st.metric("Cost per WAR", format_currency(value_analysis["cost_per_war"]))
+        with val_cols[1]:
+            st.metric("Fair Value/WAR", format_currency(value_analysis["fair_value_per_war"]))
+        with val_cols[2]:
+            rating_color = COLORS["primary"] if "value" in value_analysis["value_rating"] else COLORS["risk_high"]
+            st.markdown(f"""
+            <div style="text-align: center;">
+                <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin-bottom: 5px;">Value Rating</p>
+                <p style="color: {rating_color}; font-size: 1.2rem; font-weight: bold; margin: 0;">{value_analysis['value_rating'].replace('_', ' ').title()}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with val_cols[3]:
+            st.metric("Market Comparison", value_analysis["market_comparison"])
+
+        st.info(f"**ROI Projection:** {value_analysis['roi_projection']}")
+
+        st.divider()
+
+        # Transfer Impact Projection
         st.markdown("### Transfer Impact Projection")
         st.markdown("_How would this player impact different teams?_")
 
@@ -401,99 +521,185 @@ def render_player_tab():
         )
 
         if target_school:
-            # Get team ranking info
-            selected_season = get_selected_season()
-            portal_year = selected_season + 1
-            team_df = get_team_rankings(year=portal_year)
-            team_info = team_df[team_df["name"] == target_school]
+            # Get team info
+            tier_name, tier_data = get_school_tier(target_school)
 
-            if not team_info.empty:
-                team = team_info.iloc[0]
+            # Project improvement
+            projection = project_team_improvement(
+                player_war=war_result["war"],
+                team_tier=tier_name
+            )
 
-                col1, col2, col3 = st.columns(3)
+            proj_cols = st.columns(4)
 
-                with col1:
-                    st.metric(
-                        f"{target_school} Current Portal Score",
-                        f"{team.get('overall_score', 0):.0f}"
-                    )
+            with proj_cols[0]:
+                st.metric(f"{target_school.split()[0]} Tier", tier_name.title())
 
-                with col2:
-                    new_score = team.get('overall_score', 0) + (impact['war'] * 10)
-                    st.metric(
-                        "Projected Score with Player",
-                        f"{new_score:.0f}",
-                        delta=f"+{impact['war'] * 10:.0f}"
-                    )
+            with proj_cols[1]:
+                st.metric("Current Win Baseline", f"{projection['current_baseline']:.0f} wins")
 
-                with col3:
-                    st.metric(
-                        "Projected Win Improvement",
-                        f"+{impact['war']:.1f} wins"
-                    )
+            with proj_cols[2]:
+                st.metric(
+                    "Projected Improvement",
+                    f"+{projection['projected_wins_added']:.1f} wins",
+                    delta=f"to {projection['new_projected_wins']:.1f} total"
+                )
+
+            with proj_cols[3]:
+                st.metric("Playoff Impact", projection["playoff_impact"])
+
+            if projection["diminishing_factor"] < 1:
+                st.caption(f"_Note: Diminishing returns factor of {projection['diminishing_factor']:.0%} applied for already-competitive team._")
 
 
 def render_team_tab():
-    """Render the team portal impact tab."""
+    """Render the team portal impact tab with proprietary scoring."""
     selected_season = get_selected_season()
     portal_year = selected_season + 1
-    team_df = get_team_rankings(year=portal_year)
-    portal_df = get_portal_players(year=portal_year)
 
-    if team_df.empty:
-        st.warning("No team ranking data available.")
-        return
+    st.markdown(f"### {portal_year} Portal IQ Team Impact Rankings")
 
-    st.markdown(f"### {portal_year} Portal Class Rankings")
+    with st.spinner("Calculating team portal impact scores..."):
+        # Load portal data
+        portal_df = get_portal_players(year=portal_year)
 
-    # Team impact chart
-    fig = create_team_impact_chart(team_df)
+        if portal_df.empty:
+            st.warning("No portal data available.")
+            return
+
+        # Get unique destination schools
+        schools = portal_df["destination_school"].dropna().unique()
+
+        # Calculate Portal IQ score for each team
+        team_scores = []
+
+        for school in schools:
+            if not school or len(str(school)) < 2:
+                continue
+
+            incoming = portal_df[
+                (portal_df["destination_school"] == school) &
+                (portal_df["status"] == "Committed")
+            ]
+
+            if len(incoming) < 1:
+                continue
+
+            outgoing = portal_df[
+                (portal_df["origin_school"].str.contains(str(school).split()[0], case=False, na=False))
+            ]
+
+            score_result = calculate_team_portal_score(
+                incoming_players=incoming,
+                outgoing_players=outgoing,
+                team_name=school
+            )
+
+            team_scores.append({
+                "team": school,
+                **score_result
+            })
+
+        if not team_scores:
+            st.warning("No team data to display.")
+            return
+
+        # Sort by portal score
+        team_scores = sorted(team_scores, key=lambda x: x["portal_score"], reverse=True)
+
+    # Top teams chart
+    fig = create_team_impact_chart(team_scores)
     st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
-    # Team details
+    # Team details selector
     st.markdown("### Team Details")
 
+    team_names = [t["team"] for t in team_scores]
     selected_team = st.selectbox(
-        "Select Team for Details",
-        options=team_df["name"].tolist(),
-        key="team_detail"
+        "Select Team for Detailed Analysis",
+        options=team_names,
+        key="team_detail_select"
     )
 
     if selected_team:
-        team = team_df[team_df["name"] == selected_team].iloc[0]
+        team_data = next((t for t in team_scores if t["team"] == selected_team), None)
 
-        col1, col2, col3, col4 = st.columns(4)
+        if team_data:
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
 
-        with col1:
-            st.metric("Portal Rank", f"#{int(team.get('overall_rank', 0))}")
+            with col1:
+                grade_color = COLORS["primary"] if team_data["grade"] in ["A+", "A", "B+"] else COLORS["text_secondary"]
+                st.markdown(f"""
+                <div style="text-align: center; background: {COLORS['bg_medium']}; padding: 15px; border-radius: 10px;">
+                    <p style="color: {COLORS['text_muted']}; margin: 0; font-size: 0.9rem;">Portal Grade</p>
+                    <p style="color: {grade_color}; font-size: 2.5rem; font-weight: bold; margin: 0;">{team_data['grade']}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-        with col2:
-            st.metric("Portal Score", f"{team.get('overall_score', 0):.0f}")
+            with col2:
+                st.metric("Portal IQ Score", f"{team_data['portal_score']:.1f}")
 
-        with col3:
-            st.metric("Transfers In", f"{int(team.get('transfers_in', 0))}")
+            with col3:
+                st.metric("WAR Added", f"+{team_data['war_added']:.2f}")
 
-        with col4:
-            st.metric("Net 4-5 Stars", f"{int(team.get('four_stars_net', 0) + team.get('five_stars_net', 0)):+d}")
+            with col4:
+                st.metric("Net WAR", f"{team_data['net_war']:+.2f}")
 
-        st.divider()
+            # Detailed breakdown
+            st.markdown("#### Detailed Breakdown")
 
-        # Show incoming transfers for this team
-        st.markdown(f"### {selected_team} Incoming Transfers")
+            breakdown = team_data["breakdown"]
 
-        incoming = portal_df[
-            (portal_df["destination_school"].str.contains(selected_team, case=False, na=False)) &
-            (portal_df["status"] == "Committed")
-        ]
+            detail_cols = st.columns(4)
+            with detail_cols[0]:
+                st.metric("Transfers In", breakdown["transfers_in"])
+            with detail_cols[1]:
+                st.metric("Avg WAR/Transfer", f"{team_data['avg_war_per_transfer']:.2f}")
+            with detail_cols[2]:
+                st.metric("Position Balance", f"{breakdown['position_balance']:.0%}")
+            with detail_cols[3]:
+                st.metric("Star Quality", f"{breakdown['star_quality']:.2f}")
 
-        if not incoming.empty:
-            display_df = incoming[["name", "position", "origin_school", "stars"]].head(10)
-            display_df.columns = ["Player", "Position", "From", "Stars"]
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
-        else:
-            st.info(f"No committed transfers to {selected_team} found in the data.")
+            # Star distribution
+            st.markdown("#### Transfer Quality Distribution")
+            star_dist = breakdown["star_distribution"]
+
+            star_cols = st.columns(4)
+            with star_cols[0]:
+                st.metric("5-Star Transfers", star_dist.get(5, 0))
+            with star_cols[1]:
+                st.metric("4-Star Transfers", star_dist.get(4, 0))
+            with star_cols[2]:
+                st.metric("3-Star Transfers", star_dist.get(3, 0))
+            with star_cols[3]:
+                st.metric("2-Star Transfers", star_dist.get(2, 0))
+
+            st.divider()
+
+            # Show incoming transfers
+            st.markdown(f"#### {selected_team} Incoming Transfers")
+
+            incoming = portal_df[
+                (portal_df["destination_school"] == selected_team) &
+                (portal_df["status"] == "Committed")
+            ]
+
+            if not incoming.empty:
+                # Enrich with WAR
+                incoming = enrich_with_war(incoming, school_col="destination_school")
+
+                display_cols = ["name", "position", "origin_school", "stars", "portaliq_war"]
+                display_df = incoming[display_cols].copy()
+                display_df.columns = ["Player", "Position", "From", "Stars", "Portal IQ WAR"]
+                display_df = display_df.sort_values("Portal IQ WAR", ascending=False)
+                display_df["Portal IQ WAR"] = display_df["Portal IQ WAR"].apply(lambda x: f"{x:.2f}")
+
+                st.dataframe(display_df.head(15), use_container_width=True, hide_index=True)
+            else:
+                st.info(f"No committed transfers to {selected_team} found.")
 
 
 # =============================================================================

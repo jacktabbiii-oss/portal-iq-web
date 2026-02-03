@@ -36,6 +36,19 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# MCP config (contains API keys)
+.mcp.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
