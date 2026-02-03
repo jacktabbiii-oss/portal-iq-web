@@ -23,7 +23,7 @@ from utils.styling import (
 from utils.data_loader import (
     get_nil_players, get_portal_players, get_team_rankings, get_school_list, get_positions
 )
-from utils.navigation import render_sidebar
+from utils.navigation import render_sidebar, get_selected_season
 
 # Page config
 st.set_page_config(
@@ -402,7 +402,9 @@ def render_player_tab():
 
         if target_school:
             # Get team ranking info
-            team_df = get_team_rankings(year=2026)
+            selected_season = get_selected_season()
+            portal_year = selected_season + 1
+            team_df = get_team_rankings(year=portal_year)
             team_info = team_df[team_df["name"] == target_school]
 
             if not team_info.empty:
@@ -433,14 +435,16 @@ def render_player_tab():
 
 def render_team_tab():
     """Render the team portal impact tab."""
-    team_df = get_team_rankings(year=2026)
-    portal_df = get_portal_players(year=2026)
+    selected_season = get_selected_season()
+    portal_year = selected_season + 1
+    team_df = get_team_rankings(year=portal_year)
+    portal_df = get_portal_players(year=portal_year)
 
     if team_df.empty:
         st.warning("No team ranking data available.")
         return
 
-    st.markdown("### 2026 Portal Class Rankings")
+    st.markdown(f"### {portal_year} Portal Class Rankings")
 
     # Team impact chart
     fig = create_team_impact_chart(team_df)

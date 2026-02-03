@@ -4,6 +4,13 @@ import streamlit as st
 from utils.data_loader import get_database_stats
 
 
+def get_selected_season() -> int:
+    """Get the currently selected season from session state."""
+    if "selected_season" not in st.session_state:
+        st.session_state.selected_season = 2025  # Current season
+    return st.session_state.selected_season
+
+
 def render_sidebar():
     """Render the sidebar with navigation and info. Call this from every page."""
     with st.sidebar:
@@ -63,6 +70,28 @@ def render_sidebar():
         st.page_link("pages/portal_intelligence.py", label="🔄  Portal Intelligence", use_container_width=True)
         st.page_link("pages/win_impact.py", label="📈  Win Impact", use_container_width=True)
         st.page_link("pages/ai_assistant.py", label="🤖  AI Assistant", use_container_width=True)
+
+        # Season selector
+        st.markdown('<div class="nav-section">Season</div>', unsafe_allow_html=True)
+
+        season_options = {
+            2025: "2025-26 (Current)",
+            2024: "2024-25",
+            2023: "2023-24"
+        }
+
+        selected = st.selectbox(
+            "View Season",
+            options=list(season_options.keys()),
+            format_func=lambda x: season_options[x],
+            index=0,
+            key="season_selector",
+            label_visibility="collapsed"
+        )
+
+        if selected != st.session_state.get("selected_season", 2025):
+            st.session_state.selected_season = selected
+            st.rerun()
 
         # Data status - compact
         st.markdown('<div class="nav-section">Data Status</div>', unsafe_allow_html=True)

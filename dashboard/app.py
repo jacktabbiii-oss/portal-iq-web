@@ -25,7 +25,7 @@ st.set_page_config(
 from utils.styling import apply_custom_css, COLORS
 from utils.api_client import PortalIQClient
 from utils.data_loader import get_database_stats, get_nil_players, get_portal_players, get_team_rankings
-from utils.navigation import render_sidebar
+from utils.navigation import render_sidebar, get_selected_season
 
 
 # =============================================================================
@@ -172,14 +172,17 @@ def render_main_page():
     st.divider()
 
     # Recent Activity - Real Data
-    st.markdown("### 📈 Live Data")
+    selected_season = get_selected_season()
+    portal_year = selected_season + 1  # Portal year is season + 1 (2025 season = 2026 portal)
+
+    st.markdown(f"### 📈 Live Data ({selected_season}-{selected_season + 1} Season)")
 
     col1, col2, col3 = st.columns(3)
 
     # Get real data
     nil_df = get_nil_players()
-    portal_df = get_portal_players(year=2026)
-    team_df = get_team_rankings(year=2026)
+    portal_df = get_portal_players(year=portal_year)
+    team_df = get_team_rankings(year=portal_year)
 
     with col1:
         st.markdown("#### 🔥 Top NIL Players")
@@ -206,7 +209,7 @@ def render_main_page():
             st.info("Load portal data to see entries")
 
     with col3:
-        st.markdown("#### 🏆 Top Portal Classes (2026)")
+        st.markdown(f"#### 🏆 Top Portal Classes ({portal_year})")
         if not team_df.empty:
             top_teams = team_df.nlargest(5, "overall_score") if "overall_score" in team_df.columns else team_df.head(5)
             for _, row in top_teams.iterrows():
