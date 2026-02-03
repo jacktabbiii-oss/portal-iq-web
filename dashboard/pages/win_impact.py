@@ -209,7 +209,7 @@ def main():
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">📈 Win Impact</h1>
-    <p style="color: #aaa; font-size: 1.1rem;">
+    <p style="color: #e6edf3; font-size: 1.1rem;">
         Analyze player contribution to team wins and NIL correlation
     </p>
     """, unsafe_allow_html=True)

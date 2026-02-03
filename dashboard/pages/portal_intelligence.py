@@ -186,7 +186,7 @@ def main():
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">🔄 Portal Intelligence</h1>
-    <p style="color: #aaa; font-size: 1.1rem;">
+    <p style="color: #e6edf3; font-size: 1.1rem;">
         Transfer portal analytics and flight risk monitoring
     </p>
     """, unsafe_allow_html=True)

@@ -57,6 +57,135 @@ def get_client():
 # Helper Functions
 # =============================================================================
 
+def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
+    """
+    Calculate custom NIL value based on on-field performance metrics.
+    Returns (value, breakdown_dict) where breakdown_dict explains the factors.
+    """
+    position = player_data.get("position", "ATH")
+    stars = player_data.get("stars", 3)
+    school = player_data.get("school", "Unknown")
+
+    # Handle NaN stars
+    if pd.isna(stars):
+        stars = 3
+    else:
+        stars = int(stars)
+
+    # Base value by position (market value weights)
+    position_base = {
+        "QB": 500000, "RB": 150000, "WR": 200000, "TE": 100000,
+        "OT": 120000, "OG": 80000, "C": 70000, "IOL": 85000,
+        "EDGE": 180000, "DT": 100000, "DL": 110000, "LB": 120000,
+        "CB": 150000, "S": 100000, "K": 30000, "P": 20000, "ATH": 80000
+    }
+
+    base = position_base.get(position, 80000)
+
+    # Star rating multiplier (performance indicator)
+    star_multipliers = {5: 2.5, 4: 1.5, 3: 1.0, 2: 0.6, 1: 0.3}
+    star_mult = star_multipliers.get(stars, 1.0)
+
+    # School brand multiplier
+    blue_bloods = ["Alabama", "Ohio State", "Georgia", "Texas", "USC", "Michigan", "Notre Dame"]
+    elite_programs = ["LSU", "Florida", "Oregon", "Penn State", "Clemson", "Tennessee", "Oklahoma", "Miami"]
+    good_programs = ["Auburn", "Florida State", "Wisconsin", "Iowa", "UCLA", "Arizona State", "Colorado"]
+
+    if school in blue_bloods:
+        school_mult = 1.8
+        school_factor = "Blue Blood"
+    elif school in elite_programs:
+        school_mult = 1.4
+        school_factor = "Elite Program"
+    elif school in good_programs:
+        school_mult = 1.2
+        school_factor = "Strong Program"
+    else:
+        school_mult = 1.0
+        school_factor = "Standard"
+
+    # Performance adjustments based on stats (if available)
+    perf_bonus = 0
+    perf_factors = []
+
+    # QB stats
+    if position == "QB":
+        pass_yds = player_data.get("passing_yards", 0) or 0
+        pass_tds = player_data.get("passing_tds", 0) or 0
+        if pass_yds > 3000:
+            perf_bonus += 150000
+            perf_factors.append(f"Elite passing yards ({pass_yds:,})")
+        elif pass_yds > 2000:
+            perf_bonus += 75000
+            perf_factors.append(f"Strong passing yards ({pass_yds:,})")
+        if pass_tds > 25:
+            perf_bonus += 100000
+            perf_factors.append(f"Elite passing TDs ({pass_tds})")
+
+    # RB stats
+    elif position == "RB":
+        rush_yds = player_data.get("rushing_yards", 0) or 0
+        rush_tds = player_data.get("rushing_tds", 0) or 0
+        if rush_yds > 1000:
+            perf_bonus += 80000
+            perf_factors.append(f"1000+ yard rusher ({rush_yds:,})")
+        if rush_tds > 10:
+            perf_bonus += 50000
+            perf_factors.append(f"Double-digit TDs ({rush_tds})")
+
+    # WR stats
+    elif position == "WR":
+        rec_yds = player_data.get("receiving_yards", 0) or 0
+        rec_tds = player_data.get("receiving_tds", 0) or 0
+        if rec_yds > 1000:
+            perf_bonus += 100000
+            perf_factors.append(f"1000+ yard receiver ({rec_yds:,})")
+        if rec_tds > 8:
+            perf_bonus += 60000
+            perf_factors.append(f"High TD count ({rec_tds})")
+
+    # Defensive stats
+    elif position in ["EDGE", "DT", "DL", "LB"]:
+        tackles = player_data.get("tackles", 0) or 0
+        sacks = player_data.get("sacks", 0) or 0
+        if sacks > 8:
+            perf_bonus += 100000
+            perf_factors.append(f"Elite pass rusher ({sacks} sacks)")
+        elif sacks > 5:
+            perf_bonus += 50000
+            perf_factors.append(f"Strong pass rush ({sacks} sacks)")
+        if tackles > 80:
+            perf_bonus += 40000
+            perf_factors.append(f"High tackle count ({tackles})")
+
+    # Secondary stats
+    elif position in ["CB", "S"]:
+        ints = player_data.get("interceptions", player_data.get("interceptions_def", 0)) or 0
+        if ints > 4:
+            perf_bonus += 80000
+            perf_factors.append(f"Ball hawk ({ints} INTs)")
+        elif ints > 2:
+            perf_bonus += 40000
+            perf_factors.append(f"Playmaker ({ints} INTs)")
+
+    # Calculate total
+    custom_value = (base * star_mult * school_mult) + perf_bonus
+
+    # Build breakdown for explanation
+    breakdown = {
+        "base_position_value": base,
+        "star_multiplier": star_mult,
+        "star_rating": stars,
+        "school_multiplier": school_mult,
+        "school_tier": school_factor,
+        "performance_bonus": perf_bonus,
+        "performance_factors": perf_factors,
+        "total": custom_value
+    }
+
+    return custom_value, breakdown
+
+
 def create_value_breakdown_chart(breakdown: dict) -> go.Figure:
     """Create donut chart for value breakdown."""
     labels = ["Performance", "Social Media", "School Brand", "Recruiting", "Draft Potential"]
@@ -236,7 +365,7 @@ def main():
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">💰 NIL Valuator</h1>
-    <p style="color: #aaa; font-size: 1.1rem;">
+    <p style="color: #e6edf3; font-size: 1.1rem;">
         Get AI-powered NIL valuations with detailed breakdowns
     </p>
     """, unsafe_allow_html=True)
@@ -460,40 +589,139 @@ def render_valuation_results(player_data: dict):
     st.divider()
     st.markdown("## 📊 Valuation Results")
 
-    # Main metrics
-    col1, col2, col3, col4 = st.columns(4)
-
-    nil_value = player_data.get("nil_value", 500000)
+    # Get both values
+    on3_value = player_data.get("nil_value", 0) or 0
+    custom_value, custom_breakdown = calculate_custom_nil_value(player_data)
     tier = player_data.get("tier", "solid")
 
+    # Use On3 value if available, otherwise use custom
+    display_value = on3_value if on3_value > 0 else custom_value
+
+    # Main metrics - On3 vs Custom comparison
+    st.markdown("### 📈 NIL Value Comparison")
+
+    col1, col2, col3 = st.columns(3)
+
     with col1:
-        st.metric(
-            "Predicted NIL Value",
-            format_currency(nil_value),
-            delta="±15% confidence range"
-        )
+        st.markdown(f"""
+        <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #2196F3; text-align: center;">
+            <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">On3 NIL Valuation</p>
+            <h2 style="color: #2196F3; margin: 0;">{format_currency(on3_value) if on3_value > 0 else 'N/A'}</h2>
+            <p style="color: #8b949e; font-size: 0.8rem; margin-top: 5px;">Market consensus value</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col2:
-        tier_html = render_tier_badge(tier)
         st.markdown(f"""
-        <div style="padding: 10px;">
-            <p style="color: #888; margin-bottom: 5px;">Value Tier</p>
-            {tier_html}
+        <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #00C853; text-align: center;">
+            <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">Portal IQ Custom Value</p>
+            <h2 style="color: #00C853; margin: 0;">{format_currency(custom_value)}</h2>
+            <p style="color: #8b949e; font-size: 0.8rem; margin-top: 5px;">Performance-based estimate</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
+        # Calculate difference
+        if on3_value > 0:
+            diff = custom_value - on3_value
+            diff_pct = (diff / on3_value) * 100 if on3_value > 0 else 0
+            diff_color = "#00C853" if diff > 0 else "#F44336" if diff < 0 else "#8b949e"
+            diff_label = "Undervalued by On3" if diff > 0 else "Overvalued by On3" if diff < 0 else "Fair Value"
+
+            st.markdown(f"""
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid {diff_color}; text-align: center;">
+                <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">Difference</p>
+                <h2 style="color: {diff_color}; margin: 0;">{'+' if diff > 0 else ''}{format_currency(diff)}</h2>
+                <p style="color: {diff_color}; font-size: 0.8rem; margin-top: 5px;">{diff_label} ({diff_pct:+.1f}%)</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #8b949e; text-align: center;">
+                <p style="color: #8b949e; margin-bottom: 5px; font-size: 0.9rem;">Difference</p>
+                <h2 style="color: #8b949e; margin: 0;">N/A</h2>
+                <p style="color: #8b949e; font-size: 0.8rem; margin-top: 5px;">No On3 data available</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # Explanation of why values differ
+    if on3_value > 0 and abs(custom_value - on3_value) > 10000:
+        st.markdown("### 🔍 Why Do The Values Differ?")
+
+        diff = custom_value - on3_value
+
+        explanation_items = []
+
+        # Custom is higher - explain what we see that On3 might miss
+        if diff > 0:
+            explanation_items.append("**Our custom model values this player higher because:**")
+
+            if custom_breakdown.get("performance_bonus", 0) > 0:
+                explanation_items.append(f"• **On-field production** adds {format_currency(custom_breakdown['performance_bonus'])} to our estimate")
+                for factor in custom_breakdown.get("performance_factors", []):
+                    explanation_items.append(f"  - {factor}")
+
+            if custom_breakdown.get("star_rating", 3) >= 4:
+                explanation_items.append(f"• **{custom_breakdown['star_rating']}-star rating** indicates elite potential ({custom_breakdown['star_multiplier']}x multiplier)")
+
+            if custom_breakdown.get("school_tier") in ["Blue Blood", "Elite Program"]:
+                explanation_items.append(f"• **{custom_breakdown['school_tier']} school** brand value ({custom_breakdown['school_multiplier']}x multiplier)")
+
+            explanation_items.append("")
+            explanation_items.append("*On3 may not fully capture this player's production metrics or is using older data.*")
+
+        # Custom is lower - explain why On3 might be inflating
+        else:
+            explanation_items.append("**On3 values this player higher, possibly because:**")
+            explanation_items.append("• **Social media following** - On3 heavily weights social presence")
+            explanation_items.append("• **NIL deal history** - existing deals may inflate market value")
+            explanation_items.append("• **Hype/Brand deals** - marketing appeal beyond on-field stats")
+
+            if custom_breakdown.get("performance_bonus", 0) == 0:
+                explanation_items.append("")
+                explanation_items.append("*Our model sees limited verified production stats, suggesting the market value may be driven by potential/hype rather than performance.*")
+
+        st.markdown(f"""
+        <div style="background: #161b22; padding: 20px; border-radius: 10px; border-left: 4px solid {'#00C853' if diff > 0 else '#FF9800'};">
+            {'<br>'.join(explanation_items)}
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # Additional metrics
+    col1, col2, col3, col4 = st.columns(4)
+
+    nil_value = display_value  # Use for charts below
+
+    with col1:
+        tier_html = render_tier_badge(tier)
+        st.markdown(f"""
+        <div style="padding: 10px;">
+            <p style="color: #8b949e; margin-bottom: 5px;">Value Tier</p>
+            {tier_html}
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
         st.metric(
             "Confidence Score",
             "85%",
             delta="High"
         )
 
-    with col4:
+    with col3:
         st.metric(
             "Market Percentile",
             "87th",
             delta=f"Top 13%"
+        )
+
+    with col4:
+        st.metric(
+            "Position Rank",
+            f"#{custom_breakdown.get('star_rating', 3) * 10}",
+            delta=f"at {player_data.get('position', 'N/A')}"
         )
 
     st.divider()

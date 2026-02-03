@@ -203,7 +203,7 @@ def main():
     # Header
     st.markdown("""
     <h1 style="color: #00C853;">🤖 AI Assistant</h1>
-    <p style="color: #aaa; font-size: 1.1rem;">
+    <p style="color: #e6edf3; font-size: 1.1rem;">
         Ask questions about players, NIL valuations, and the transfer portal
     </p>
     """, unsafe_allow_html=True)
