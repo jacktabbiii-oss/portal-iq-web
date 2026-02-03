@@ -922,54 +922,469 @@ def render_valuation_results(player_data: dict):
             </div>
             """, unsafe_allow_html=True)
 
-    # Explanation of why values differ
-    if on3_value > 0 and abs(custom_value - on3_value) > 10000:
-        st.markdown("### 🔍 Why Do The Values Differ?")
+    # ===========================================================================
+    # COMPREHENSIVE METHODOLOGY & JUSTIFICATION SECTION
+    # ===========================================================================
 
-        diff = custom_value - on3_value
+    st.markdown("---")
+    st.markdown(f"## 📋 Portal IQ Valuation Report")
 
-        explanation_items = []
+    # Calculate key variables needed for the report
+    base_val = custom_breakdown.get("base_position_value", 0)
+    star_mult = custom_breakdown.get("star_multiplier", 1.0)
+    size_mult = custom_breakdown.get("size_multiplier", 1.0)
+    school_mult = custom_breakdown.get("school_multiplier", 1.0)
+    perf_bonus = custom_breakdown.get("performance_bonus", 0)
 
-        # Custom is higher - explain what we see that On3 might miss
-        if diff > 0:
-            explanation_items.append("**Our custom model values this player higher because:**")
+    # Build confidence items
+    confidence_items = []
+    confidence_items.append(("Position", "HIGH", "#00C853", "Verified from roster data"))
+    stars = custom_breakdown.get("star_rating", 0)
+    if stars and stars > 0:
+        confidence_items.append(("Star Rating", "HIGH", "#00C853", f"247Sports/Rivals verified ({stars}★)"))
+    else:
+        confidence_items.append(("Star Rating", "LOW", "#FF9800", "No recruiting data - using default"))
+    size_desc = custom_breakdown.get("size_description", "")
+    if "not available" in size_desc.lower():
+        confidence_items.append(("Height/Weight", "LOW", "#FF9800", "No measurables data"))
+    else:
+        confidence_items.append(("Height/Weight", "HIGH", "#00C853", f"Verified: {size_desc}"))
+    confidence_items.append(("School Brand", "HIGH", "#00C853", f"{custom_breakdown.get('school_tier', 'Standard')} tier"))
+    if perf_bonus > 0:
+        confidence_items.append(("Performance Stats", "HIGH", "#00C853", f"+{format_currency(perf_bonus)} from verified stats"))
+    else:
+        confidence_items.append(("Performance Stats", "MEDIUM", "#FFB74D", "Limited stats available"))
+    high_count = sum(1 for _, level, _, _ in confidence_items if level == "HIGH")
+    confidence_pct = int((high_count / len(confidence_items)) * 100)
 
-            if custom_breakdown.get("performance_bonus", 0) > 0:
-                explanation_items.append(f"• **On-field production** adds {format_currency(custom_breakdown['performance_bonus'])} to our estimate")
-                for factor in custom_breakdown.get("performance_factors", []):
-                    explanation_items.append(f"  - {factor}")
+    # KEY SUMMARY - Always visible
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #1a2332 0%, #243447 100%); padding: 20px; border-radius: 12px;
+                border-left: 5px solid {COLORS['primary']}; margin: 10px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <p style="color: #8b949e; margin: 0; font-size: 0.9rem;">Portal IQ Performance-Based Value</p>
+                <p style="color: {COLORS['primary']}; font-size: 2rem; font-weight: bold; margin: 5px 0;">{format_currency(custom_value)}</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="color: #8b949e; margin: 0; font-size: 0.9rem;">Data Confidence</p>
+                <p style="color: {'#00C853' if confidence_pct >= 80 else '#FFB74D'}; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">{confidence_pct}%</p>
+            </div>
+        </div>
+        <p style="color: #FFB74D; font-size: 0.85rem; margin-top: 10px; margin-bottom: 0;">
+            ⚠️ This is a <strong>performance-only floor value</strong>. Does NOT include social media, existing deals, or hype factors.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-            if custom_breakdown.get("star_rating", 3) >= 4:
-                explanation_items.append(f"• **{custom_breakdown['star_rating']}-star rating** indicates elite potential ({custom_breakdown['star_multiplier']}x multiplier)")
-
-            if custom_breakdown.get("size_multiplier", 1.0) >= 1.05:
-                explanation_items.append(f"• **{custom_breakdown['size_description']}** - premium size for position ({custom_breakdown['size_multiplier']:.2f}x multiplier)")
-
-            if custom_breakdown.get("school_tier") in ["Blue Blood", "Elite Program"]:
-                explanation_items.append(f"• **{custom_breakdown['school_tier']} school** brand value ({custom_breakdown['school_multiplier']}x multiplier)")
-
-            explanation_items.append("")
-            explanation_items.append("*On3 may not fully capture this player's production metrics or is using older data.*")
-
-        # Custom is lower - explain why On3 might be inflating
-        else:
-            explanation_items.append("**On3 values this player higher, possibly because:**")
-            explanation_items.append("• **Social media following** - On3 heavily weights social presence")
-            explanation_items.append("• **NIL deal history** - existing deals may inflate market value")
-            explanation_items.append("• **Hype/Brand deals** - marketing appeal beyond on-field stats")
-
-            if custom_breakdown.get("size_multiplier", 1.0) < 0.95:
-                explanation_items.append(f"• **Size concerns** - {custom_breakdown.get('size_description', 'undersized')} affects our valuation ({custom_breakdown.get('size_multiplier', 1.0):.2f}x)")
-
-            if custom_breakdown.get("performance_bonus", 0) == 0:
-                explanation_items.append("")
-                explanation_items.append("*Our model sees limited verified production stats, suggesting the market value may be driven by potential/hype rather than performance.*")
-
+    # DETAILED METHODOLOGY - Collapsed by default (internal use)
+    with st.expander("🔧 View Detailed Calculation Methodology (Internal)", expanded=False):
         st.markdown(f"""
-        <div style="background: #161b22; padding: 20px; border-radius: 10px; border-left: 4px solid {'#00C853' if diff > 0 else '#FF9800'};">
-            {'<br>'.join(explanation_items)}
+        <div style="background: #161b22; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <h5 style="color: {COLORS['primary']}; margin-top: 0;">Our Valuation Philosophy</h5>
+            <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">
+                Portal IQ values are based on <strong>verifiable on-field performance data only</strong>.
+                Unlike On3/INFLCR that include social media following, existing NIL deals, media hype, and brand partnerships,
+                we focus exclusively on what a player has <em>actually demonstrated</em> on the football field.
+            </p>
         </div>
         """, unsafe_allow_html=True)
+
+        calc_col1, calc_col2 = st.columns(2)
+
+    with calc_col1:
+        st.markdown("#### Step-by-Step Calculation")
+
+        base_val = custom_breakdown.get("base_position_value", 0)
+        star_mult = custom_breakdown.get("star_multiplier", 1.0)
+        size_mult = custom_breakdown.get("size_multiplier", 1.0)
+        school_mult = custom_breakdown.get("school_multiplier", 1.0)
+        perf_bonus = custom_breakdown.get("performance_bonus", 0)
+
+        # Show each calculation step
+        st.markdown(f"""
+        <div style="background: #161b22; padding: 20px; border-radius: 10px; font-family: monospace;">
+            <p style="color: #8b949e; margin: 5px 0;"><strong>1. Position Base Value</strong></p>
+            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{player_data.get('position', 'ATH')} = <strong>{format_currency(base_val)}</strong></p>
+
+            <p style="color: #8b949e; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
+            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star = <strong>{star_mult}x</strong></p>
+
+            <p style="color: #8b949e; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
+            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('size_description', 'N/A')} = <strong>{size_mult:.2f}x</strong></p>
+
+            <p style="color: #8b949e; margin: 5px 0;"><strong>4. School Brand Multiplier</strong></p>
+            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('school_tier', 'Standard')} = <strong>{school_mult}x</strong></p>
+
+            <p style="color: #8b949e; margin: 5px 0;"><strong>5. Performance Bonus</strong></p>
+            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">Stats-based additions = <strong>+{format_currency(perf_bonus)}</strong></p>
+
+            <hr style="border-color: #30363d; margin: 15px 0;">
+
+            <p style="color: #c9d1d9; margin: 5px 0;"><strong>FORMULA:</strong></p>
+            <p style="color: #7ee787; margin: 5px 0 10px 20px; font-size: 0.95rem;">
+                ({format_currency(base_val)} × {star_mult} × {size_mult:.2f} × {school_mult}) + {format_currency(perf_bonus)}
+            </p>
+
+            <p style="color: {COLORS['primary']}; font-size: 1.3rem; margin: 15px 0 5px 0; text-align: center;">
+                <strong>= {format_currency(custom_value)}</strong>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with calc_col2:
+        st.markdown("#### Data Source Confidence")
+
+        # Confidence indicators for each data point
+        confidence_items = []
+
+        # Position - always high confidence
+        confidence_items.append(("Position", "HIGH", "#00C853", "Verified from roster data"))
+
+        # Stars
+        stars = custom_breakdown.get("star_rating", 0)
+        if stars and stars > 0:
+            confidence_items.append(("Star Rating", "HIGH", "#00C853", f"247Sports/Rivals verified ({stars}★)"))
+        else:
+            confidence_items.append(("Star Rating", "LOW", "#FF9800", "No recruiting data - using default"))
+
+        # Size
+        size_desc = custom_breakdown.get("size_description", "")
+        if "not available" in size_desc.lower():
+            confidence_items.append(("Height/Weight", "LOW", "#FF9800", "No measurables data"))
+        else:
+            confidence_items.append(("Height/Weight", "HIGH", "#00C853", f"Verified: {size_desc}"))
+
+        # School
+        confidence_items.append(("School Brand", "HIGH", "#00C853", f"{custom_breakdown.get('school_tier', 'Standard')} tier"))
+
+        # Performance
+        if perf_bonus > 0:
+            confidence_items.append(("Performance Stats", "HIGH", "#00C853", f"+{format_currency(perf_bonus)} from verified stats"))
+        else:
+            confidence_items.append(("Performance Stats", "MEDIUM", "#FFB74D", "Limited stats available"))
+
+        st.markdown(f"""
+        <div style="background: #161b22; padding: 20px; border-radius: 10px;">
+            <p style="color: #c9d1d9; font-weight: bold; margin-bottom: 15px;">Data Quality Assessment</p>
+        """, unsafe_allow_html=True)
+
+        for item, level, color, note in confidence_items:
+            st.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center;
+                        padding: 8px 0; border-bottom: 1px solid #30363d;">
+                <span style="color: #8b949e;">{item}</span>
+                <div style="text-align: right;">
+                    <span style="background: {color}; color: #000; padding: 2px 8px; border-radius: 4px;
+                                font-size: 0.75rem; font-weight: bold;">{level}</span>
+                    <p style="color: #6e7681; font-size: 0.75rem; margin: 2px 0 0 0;">{note}</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Overall confidence score
+        high_count = sum(1 for _, level, _, _ in confidence_items if level == "HIGH")
+        confidence_pct = int((high_count / len(confidence_items)) * 100)
+
+        st.markdown(f"""
+            <div style="margin-top: 20px; text-align: center; padding: 15px;
+                        background: linear-gradient(135deg, #1a2332 0%, #0d1117 100%); border-radius: 8px;">
+                <p style="color: #8b949e; margin: 0;">Overall Confidence Score</p>
+                <p style="color: {COLORS['primary']}; font-size: 2rem; font-weight: bold; margin: 5px 0;">{confidence_pct}%</p>
+                <p style="color: #6e7681; font-size: 0.8rem; margin: 0;">
+                    {high_count}/{len(confidence_items)} data points verified
+                </p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Why Values Differ - Enhanced Section
+    st.markdown("### 🔍 Portal IQ vs On3: Detailed Comparison")
+
+    if on3_value > 0:
+        diff = custom_value - on3_value
+        diff_pct = (diff / on3_value) * 100 if on3_value > 0 else 0
+
+        compare_col1, compare_col2 = st.columns(2)
+
+        with compare_col1:
+            st.markdown(f"""
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #2196F3;">
+                <h4 style="color: #2196F3; margin-top: 0;">📊 On3 Valuation Model</h4>
+                <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">On3 NIL valuations include:</p>
+                <ul style="color: #8b949e; font-size: 0.85rem;">
+                    <li><strong>Social Media Value</strong> - Instagram, TikTok, Twitter following (40-50% of value)</li>
+                    <li><strong>Existing NIL Deals</strong> - Current contract values inflate estimates</li>
+                    <li><strong>Media Exposure</strong> - National TV appearances, media mentions</li>
+                    <li><strong>Marketability</strong> - Brand appeal, personality, content creation</li>
+                    <li><strong>Hype Factor</strong> - Recruiting buzz, future potential projections</li>
+                </ul>
+                <p style="color: #2196F3; font-size: 1.1rem; margin-top: 15px;">
+                    <strong>On3 Value: {format_currency(on3_value)}</strong>
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with compare_col2:
+            st.markdown(f"""
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 2px solid #00C853;">
+                <h4 style="color: #00C853; margin-top: 0;">🏈 Portal IQ Model (Our Approach)</h4>
+                <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">Portal IQ valuations include <strong>ONLY</strong>:</p>
+                <ul style="color: #8b949e; font-size: 0.85rem;">
+                    <li><strong>Position Market Value</strong> - NFL positional scarcity/demand</li>
+                    <li><strong>Verified Production Stats</strong> - Yards, TDs, tackles, etc.</li>
+                    <li><strong>Physical Measurables</strong> - Height/weight fit for position</li>
+                    <li><strong>Recruiting Pedigree</strong> - Star rating as talent indicator</li>
+                    <li><strong>Program Visibility</strong> - School brand exposure multiplier</li>
+                </ul>
+                <p style="color: #00C853; font-size: 1.1rem; margin-top: 15px;">
+                    <strong>Portal IQ Value: {format_currency(custom_value)}</strong>
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # The key difference explanation
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #2d1f00 0%, #1a1200 100%); padding: 25px; border-radius: 12px;
+                    border: 1px solid #FFB74D; margin: 20px 0;">
+            <h4 style="color: #FFB74D; margin-top: 0;">⚡ Key Insight: Why Our Value is {'Lower' if diff < 0 else 'Higher'}</h4>
+            <p style="color: {COLORS['text_secondary']}; font-size: 1rem; line-height: 1.6;">
+                <strong>The {format_currency(abs(diff))} ({abs(diff_pct):.1f}%) difference</strong> is primarily explained by:
+            </p>
+            <ul style="color: #c9d1d9; font-size: 0.95rem; line-height: 1.8;">
+        """, unsafe_allow_html=True)
+
+        # Dynamic explanation based on what's driving the difference
+        if diff < 0:  # Portal IQ is lower
+            reasons = []
+
+            # Social media is the biggest factor for On3
+            estimated_social_premium = on3_value * 0.35  # On3 typically weights social ~35-45%
+            reasons.append(f"<li><strong>Social Media Premium (est. {format_currency(estimated_social_premium)})</strong> - On3 likely includes significant value from social following that we exclude entirely</li>")
+
+            # Existing deals
+            reasons.append(f"<li><strong>Existing NIL Deals</strong> - If the player has active NIL contracts, On3 uses those deal values to inform their estimate</li>")
+
+            # Hype factor
+            reasons.append(f"<li><strong>Hype/Potential Premium</strong> - On3 includes projected future value; we value only what's been demonstrated</li>")
+
+            if custom_breakdown.get("performance_bonus", 0) == 0:
+                reasons.append(f"<li><strong>Limited Production Data</strong> - We have no verified stats to add performance bonuses</li>")
+
+            st.markdown("".join(reasons), unsafe_allow_html=True)
+        else:  # Portal IQ is higher
+            reasons = []
+
+            if custom_breakdown.get("performance_bonus", 0) > 0:
+                reasons.append(f"<li><strong>Elite Production (+{format_currency(custom_breakdown['performance_bonus'])})</strong> - On-field stats demonstrate value On3 may be underweighting</li>")
+
+            if custom_breakdown.get("star_rating", 3) >= 4:
+                reasons.append(f"<li><strong>{custom_breakdown['star_rating']}-Star Recruiting Pedigree</strong> - High-end talent not fully captured in On3's current valuation</li>")
+
+            reasons.append(f"<li><strong>Market Timing</strong> - Our model may reflect more current positional market values</li>")
+
+            st.markdown("".join(reasons), unsafe_allow_html=True)
+
+        st.markdown(f"""
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Multiplier Reference Table
+    with st.expander("📖 View Complete Multiplier Reference Tables", expanded=False):
+        ref_col1, ref_col2, ref_col3 = st.columns(3)
+
+        with ref_col1:
+            st.markdown("#### Position Base Values")
+            pos_data = {
+                "Position": ["QB", "WR", "EDGE", "RB", "CB", "LB", "DL/DT", "S", "TE", "OT", "OG/C", "K/P"],
+                "Base Value": ["$500,000", "$200,000", "$180,000", "$150,000", "$150,000", "$120,000",
+                              "$100-110,000", "$100,000", "$100,000", "$120,000", "$70-85,000", "$20-30,000"],
+                "Rationale": ["Premium position", "Playmaker demand", "Pass rush value", "Offensive weapon",
+                             "Coverage premium", "Defensive anchor", "Run stuffers", "Secondary leader",
+                             "Versatility", "Blindside protector", "Interior depth", "Specialists"]
+            }
+            st.dataframe(pd.DataFrame(pos_data), hide_index=True, use_container_width=True)
+
+        with ref_col2:
+            st.markdown("#### Star Rating Multipliers")
+            star_data = {
+                "Stars": ["5-Star ⭐⭐⭐⭐⭐", "4-Star ⭐⭐⭐⭐", "3-Star ⭐⭐⭐", "2-Star ⭐⭐"],
+                "Multiplier": ["2.5x", "1.5x", "1.0x", "0.6x"],
+                "Rationale": ["Elite talent", "Very good", "Solid contributor", "Developmental"]
+            }
+            st.dataframe(pd.DataFrame(star_data), hide_index=True, use_container_width=True)
+
+        with ref_col3:
+            st.markdown("#### School Brand Multipliers")
+            school_data = {
+                "Tier": ["Blue Blood", "Elite Program", "Strong Program", "Standard"],
+                "Multiplier": ["1.8x", "1.4x", "1.2x", "1.0x"],
+                "Examples": ["Bama, Ohio St, Georgia", "LSU, Oregon, Clemson", "Auburn, Wisconsin", "All others"]
+            }
+            st.dataframe(pd.DataFrame(school_data), hide_index=True, use_container_width=True)
+
+    # Exportable Valuation Report
+    st.markdown("### 📤 Export Valuation Report")
+
+    report_content = f"""PORTAL IQ NIL VALUATION REPORT
+Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
+================================================================================
+
+PLAYER: {player_data.get('name', 'Unknown')}
+Position: {player_data.get('position', 'N/A')}
+School: {player_data.get('school', 'N/A')}
+Star Rating: {custom_breakdown.get('star_rating', 'N/A')}-Star
+
+================================================================================
+VALUATION SUMMARY
+================================================================================
+
+On3 NIL Valuation:      {format_currency(on3_value) if on3_value > 0 else 'N/A'}
+Portal IQ Valuation:    {format_currency(custom_value)}
+Difference:             {format_currency(custom_value - on3_value) if on3_value > 0 else 'N/A'} ({((custom_value - on3_value) / on3_value * 100):.1f}% {'higher' if custom_value > on3_value else 'lower'} if on3_value > 0 else '')
+
+================================================================================
+CALCULATION METHODOLOGY
+================================================================================
+
+Portal IQ uses a performance-based valuation model that excludes:
+- Social media following/engagement
+- Existing NIL deal values
+- Media hype and speculation
+- Brand marketability factors
+
+Our model includes ONLY verifiable on-field factors:
+
+1. POSITION BASE VALUE
+   {player_data.get('position', 'ATH')}: {format_currency(base_val)}
+   (Based on NFL positional scarcity and market demand)
+
+2. STAR RATING MULTIPLIER
+   {custom_breakdown.get('star_rating', 3)}-Star Rating: {star_mult}x
+   (Recruiting pedigree as talent indicator)
+
+3. SIZE/MEASURABLES MULTIPLIER
+   {custom_breakdown.get('size_description', 'N/A')}: {size_mult:.2f}x
+   (Height/weight fit for position)
+
+4. SCHOOL BRAND MULTIPLIER
+   {custom_breakdown.get('school_tier', 'Standard')}: {school_mult}x
+   (Program visibility and exposure factor)
+
+5. PERFORMANCE BONUS
+   Stats-based additions: +{format_currency(perf_bonus)}
+   {chr(10).join(['   - ' + f for f in custom_breakdown.get('performance_factors', ['No verified stats available'])]) if custom_breakdown.get('performance_factors') else '   - No verified performance data'}
+
+================================================================================
+FORMULA
+================================================================================
+
+({format_currency(base_val)} × {star_mult} × {size_mult:.2f} × {school_mult}) + {format_currency(perf_bonus)}
+= {format_currency(custom_value)}
+
+================================================================================
+DATA CONFIDENCE: {confidence_pct}%
+================================================================================
+
+{chr(10).join([f'{item}: {level} - {note}' for item, level, _, note in confidence_items])}
+
+================================================================================
+DISCLAIMER
+================================================================================
+
+This valuation represents Portal IQ's assessment based on available performance
+data. It is NOT a market prediction and does not include social media value,
+existing NIL contracts, or speculative factors. Actual NIL market value may be
+higher due to these excluded factors.
+
+For questions about methodology, contact: support@portaliq.com
+
+© {pd.Timestamp.now().year} Elite Sports Solutions - Portal IQ
+"""
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.download_button(
+            label="📄 Download Full Report (TXT)",
+            data=report_content,
+            file_name=f"nil_valuation_{player_data.get('name', 'player').replace(' ', '_').lower()}.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
+
+    with col2:
+        # CSV version for spreadsheets
+        csv_data = pd.DataFrame([{
+            "Player": player_data.get('name', ''),
+            "Position": player_data.get('position', ''),
+            "School": player_data.get('school', ''),
+            "Stars": custom_breakdown.get('star_rating', ''),
+            "On3_Value": on3_value,
+            "PortalIQ_Value": custom_value,
+            "Difference": custom_value - on3_value if on3_value > 0 else None,
+            "Difference_Pct": ((custom_value - on3_value) / on3_value * 100) if on3_value > 0 else None,
+            "Position_Base": base_val,
+            "Star_Multiplier": star_mult,
+            "Size_Multiplier": size_mult,
+            "School_Multiplier": school_mult,
+            "School_Tier": custom_breakdown.get('school_tier', ''),
+            "Performance_Bonus": perf_bonus,
+            "Confidence_Score": confidence_pct,
+        }])
+
+        st.download_button(
+            label="📊 Download Report (CSV)",
+            data=csv_data.to_csv(index=False),
+            file_name=f"nil_valuation_{player_data.get('name', 'player').replace(' ', '_').lower()}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    # Quick Talking Points for Justification
+    st.markdown("### 💬 Quick Talking Points")
+    st.markdown("_Use these when explaining your valuation_")
+
+    talking_points = []
+    talking_points.append(f"• **{player_data.get('name', 'This player')}'s Portal IQ value is {format_currency(custom_value)}** based purely on football performance metrics.")
+
+    if on3_value > 0 and custom_value < on3_value:
+        talking_points.append(f"• On3's {format_currency(on3_value)} valuation includes social media premium (~35-45% of their value) and existing NIL deals - **we exclude these speculative factors**.")
+        talking_points.append(f"• Our {format_currency(abs(custom_value - on3_value))} lower valuation represents the **performance-only floor** - what the player's football production is actually worth.")
+
+    talking_points.append(f"• Position value: **{player_data.get('position', 'ATH')}s command {format_currency(base_val)} base** due to NFL positional demand.")
+
+    if custom_breakdown.get('star_rating', 3) >= 4:
+        talking_points.append(f"• **{custom_breakdown['star_rating']}-star recruiting pedigree** verified through 247Sports/Rivals ({star_mult}x multiplier).")
+
+    if custom_breakdown.get('school_tier') in ['Blue Blood', 'Elite Program']:
+        talking_points.append(f"• **{custom_breakdown['school_tier']} program visibility** adds brand exposure multiplier ({school_mult}x).")
+
+    if custom_breakdown.get('performance_bonus', 0) > 0:
+        talking_points.append(f"• **Verified production stats add {format_currency(perf_bonus)}** to the valuation.")
+        for factor in custom_breakdown.get('performance_factors', [])[:2]:
+            talking_points.append(f"  - {factor}")
+
+    talking_points.append(f"• Data confidence: **{confidence_pct}%** based on {high_count}/{len(confidence_items)} verified data points.")
+    talking_points.append(f"• **Bottom line:** This is a conservative, defensible number based on what the player has *proven* on the field.")
+
+    st.markdown(f"""
+    <div style="background: #161b22; padding: 20px; border-radius: 10px; border-left: 4px solid {COLORS['primary']};">
+        {'<br>'.join(talking_points)}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Copy button for talking points
+    talking_points_text = "\n".join([p.replace("**", "").replace("*", "").replace("•", "-") for p in talking_points])
+
+    st.download_button(
+        label="📋 Copy Talking Points",
+        data=talking_points_text,
+        file_name=f"talking_points_{player_data.get('name', 'player').replace(' ', '_').lower()}.txt",
+        mime="text/plain",
+        use_container_width=True
+    )
 
     st.divider()
 

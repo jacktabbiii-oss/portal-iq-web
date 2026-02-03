@@ -361,14 +361,26 @@ def render_player_tab():
 
     st.markdown("### Analyze Player Win Impact")
 
+    # Quick search for players
+    player_search = st.text_input(
+        "🔍 Search Player",
+        placeholder="Type player name (e.g., 'Jeremiah Smith')...",
+        key="win_impact_player_search"
+    )
+
+    # Filter player list based on search
+    player_names = nil_df["name"].dropna().unique().tolist()
+    if player_search:
+        filtered_players = [p for p in player_names if player_search.lower() in p.lower()]
+    else:
+        filtered_players = sorted(player_names)[:500]
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        # Search/select player
-        player_names = nil_df["name"].dropna().unique().tolist()
         selected_player = st.selectbox(
             "Select Player",
-            options=sorted(player_names),
+            options=filtered_players if filtered_players else sorted(player_names)[:100],
             key="win_impact_player"
         )
 
@@ -616,10 +628,22 @@ def render_team_tab():
     # Team details selector
     st.markdown("### Team Details")
 
+    # Quick search for teams
+    team_search = st.text_input(
+        "🔍 Search Team",
+        placeholder="Type team name...",
+        key="team_detail_search"
+    )
+
     team_names = [t["team"] for t in team_scores]
+    if team_search:
+        filtered_teams = [t for t in team_names if team_search.lower() in t.lower()]
+    else:
+        filtered_teams = team_names
+
     selected_team = st.selectbox(
         "Select Team for Detailed Analysis",
-        options=team_names,
+        options=filtered_teams if filtered_teams else team_names,
         key="team_detail_select"
     )
 

@@ -315,12 +315,26 @@ def render_flight_risk_tab():
     selected_season = get_selected_season()
     portal_year = selected_season + 1
 
+    # Text search for faster school lookup
+    school_search = st.text_input(
+        "🔍 Search School",
+        placeholder="Type to search (e.g., 'Alabama', 'Ohio State')...",
+        key="flight_risk_search"
+    )
+
+    # Filter school list based on search
+    all_schools = get_school_list()
+    if school_search:
+        filtered_schools = [s for s in all_schools if school_search.lower() in s.lower()]
+    else:
+        filtered_schools = all_schools
+
     col1, col2, col3 = st.columns([2, 1, 1])
 
     with col1:
         selected_school = st.selectbox(
             "Select School",
-            options=get_school_list(),
+            options=filtered_schools if filtered_schools else all_schools,
             key="flight_risk_school"
         )
 
@@ -341,6 +355,57 @@ def render_flight_risk_tab():
             render_portal_activity_results(selected_school, year_filter)
 
 
+def normalize_school_name(school_str: str) -> str:
+    """Normalize school name by removing mascot/suffixes for matching."""
+    if not school_str or pd.isna(school_str):
+        return ""
+
+    # Common school name normalizations (school with mascot -> base school)
+    school_lower = str(school_str).lower().strip()
+
+    # Extract just the school name (first word(s) before mascot)
+    # Most mascots are 1-2 words at the end
+    common_mascots = [
+        "crimson tide", "wolverines", "buckeyes", "bulldogs", "longhorns", "trojans",
+        "fighting irish", "tigers", "gators", "ducks", "nittany lions", "aggies",
+        "sooners", "hurricanes", "volunteers", "razorbacks", "gamecocks", "wildcats",
+        "seminoles", "hokies", "cavaliers", "tar heels", "yellow jackets", "bears",
+        "mountaineers", "golden gophers", "hawkeyes", "badgers", "hoosiers", "boilermakers",
+        "illini", "terrapins", "spartans", "cornhuskers", "jayhawks", "cyclones",
+        "red raiders", "horned frogs", "cowboys", "golden eagles", "blue devils",
+        "cardinals", "orange", "demon deacons", "bruins", "sun devils", "beavers",
+        "cougars", "huskies", "rainbow warriors", "aztecs", "broncos", "rebels",
+        "wolfpack", "bearcats", "owls", "mustangs", "green wave", "golden hurricane",
+        "knights", "blazers", "bulls", "roadrunners", "miners", "mean green"
+    ]
+
+    for mascot in common_mascots:
+        if mascot in school_lower:
+            school_lower = school_lower.replace(mascot, "").strip()
+            break
+
+    return school_lower
+
+
+def schools_match(school1: str, school2: str) -> bool:
+    """Check if two school names refer to the same school."""
+    if not school1 or not school2:
+        return False
+
+    s1 = normalize_school_name(school1)
+    s2 = normalize_school_name(school2)
+
+    # Direct match
+    if s1 == s2:
+        return True
+
+    # One contains the other (for "Alabama" vs "Alabama Crimson Tide")
+    if s1 in s2 or s2 in s1:
+        return True
+
+    return False
+
+
 def render_portal_activity_results(school: str, year: int):
     """Render portal activity analysis results."""
     # Get all portal players for the year
@@ -352,19 +417,31 @@ def render_portal_activity_results(school: str, year: int):
 
     st.divider()
 
-    # Find incoming and outgoing transfers
+    # Normalize the search school
+    school_lower = normalize_school_name(school)
+
+    # Find incoming transfers - use normalized matching
     incoming = portal_df[
-        portal_df["destination_school"].str.contains(school, case=False, na=False) &
+        portal_df["destination_school"].apply(lambda x: schools_match(x, school)) &
         (portal_df["status"] == "Committed")
     ].copy()
 
+    # Deduplicate incoming by player name (keep first)
+    if not incoming.empty:
+        incoming = incoming.drop_duplicates(subset=["name"], keep="first")
+
+    # Find outgoing transfers
     outgoing = portal_df[
-        portal_df["origin_school"].str.contains(school, case=False, na=False)
+        portal_df["origin_school"].apply(lambda x: schools_match(x, school))
     ].copy()
+
+    # Deduplicate outgoing by player name
+    if not outgoing.empty:
+        outgoing = outgoing.drop_duplicates(subset=["name"], keep="first")
 
     # Get team ranking info
     team_df = get_team_rankings(year=year)
-    team_info = team_df[team_df["name"].str.contains(school, case=False, na=False)]
+    team_info = team_df[team_df["name"].apply(lambda x: schools_match(x, school))]
 
     # Header
     st.markdown(f"## {school} - {year} Portal Activity")
@@ -540,6 +617,13 @@ def render_portal_search_tab():
     selected_season = get_selected_season()
     default_year = selected_season + 1  # Portal year is season + 1
 
+    # Quick player name search at the top
+    player_search = st.text_input(
+        "🔍 Quick Search by Player Name",
+        placeholder="Type player name (e.g., 'Jeremiah Smith', 'Arch Manning')...",
+        key="portal_player_search"
+    )
+
     # Filters - Row 1
     col1, col2, col3, col4 = st.columns(4)
 
@@ -680,6 +764,12 @@ def render_portal_search_tab():
 
     # Apply filters
     filtered_df = portal_df.copy()
+
+    # Apply player name search first (if provided)
+    if player_search:
+        filtered_df = filtered_df[
+            filtered_df["name"].str.lower().str.contains(player_search.lower(), na=False)
+        ]
 
     if status_filter:
         filtered_df = filtered_df[filtered_df["status"].isin(status_filter)]
@@ -1210,19 +1300,49 @@ def render_fit_analyzer_tab():
     if not available_players:
         available_players = portal_df["name"].tolist()
 
+    # Quick search for players and schools
+    search_col1, search_col2 = st.columns(2)
+
+    with search_col1:
+        player_search = st.text_input(
+            "🔍 Search Player",
+            placeholder="Type player name...",
+            key="fit_player_search"
+        )
+
+    with search_col2:
+        school_search = st.text_input(
+            "🔍 Search School",
+            placeholder="Type school name...",
+            key="fit_school_search"
+        )
+
+    # Filter player list based on search
+    if player_search:
+        filtered_players = [p for p in available_players if player_search.lower() in p.lower()]
+    else:
+        filtered_players = available_players[:500]
+
+    # Filter school list based on search
+    all_schools = get_school_list()
+    if school_search:
+        filtered_schools = [s for s in all_schools if school_search.lower() in s.lower()]
+    else:
+        filtered_schools = all_schools
+
     col1, col2 = st.columns(2)
 
     with col1:
         selected_player = st.selectbox(
             "Portal Player",
-            options=available_players[:500],  # Limit for performance
+            options=filtered_players if filtered_players else available_players[:100],
             key="fit_player"
         )
 
     with col2:
         target_school = st.selectbox(
             "Target School",
-            options=get_school_list(),
+            options=filtered_schools if filtered_schools else all_schools,
             key="fit_school"
         )
 
@@ -1572,12 +1692,26 @@ def render_team_needs_tab():
     selected_season = get_selected_season()
     portal_year = selected_season + 1
 
+    # Text search for faster school lookup
+    school_search = st.text_input(
+        "🔍 Search School",
+        placeholder="Type to search (e.g., 'Alabama', 'Ohio State')...",
+        key="needs_school_search"
+    )
+
+    # Filter school list based on search
+    all_schools = get_school_list()
+    if school_search:
+        filtered_schools = [s for s in all_schools if school_search.lower() in s.lower()]
+    else:
+        filtered_schools = all_schools
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
         selected_school = st.selectbox(
             "Select School to Analyze",
-            options=get_school_list(),
+            options=filtered_schools if filtered_schools else all_schools,
             key="needs_school"
         )
 
@@ -1600,15 +1734,23 @@ def render_team_needs_results(school: str, year: int):
         st.warning("No portal data available for analysis.")
         return
 
-    # Find incoming and outgoing transfers
+    # Find incoming and outgoing transfers using normalized school matching
     incoming = portal_df[
-        portal_df["destination_school"].str.contains(school, case=False, na=False) &
+        portal_df["destination_school"].apply(lambda x: schools_match(x, school)) &
         (portal_df["status"] == "Committed")
     ].copy()
 
+    # Deduplicate incoming
+    if not incoming.empty:
+        incoming = incoming.drop_duplicates(subset=["name"], keep="first")
+
     outgoing = portal_df[
-        portal_df["origin_school"].str.contains(school, case=False, na=False)
+        portal_df["origin_school"].apply(lambda x: schools_match(x, school))
     ].copy()
+
+    # Deduplicate outgoing
+    if not outgoing.empty:
+        outgoing = outgoing.drop_duplicates(subset=["name"], keep="first")
 
     st.markdown(f"## {school} - Roster Needs Analysis")
 

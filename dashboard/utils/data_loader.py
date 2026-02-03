@@ -205,6 +205,21 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
 
     df = pd.read_csv(portal_path)
 
+    # DEDUPLICATE: Remove duplicate players (keep first occurrence, prioritize committed)
+    # Sort so committed players come first, then by name
+    if "status" in df.columns:
+        status_order = {"Committed": 0, "Entered": 1, "Withdrawn": 2, "Expected": 3}
+        df["_status_order"] = df["status"].map(status_order).fillna(99)
+        df = df.sort_values(["_status_order", "name"])
+        df = df.drop(columns=["_status_order"])
+
+    # Remove exact duplicates (same name + same origin school)
+    if "name" in df.columns and "from_school" in df.columns:
+        df = df.drop_duplicates(subset=["name", "from_school"], keep="first")
+    elif "name" in df.columns:
+        # Fallback: just dedupe by name
+        df = df.drop_duplicates(subset=["name"], keep="first")
+
     # Keep original On3 valuation before renaming
     df["on3_nil_value"] = df["nil_valuation"].copy()
 
