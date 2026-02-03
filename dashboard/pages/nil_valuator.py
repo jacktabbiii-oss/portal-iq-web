@@ -992,111 +992,105 @@ def render_valuation_results(player_data: dict):
 
         calc_col1, calc_col2 = st.columns(2)
 
-    with calc_col1:
-        st.markdown("#### Step-by-Step Calculation")
+        with calc_col1:
+            st.markdown("#### Step-by-Step Calculation")
 
-        base_val = custom_breakdown.get("base_position_value", 0)
-        star_mult = custom_breakdown.get("star_multiplier", 1.0)
-        size_mult = custom_breakdown.get("size_multiplier", 1.0)
-        school_mult = custom_breakdown.get("school_multiplier", 1.0)
-        perf_bonus = custom_breakdown.get("performance_bonus", 0)
-
-        # Show each calculation step
-        st.markdown(f"""
-        <div style="background: #161b22; padding: 20px; border-radius: 10px; font-family: monospace;">
-            <p style="color: #8b949e; margin: 5px 0;"><strong>1. Position Base Value</strong></p>
-            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{player_data.get('position', 'ATH')} = <strong>{format_currency(base_val)}</strong></p>
-
-            <p style="color: #8b949e; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
-            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star = <strong>{star_mult}x</strong></p>
-
-            <p style="color: #8b949e; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
-            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('size_description', 'N/A')} = <strong>{size_mult:.2f}x</strong></p>
-
-            <p style="color: #8b949e; margin: 5px 0;"><strong>4. School Brand Multiplier</strong></p>
-            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('school_tier', 'Standard')} = <strong>{school_mult}x</strong></p>
-
-            <p style="color: #8b949e; margin: 5px 0;"><strong>5. Performance Bonus</strong></p>
-            <p style="color: #58a6ff; margin: 5px 0 15px 20px;">Stats-based additions = <strong>+{format_currency(perf_bonus)}</strong></p>
-
-            <hr style="border-color: #30363d; margin: 15px 0;">
-
-            <p style="color: #c9d1d9; margin: 5px 0;"><strong>FORMULA:</strong></p>
-            <p style="color: #7ee787; margin: 5px 0 10px 20px; font-size: 0.95rem;">
-                ({format_currency(base_val)} × {star_mult} × {size_mult:.2f} × {school_mult}) + {format_currency(perf_bonus)}
-            </p>
-
-            <p style="color: {COLORS['primary']}; font-size: 1.3rem; margin: 15px 0 5px 0; text-align: center;">
-                <strong>= {format_currency(custom_value)}</strong>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with calc_col2:
-        st.markdown("#### Data Source Confidence")
-
-        # Confidence indicators for each data point
-        confidence_items = []
-
-        # Position - always high confidence
-        confidence_items.append(("Position", "HIGH", "#00C853", "Verified from roster data"))
-
-        # Stars
-        stars = custom_breakdown.get("star_rating", 0)
-        if stars and stars > 0:
-            confidence_items.append(("Star Rating", "HIGH", "#00C853", f"247Sports/Rivals verified ({stars}★)"))
-        else:
-            confidence_items.append(("Star Rating", "LOW", "#FF9800", "No recruiting data - using default"))
-
-        # Size
-        size_desc = custom_breakdown.get("size_description", "")
-        if "not available" in size_desc.lower():
-            confidence_items.append(("Height/Weight", "LOW", "#FF9800", "No measurables data"))
-        else:
-            confidence_items.append(("Height/Weight", "HIGH", "#00C853", f"Verified: {size_desc}"))
-
-        # School
-        confidence_items.append(("School Brand", "HIGH", "#00C853", f"{custom_breakdown.get('school_tier', 'Standard')} tier"))
-
-        # Performance
-        if perf_bonus > 0:
-            confidence_items.append(("Performance Stats", "HIGH", "#00C853", f"+{format_currency(perf_bonus)} from verified stats"))
-        else:
-            confidence_items.append(("Performance Stats", "MEDIUM", "#FFB74D", "Limited stats available"))
-
-        st.markdown(f"""
-        <div style="background: #161b22; padding: 20px; border-radius: 10px;">
-            <p style="color: #c9d1d9; font-weight: bold; margin-bottom: 15px;">Data Quality Assessment</p>
-        """, unsafe_allow_html=True)
-
-        for item, level, color, note in confidence_items:
+            # Show each calculation step
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center;
-                        padding: 8px 0; border-bottom: 1px solid #30363d;">
-                <span style="color: #8b949e;">{item}</span>
-                <div style="text-align: right;">
-                    <span style="background: {color}; color: #000; padding: 2px 8px; border-radius: 4px;
-                                font-size: 0.75rem; font-weight: bold;">{level}</span>
-                    <p style="color: #6e7681; font-size: 0.75rem; margin: 2px 0 0 0;">{note}</p>
-                </div>
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; font-family: monospace;">
+                <p style="color: #8b949e; margin: 5px 0;"><strong>1. Position Base Value</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{player_data.get('position', 'ATH')} = <strong>{format_currency(base_val)}</strong></p>
+
+                <p style="color: #8b949e; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star = <strong>{star_mult}x</strong></p>
+
+                <p style="color: #8b949e; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('size_description', 'N/A')} = <strong>{size_mult:.2f}x</strong></p>
+
+                <p style="color: #8b949e; margin: 5px 0;"><strong>4. School Brand Multiplier</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('school_tier', 'Standard')} = <strong>{school_mult}x</strong></p>
+
+                <p style="color: #8b949e; margin: 5px 0;"><strong>5. Performance Bonus</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">Stats-based additions = <strong>+{format_currency(perf_bonus)}</strong></p>
+
+                <hr style="border-color: #30363d; margin: 15px 0;">
+
+                <p style="color: #c9d1d9; margin: 5px 0;"><strong>FORMULA:</strong></p>
+                <p style="color: #7ee787; margin: 5px 0 10px 20px; font-size: 0.95rem;">
+                    ({format_currency(base_val)} × {star_mult} × {size_mult:.2f} × {school_mult}) + {format_currency(perf_bonus)}
+                </p>
+
+                <p style="color: {COLORS['primary']}; font-size: 1.3rem; margin: 15px 0 5px 0; text-align: center;">
+                    <strong>= {format_currency(custom_value)}</strong>
+                </p>
             </div>
             """, unsafe_allow_html=True)
 
-        # Overall confidence score
-        high_count = sum(1 for _, level, _, _ in confidence_items if level == "HIGH")
-        confidence_pct = int((high_count / len(confidence_items)) * 100)
+        with calc_col2:
+            st.markdown("#### Data Source Confidence")
 
-        st.markdown(f"""
-            <div style="margin-top: 20px; text-align: center; padding: 15px;
-                        background: linear-gradient(135deg, #1a2332 0%, #0d1117 100%); border-radius: 8px;">
-                <p style="color: #8b949e; margin: 0;">Overall Confidence Score</p>
-                <p style="color: {COLORS['primary']}; font-size: 2rem; font-weight: bold; margin: 5px 0;">{confidence_pct}%</p>
-                <p style="color: #6e7681; font-size: 0.8rem; margin: 0;">
-                    {high_count}/{len(confidence_items)} data points verified
-                </p>
+            # Confidence indicators for each data point
+            conf_items_display = []
+
+            # Position - always high confidence
+            conf_items_display.append(("Position", "HIGH", "#00C853", "Verified from roster data"))
+
+            # Stars
+            stars_check = custom_breakdown.get("star_rating", 0)
+            if stars_check and stars_check > 0:
+                conf_items_display.append(("Star Rating", "HIGH", "#00C853", f"247Sports/Rivals verified ({stars_check}★)"))
+            else:
+                conf_items_display.append(("Star Rating", "LOW", "#FF9800", "No recruiting data - using default"))
+
+            # Size
+            size_desc_check = custom_breakdown.get("size_description", "")
+            if "not available" in size_desc_check.lower():
+                conf_items_display.append(("Height/Weight", "LOW", "#FF9800", "No measurables data"))
+            else:
+                conf_items_display.append(("Height/Weight", "HIGH", "#00C853", f"Verified: {size_desc_check}"))
+
+            # School
+            conf_items_display.append(("School Brand", "HIGH", "#00C853", f"{custom_breakdown.get('school_tier', 'Standard')} tier"))
+
+            # Performance
+            if perf_bonus > 0:
+                conf_items_display.append(("Performance Stats", "HIGH", "#00C853", f"+{format_currency(perf_bonus)} from verified stats"))
+            else:
+                conf_items_display.append(("Performance Stats", "MEDIUM", "#FFB74D", "Limited stats available"))
+
+            st.markdown(f"""
+            <div style="background: #161b22; padding: 20px; border-radius: 10px;">
+                <p style="color: #c9d1d9; font-weight: bold; margin-bottom: 15px;">Data Quality Assessment</p>
+            """, unsafe_allow_html=True)
+
+            for item, level, color, note in conf_items_display:
+                st.markdown(f"""
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                            padding: 8px 0; border-bottom: 1px solid #30363d;">
+                    <span style="color: #8b949e;">{item}</span>
+                    <div style="text-align: right;">
+                        <span style="background: {color}; color: #000; padding: 2px 8px; border-radius: 4px;
+                                    font-size: 0.75rem; font-weight: bold;">{level}</span>
+                        <p style="color: #6e7681; font-size: 0.75rem; margin: 2px 0 0 0;">{note}</p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Overall confidence score display
+            high_cnt = sum(1 for _, lvl, _, _ in conf_items_display if lvl == "HIGH")
+            conf_pct = int((high_cnt / len(conf_items_display)) * 100)
+
+            st.markdown(f"""
+                <div style="margin-top: 20px; text-align: center; padding: 15px;
+                            background: linear-gradient(135deg, #1a2332 0%, #0d1117 100%); border-radius: 8px;">
+                    <p style="color: #8b949e; margin: 0;">Overall Confidence Score</p>
+                    <p style="color: {COLORS['primary']}; font-size: 2rem; font-weight: bold; margin: 5px 0;">{conf_pct}%</p>
+                    <p style="color: #6e7681; font-size: 0.8rem; margin: 0;">
+                        {high_cnt}/{len(conf_items_display)} data points verified
+                    </p>
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
     # Why Values Differ - Enhanced Section
     st.markdown("### 🔍 Portal IQ vs On3: Detailed Comparison")
