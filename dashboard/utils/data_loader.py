@@ -10,9 +10,27 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import streamlit as st
 
-# Data directory paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent / "ml-engine"
-DATA_DIR = PROJECT_ROOT / "data" / "processed"
+# Data directory paths - try multiple possible locations
+def _find_data_dir():
+    """Find the data directory, trying multiple paths."""
+    possible_roots = [
+        Path(__file__).parent.parent.parent / "ml-engine",  # dashboard/utils/ -> ml-engine/
+        Path(__file__).parent.parent.parent.parent / "ml-engine",  # one more level up
+        Path.cwd() / "ml-engine",  # from current working directory
+        Path.cwd().parent / "ml-engine",  # one up from cwd
+        Path("/app/ml-engine"),  # Railway/Docker common path
+    ]
+
+    for root in possible_roots:
+        data_path = root / "data" / "processed"
+        if data_path.exists() and (data_path / "portal_nil_valuations.csv").exists():
+            return root, data_path
+
+    # Fallback to original
+    root = Path(__file__).parent.parent.parent / "ml-engine"
+    return root, root / "data" / "processed"
+
+PROJECT_ROOT, DATA_DIR = _find_data_dir()
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 
 
