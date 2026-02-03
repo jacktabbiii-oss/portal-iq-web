@@ -133,12 +133,15 @@ def create_nil_war_scatter(df: pd.DataFrame) -> go.Figure:
 
     # Ensure we have a school column for hover data
     if "school" not in plot_df.columns:
-        plot_df["school"] = plot_df.get("destination_school", plot_df.get("origin_school", "Unknown"))
+        if "destination_school" in plot_df.columns:
+            plot_df["school"] = plot_df["destination_school"]
+        elif "origin_school" in plot_df.columns:
+            plot_df["school"] = plot_df["origin_school"]
+        else:
+            plot_df["school"] = "Unknown"
 
     # Build hover_data with columns that exist
-    hover_cols = ["name"]
-    if "school" in plot_df.columns:
-        hover_cols.append("school")
+    hover_cols = ["name", "school"]
 
     fig = px.scatter(
         plot_df,
