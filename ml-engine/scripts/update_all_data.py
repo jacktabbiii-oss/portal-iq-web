@@ -68,8 +68,12 @@ def collect_cfbd_data():
     return data
 
 
-def merge_data_sources(cfbd_data: dict):
-    """Merge CFBD rosters with On3 NIL/portal data."""
+def merge_data_sources(cfbd_data: dict, current_season: int = 2025):
+    """Merge CFBD rosters with On3 NIL/portal data.
+
+    Training uses ALL historical data for better model accuracy.
+    Output only includes current season players for display.
+    """
     print("\n" + "=" * 60)
     print("STEP 3: MERGING DATA SOURCES")
     print("=" * 60)
@@ -85,7 +89,7 @@ def merge_data_sources(cfbd_data: dict):
     portal_df = pd.read_csv(portal_path) if portal_path.exists() else pd.DataFrame()
     team_df = pd.read_csv(team_path) if team_path.exists() else pd.DataFrame()
 
-    print(f"On3 NIL rankings: {len(nil_df)}")
+    print(f"On3 NIL rankings: {len(nil_df)} (all used for training)")
     print(f"On3 portal: {len(portal_df)}")
     print(f"On3 team rankings: {len(team_df)}")
 
@@ -95,7 +99,7 @@ def merge_data_sources(cfbd_data: dict):
     talent = cfbd_data.get("team_talent", pd.DataFrame())
     records = cfbd_data.get("team_records", pd.DataFrame())
 
-    print(f"CFBD rosters: {len(rosters)}")
+    print(f"CFBD rosters (all seasons): {len(rosters)}")
     print(f"CFBD stats: {len(stats)}")
 
     if rosters.empty:
@@ -132,10 +136,21 @@ def merge_data_sources(cfbd_data: dict):
 
     print(f"Merged CFBD data: {len(rosters)} players")
 
-    # Combine with portal data
-    # Portal players take priority (more recent/relevant)
-    portal_df["source"] = "portal"
-    rosters["source"] = "cfbd"
+    # FILTER: Only use current season rosters for output
+    current_rosters = rosters[rosters["season"] == current_season].copy()
+    print(f"Current season ({current_season}) rosters: {len(current_rosters)} players")
+
+    # Filter portal to current year BEFORE overwriting source column
+    # Portal data has year in source field like "portal_wire_football_2026"
+    if "source" in portal_df.columns:
+        current_portal = portal_df[portal_df["source"].str.contains("2026|2025", na=False)].copy()
+    else:
+        current_portal = portal_df.copy()
+    print(f"Current portal entries (2025-2026): {len(current_portal)}")
+
+    # Now set source indicators
+    current_portal["source"] = "portal"
+    current_rosters["source"] = "cfbd"
 
     # Standardize names for matching
     def std_name(name):
@@ -143,19 +158,19 @@ def merge_data_sources(cfbd_data: dict):
             return ""
         return str(name).lower().strip().replace(".", "").replace("-", " ")
 
-    portal_df["name_std"] = portal_df["name"].apply(std_name)
-    rosters["name_std"] = rosters["player_name"].apply(std_name)
+    current_portal["name_std"] = current_portal["name"].apply(std_name)
+    current_rosters["name_std"] = current_rosters["player_name"].apply(std_name)
 
-    # Find players in CFBD but not in portal
-    portal_names = set(portal_df["name_std"])
-    cfbd_only = rosters[~rosters["name_std"].isin(portal_names)].copy()
+    # Find players in current CFBD roster but not in portal
+    portal_names = set(current_portal["name_std"])
+    cfbd_only = current_rosters[~current_rosters["name_std"].isin(portal_names)].copy()
     cfbd_only = cfbd_only.rename(columns={"player_name": "name", "team": "school"})
 
-    print(f"Players only in CFBD: {len(cfbd_only)}")
+    print(f"Current season players not in portal: {len(cfbd_only)}")
 
-    # Combine
-    combined = pd.concat([portal_df, cfbd_only], ignore_index=True)
-    print(f"Combined player count: {len(combined)}")
+    # Combine current season only
+    combined = pd.concat([current_portal, cfbd_only], ignore_index=True)
+    print(f"Combined current players: {len(combined)}")
 
     return combined, nil_df, team_df
 
