@@ -413,6 +413,59 @@ def apply_custom_css():
             background-color: {COLORS['primary']};
             color: {COLORS['bg_dark']};
         }}
+
+        /* ============================================= */
+        /* NAVIGATION STYLING                           */
+        /* ============================================= */
+
+        /* Hide default Streamlit page navigation */
+        [data-testid="stSidebarNav"] {{
+            display: none !important;
+        }}
+
+        /* Style page_link buttons as nav items */
+        [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] {{
+            background: {COLORS['bg_light']} !important;
+            border-radius: 8px !important;
+            padding: 10px 14px !important;
+            margin: 4px 0 !important;
+            border-left: 3px solid transparent !important;
+            transition: all 0.2s ease !important;
+        }}
+
+        [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover {{
+            background: #30363d !important;
+            border-left-color: {COLORS['primary']} !important;
+        }}
+
+        [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] {{
+            background: {COLORS['bg_medium']} !important;
+            border-left-color: {COLORS['primary']} !important;
+        }}
+
+        [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p {{
+            color: {COLORS['text_secondary']} !important;
+            font-weight: 500 !important;
+            font-size: 0.95rem !important;
+        }}
+
+        [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover p {{
+            color: {COLORS['primary']} !important;
+        }}
+
+        [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] p {{
+            color: {COLORS['primary']} !important;
+        }}
+
+        /* Sidebar header/logo area */
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 0 !important;
+        }}
+
+        /* Sidebar overall padding */
+        [data-testid="stSidebarContent"] {{
+            padding: 1rem 0.75rem !important;
+        }}
     </style>
     """, unsafe_allow_html=True)
 
