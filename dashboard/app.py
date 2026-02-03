@@ -61,14 +61,24 @@ if "current_season" not in st.session_state:
 def render_main_page():
     """Render the main Portal IQ landing page."""
 
-    # Header
-    st.markdown("""
+    # Header - Navy/Gold branding
+    st.markdown(f"""
     <div style="text-align: center; padding: 40px 0;">
-        <h1 style="font-size: 3.5rem; color: #00C853; margin-bottom: 10px;">
-            🏈 Portal IQ
-        </h1>
-        <p style="font-size: 1.5rem; color: #ccc; margin-bottom: 30px;">
+        <div style="display: inline-flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <div style="width: 70px; height: 70px; background: linear-gradient(135deg, {COLORS['primary']} 0%, #B8962E 100%);
+                        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.35);">
+                <span style="font-size: 2rem;">🧭</span>
+            </div>
+            <h1 style="font-size: 3.5rem; color: #ffffff; margin: 0; font-weight: 700; letter-spacing: 2px;">
+                PORTAL <span style="color: {COLORS['primary']};">IQ</span>
+            </h1>
+        </div>
+        <p style="font-size: 1.3rem; color: {COLORS['text_secondary']}; margin-bottom: 10px;">
             AI-Powered Transfer Portal & NIL Intelligence
+        </p>
+        <p style="font-size: 0.9rem; color: {COLORS['primary']}; letter-spacing: 3px; text-transform: uppercase;">
+            Elite Sports Solutions
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -110,62 +120,62 @@ def render_main_page():
 
     st.divider()
 
-    # Feature Cards
-    st.markdown("### 🚀 Explore Our Tools")
+    # Feature Cards - Navy/Gold theme
+    st.markdown(f"### <span style='color: {COLORS['primary']};'>🚀</span> Explore Our Tools", unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid #00C853;
-                    margin: 10px 0; height: 200px;">
-            <h3 style="color: #00C853; margin-bottom: 15px;">💰 NIL Valuator</h3>
-            <p style="color: #e6edf3;">
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">💰 NIL Valuator</h3>
+            <p style="color: {COLORS['text_secondary']};">
                 Real On3 NIL valuations plus our custom algorithm. Compare players,
                 analyze value breakdowns, and track market trends.
             </p>
-            <p style="color: #00C853; margin-top: 20px;">→ Predict player market value</p>
+            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Predict player market value</p>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid #00C853;
-                    margin: 10px 0; height: 200px;">
-            <h3 style="color: #00C853; margin-bottom: 15px;">📈 Win Impact</h3>
-            <p style="color: #e6edf3;">
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">📈 Win Impact</h3>
+            <p style="color: {COLORS['text_secondary']};">
                 Understand how much value a player adds to their team. Win impact
                 directly correlates to NIL valuation and transfer market value.
             </p>
-            <p style="color: #00C853; margin-top: 20px;">→ Player value analytics</p>
+            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Player value analytics</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid #00C853;
-                    margin: 10px 0; height: 200px;">
-            <h3 style="color: #00C853; margin-bottom: 15px;">🔄 Portal Intelligence</h3>
-            <p style="color: #e6edf3;">
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">🔄 Portal Intelligence</h3>
+            <p style="color: {COLORS['text_secondary']};">
                 14,000+ transfer portal entries across 3 years. Track commitments,
                 analyze team rankings, and find the best portal targets.
             </p>
-            <p style="color: #00C853; margin-top: 20px;">→ Transfer portal analytics</p>
+            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Transfer portal analytics</p>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
-                    padding: 30px; border-radius: 15px; border: 1px solid #00C853;
-                    margin: 10px 0; height: 200px;">
-            <h3 style="color: #00C853; margin-bottom: 15px;">🤖 AI Assistant</h3>
-            <p style="color: #e6edf3;">
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {COLORS['bg_dark']} 0%, {COLORS['bg_medium']} 100%);
+                    padding: 30px; border-radius: 15px; border: 1px solid {COLORS['primary']};
+                    margin: 10px 0; height: 200px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);">
+            <h3 style="color: {COLORS['primary']}; margin-bottom: 15px;">🤖 AI Assistant</h3>
+            <p style="color: {COLORS['text_secondary']};">
                 Chat with Claude AI about players, NIL values, and portal activity.
                 Get instant insights and recommendations powered by real data.
             </p>
-            <p style="color: #00C853; margin-top: 20px;">→ Ask anything about the portal</p>
+            <p style="color: {COLORS['primary']}; margin-top: 20px;">→ Ask anything about the portal</p>
         </div>
         """, unsafe_allow_html=True)
 

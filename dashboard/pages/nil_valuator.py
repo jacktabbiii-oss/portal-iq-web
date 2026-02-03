@@ -463,10 +463,10 @@ def main():
     # Render shared navigation sidebar
     render_sidebar()
 
-    # Header
-    st.markdown("""
-    <h1 style="color: #00C853;">💰 NIL Valuator</h1>
-    <p style="color: #e6edf3; font-size: 1.1rem;">
+    # Header - Navy/Gold branding
+    st.markdown(f"""
+    <h1 style="color: {COLORS['primary']};">💰 NIL Valuator</h1>
+    <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem;">
         Get AI-powered NIL valuations with detailed breakdowns
     </p>
     """, unsafe_allow_html=True)

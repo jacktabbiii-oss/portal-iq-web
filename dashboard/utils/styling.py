@@ -1,47 +1,54 @@
 """Styling utilities for Portal IQ Dashboard.
 
-Dark theme with green (#00C853) and white accents on dark gray (#1a1a2e) background.
+Navy blue and gold theme matching Portal IQ branding.
+Compass logo with football helmet - professional sports analytics look.
 """
 
 import streamlit as st
 
-# Color palette - High contrast dark theme
+# Color palette - Portal IQ Navy & Gold Branding
 COLORS = {
-    # Primary colors
-    "primary": "#00C853",  # Green
-    "primary_dark": "#00A844",
-    "primary_light": "#69F0AE",
+    # Primary colors - Gold accent
+    "primary": "#D4AF37",         # Gold (main accent)
+    "primary_dark": "#B8962E",    # Darker gold
+    "primary_light": "#E8C547",   # Lighter gold
 
-    # Background colors - Darker for better contrast
-    "bg_dark": "#0d1117",      # Near black
-    "bg_medium": "#161b22",    # Dark gray
-    "bg_light": "#21262d",     # Medium dark
+    # Background colors - Navy blue theme
+    "bg_dark": "#0f1a2e",         # Darkest navy
+    "bg_medium": "#152238",       # Medium navy
+    "bg_light": "#1e3a5f",        # Lighter navy (cards, hover)
+    "bg_card": "#1a2d4d",         # Card backgrounds
 
-    # Text colors - Brighter for readability
-    "text_primary": "#ffffff",
-    "text_secondary": "#e6edf3",  # Very light gray (high contrast)
-    "text_muted": "#8b949e",      # Medium gray (still readable)
+    # Text colors
+    "text_primary": "#ffffff",     # Pure white
+    "text_secondary": "#c9d6e3",   # Light blue-gray
+    "text_muted": "#7a8fa6",       # Muted blue-gray
+    "text_gold": "#D4AF37",        # Gold text for highlights
 
-    # Tier colors (NIL)
-    "tier_mega": "#FFD700",      # Gold
-    "tier_premium": "#9C27B0",   # Purple
-    "tier_solid": "#2196F3",     # Blue
-    "tier_moderate": "#4CAF50",  # Green
-    "tier_entry": "#9E9E9E",     # Gray
+    # Tier colors (NIL) - Updated for navy theme
+    "tier_mega": "#FFD700",        # Bright Gold
+    "tier_premium": "#9C27B0",     # Purple
+    "tier_solid": "#4A90D9",       # Blue
+    "tier_moderate": "#5CB85C",    # Green
+    "tier_entry": "#7a8fa6",       # Muted gray
 
     # Risk colors
-    "risk_critical": "#F44336",  # Red
-    "risk_high": "#FF9800",      # Orange
-    "risk_moderate": "#FFC107",  # Yellow
-    "risk_low": "#4CAF50",       # Green
+    "risk_critical": "#E74C3C",    # Red
+    "risk_high": "#F39C12",        # Orange
+    "risk_moderate": "#F1C40F",    # Yellow
+    "risk_low": "#27AE60",         # Green
 
-    # Chart colors
-    "chart_1": "#00C853",
-    "chart_2": "#2196F3",
-    "chart_3": "#9C27B0",
-    "chart_4": "#FF9800",
-    "chart_5": "#F44336",
-    "chart_6": "#00BCD4",
+    # Chart colors - Navy theme palette
+    "chart_1": "#D4AF37",          # Gold
+    "chart_2": "#4A90D9",          # Blue
+    "chart_3": "#9C27B0",          # Purple
+    "chart_4": "#F39C12",          # Orange
+    "chart_5": "#E74C3C",          # Red
+    "chart_6": "#1ABC9C",          # Teal
+
+    # Additional navy accents
+    "navy_accent": "#2c5282",      # Accent navy
+    "border": "#2d4a6f",           # Border color
 }
 
 
@@ -137,7 +144,7 @@ def apply_custom_css():
         .stButton > button:hover {{
             background-color: {COLORS['primary_light']};
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 200, 83, 0.3);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
         }}
 
         /* Secondary button */
@@ -153,14 +160,14 @@ def apply_custom_css():
         .stSelectbox > div > div > select {{
             background-color: {COLORS['bg_light']} !important;
             color: {COLORS['text_primary']} !important;
-            border: 1px solid #30363d !important;
+            border: 1px solid {COLORS['border']} !important;
             border-radius: 8px;
         }}
 
         .stTextInput > div > div > input:focus,
         .stNumberInput > div > div > input:focus {{
             border-color: {COLORS['primary']} !important;
-            box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.2);
+            box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25);
         }}
 
         /* Selectbox and dropdowns */
@@ -189,7 +196,7 @@ def apply_custom_css():
         /* BaseWeb select */
         [data-baseweb="select"] > div {{
             background-color: {COLORS['bg_light']} !important;
-            border-color: #30363d !important;
+            border-color: {COLORS['border']} !important;
         }}
 
         [data-baseweb="select"] [data-baseweb="tag"] {{
@@ -434,7 +441,7 @@ def apply_custom_css():
         }}
 
         [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover {{
-            background: #30363d !important;
+            background: {COLORS['navy_accent']} !important;
             border-left-color: {COLORS['primary']} !important;
         }}
 
