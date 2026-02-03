@@ -127,21 +127,23 @@ class CFBDataAPI:
 
         players = []
         for player in data:
+            first = player.get("firstName", "")
+            last = player.get("lastName", "")
             players.append({
                 "player_id": player.get("id"),
-                "first_name": player.get("first_name"),
-                "last_name": player.get("last_name"),
-                "player_name": f"{player.get('first_name', '')} {player.get('last_name', '')}".strip(),
+                "first_name": first,
+                "last_name": last,
+                "player_name": f"{first} {last}".strip(),
                 "team": team,
                 "position": player.get("position"),
                 "height": player.get("height"),
                 "weight": player.get("weight"),
                 "year": player.get("year"),
                 "jersey": player.get("jersey"),
-                "home_city": player.get("home_city"),
-                "home_state": player.get("home_state"),
-                "home_country": player.get("home_country"),
-                "recruit_school": player.get("recruit_school"),
+                "home_city": player.get("homeCity"),
+                "home_state": player.get("homeState"),
+                "home_country": player.get("homeCountry"),
+                "recruit_school": player.get("recruitSchool"),
                 "season": year,
             })
 
