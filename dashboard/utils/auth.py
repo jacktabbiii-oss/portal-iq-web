@@ -231,50 +231,33 @@ def require_auth() -> Optional[Dict]:
     if is_logged_in():
         return st.session_state.user
 
-    # Show login/register form
-    st.title("🔐 Login Required")
+    # Show login form only (no registration - paid product)
+    st.title("🔐 Portal IQ")
+    st.markdown("Sign in to access your dashboard.")
 
-    tab1, tab2 = st.tabs(["Login", "Register"])
+    with st.form("login_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Sign In", use_container_width=True)
 
-    with tab1:
-        with st.form("login_form"):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login", use_container_width=True)
-
-            if submit:
-                if email and password:
-                    success, message = login(email, password)
-                    if success:
-                        st.success(message)
-                        st.rerun()
-                    else:
-                        st.error(message)
+        if submit:
+            if email and password:
+                success, message = login(email, password)
+                if success:
+                    st.success(message)
+                    st.rerun()
                 else:
-                    st.warning("Please enter email and password")
+                    st.error(message)
+            else:
+                st.warning("Please enter email and password")
 
-    with tab2:
-        with st.form("register_form"):
-            reg_name = st.text_input("Name")
-            reg_email = st.text_input("Email", key="reg_email")
-            reg_password = st.text_input("Password (min 8 characters)", type="password", key="reg_pass")
-            reg_confirm = st.text_input("Confirm Password", type="password")
-            reg_submit = st.form_submit_button("Create Account", use_container_width=True)
-
-            if reg_submit:
-                if not reg_email or not reg_password:
-                    st.warning("Please fill in all fields")
-                elif reg_password != reg_confirm:
-                    st.error("Passwords don't match")
-                elif len(reg_password) < 8:
-                    st.error("Password must be at least 8 characters")
-                else:
-                    success, message = register(reg_email, reg_password, reg_name)
-                    if success:
-                        st.success("Account created! You are now logged in.")
-                        st.rerun()
-                    else:
-                        st.error(message)
+    st.divider()
+    st.markdown("**Don't have an account?**")
+    st.link_button(
+        "🚀 Subscribe to Portal IQ",
+        "https://portaliq.ai/pricing",  # Update when live
+        use_container_width=True
+    )
 
     return None
 
