@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 # PocketBase client for cloud data
-from dashboard.utils.pocketbase_client import (
+from utils.pocketbase_client import (
     get_pff_grades as pb_get_pff_grades,
     get_all_pff_grades as pb_get_all_pff_grades,
     is_pocketbase_connected
