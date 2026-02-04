@@ -7,10 +7,14 @@ Supports PocketBase for cloud data with CSV fallback.
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 import pandas as pd
 import streamlit as st
+
+# Use centralized logging
+from utils.logging_config import get_logger, log_data_operation, log_error
+
+logger = get_logger(__name__)
 
 # PocketBase client for cloud data
 from utils.pocketbase_client import (
@@ -82,8 +86,9 @@ def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
                     url = row.get("headshot_url")
                     if name and pd.notna(url) and str(url).startswith("http"):
                         all_headshots[name] = url
-        except Exception:
-            pass
+            log_data_operation("load_headshots", f"portal: {len(all_headshots)} headshots")
+        except Exception as e:
+            log_error(e, "Failed to load headshots from portal data")
 
     # Source 2: On3 NIL Rankings (backup)
     nil_path = _get_data_path("on3_all_nil_rankings.csv")
@@ -91,13 +96,15 @@ def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
         try:
             source_df = pd.read_csv(nil_path)
             if "headshot_url" in source_df.columns and "name" in source_df.columns:
+                count_before = len(all_headshots)
                 for _, row in source_df.iterrows():
                     name = row.get("name")
                     url = row.get("headshot_url")
                     if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
                         all_headshots[name] = url
-        except Exception:
-            pass
+                log_data_operation("load_headshots", f"nil: +{len(all_headshots) - count_before} headshots")
+        except Exception as e:
+            log_error(e, "Failed to load headshots from NIL rankings")
 
     # Source 3: ESPN Rosters (fills remaining gaps)
     espn_path = DATA_DIR / "espn_rosters.csv"
@@ -105,13 +112,15 @@ def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
         try:
             espn_df = pd.read_csv(espn_path)
             if "headshot_url" in espn_df.columns and "name" in espn_df.columns:
+                count_before = len(all_headshots)
                 for _, row in espn_df.iterrows():
                     name = row.get("name")
                     url = row.get("headshot_url")
                     if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
                         all_headshots[name] = url
-        except Exception:
-            pass
+                log_data_operation("load_headshots", f"espn: +{len(all_headshots) - count_before} headshots")
+        except Exception as e:
+            log_error(e, "Failed to load headshots from ESPN rosters")
 
     # Create headshot lookup DataFrame and merge
     if all_headshots:
@@ -160,9 +169,10 @@ def _merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
                         try:
                             all_measurables[name] = {"height": float(height), "weight": float(weight)}
                         except (ValueError, TypeError):
-                            pass
-        except Exception:
-            pass
+                            logger.debug(f"Invalid measurables for {name}: height={height}, weight={weight}")
+            log_data_operation("load_measurables", f"cfbd: {len(all_measurables)} players")
+        except Exception as e:
+            log_error(e, "Failed to load measurables from CFBD rosters")
 
     # Source 2: ESPN Rosters (fallback)
     espn_path = DATA_DIR / "espn_rosters.csv"
@@ -170,6 +180,7 @@ def _merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
         try:
             espn_df = pd.read_csv(espn_path)
             if "name" in espn_df.columns and "height" in espn_df.columns and "weight" in espn_df.columns:
+                count_before = len(all_measurables)
                 for _, row in espn_df.iterrows():
                     name = row.get("name")
                     if name and name not in all_measurables:
@@ -182,12 +193,13 @@ def _merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
                                 feet = int(parts[0].strip())
                                 inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
                                 height = feet * 12 + inches
-                            except:
+                            except (ValueError, IndexError):
                                 height = None
                         if pd.notna(height) and pd.notna(weight):
                             all_measurables[name] = {"height": height, "weight": weight}
-        except Exception:
-            pass
+                log_data_operation("load_measurables", f"espn: +{len(all_measurables) - count_before} players")
+        except Exception as e:
+            log_error(e, "Failed to load measurables from ESPN rosters")
 
     # Merge measurables
     if all_measurables:
@@ -370,8 +382,9 @@ def get_nil_players() -> pd.DataFrame:
                 how="left",
                 suffixes=("", "_stats")
             )
-    except Exception:
-        pass  # Continue without stats if merge fails
+            log_data_operation("merge_stats", f"cfbd stats merged for {len(df)} players")
+    except Exception as e:
+        log_error(e, "Failed to merge CFBD stats - continuing without stats")
 
     # MERGE WITH MANUAL/PFF STATS (metrics that can't be auto-pulled)
     try:
@@ -384,8 +397,9 @@ def get_nil_players() -> pd.DataFrame:
                 how="left",
                 suffixes=("", "_pff")
             )
-    except Exception:
-        pass  # Continue without manual stats if merge fails
+            log_data_operation("merge_stats", f"manual stats merged")
+    except Exception as e:
+        log_error(e, "Failed to merge manual stats - continuing without manual stats")
 
     # MERGE HEADSHOTS from on3 data (consistent source)
     df = _merge_headshots(df)
@@ -396,8 +410,9 @@ def get_nil_players() -> pd.DataFrame:
     # MERGE PFF GRADES AND STATS (yards, TDs, elusive rating, etc.)
     try:
         df = merge_pff_grades(df)
-    except Exception:
-        pass  # Continue without PFF grades if merge fails
+        log_data_operation("merge_pff", "PFF grades merged successfully")
+    except Exception as e:
+        log_error(e, "Failed to merge PFF grades - continuing without PFF data")
 
     return df
 
@@ -411,8 +426,10 @@ def get_manual_player_stats() -> pd.DataFrame:
 
     try:
         df = pd.read_csv(manual_path)
+        log_data_operation("load_manual_stats", f"{len(df)} records loaded")
         return df
-    except Exception:
+    except Exception as e:
+        log_error(e, "Failed to load manual player stats")
         return pd.DataFrame()
 
 
@@ -465,8 +482,10 @@ def get_pff_grades(season: int = None, most_recent: bool = True) -> pd.DataFrame
             df = df.sort_values("season", ascending=False)
             df = df.drop_duplicates(subset=["pff_id"], keep="first")
 
+        log_data_operation("load_pff_grades", f"{len(df)} PFF records from CSV")
         return df
-    except Exception:
+    except Exception as e:
+        log_error(e, "Failed to load PFF grades from CSV")
         return pd.DataFrame()
 
 
@@ -760,6 +779,7 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
 
         except Exception as e:
             # Fallback: generate basic estimates
+            log_error(e, "NIL enrichment failed, using basic estimates")
             df["portaliq_value"] = df.apply(
                 lambda r: _basic_nil_estimate(r.get("position"), r.get("stars"), r.get("destination_school")),
                 axis=1
@@ -770,8 +790,9 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
     # Merge PFF grades if available
     try:
         df = merge_pff_grades(df)
-    except Exception:
-        pass  # Continue without PFF grades if merge fails
+        log_data_operation("merge_pff_portal", "PFF grades merged for portal players")
+    except Exception as e:
+        log_error(e, "Failed to merge PFF grades for portal players")
 
     return df
 
