@@ -229,8 +229,16 @@ def get_manual_player_stats() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_pff_grades() -> pd.DataFrame:
-    """Load PFF player grades from scraped data."""
+def get_pff_grades(season: int = None, most_recent: bool = True) -> pd.DataFrame:
+    """Load PFF player grades from merged data.
+
+    Args:
+        season: Optional filter for specific season (2023, 2024, 2025)
+        most_recent: If True and no season specified, get most recent season per player
+
+    Returns:
+        DataFrame with PFF grades
+    """
     pff_path = DATA_DIR / "pff_player_grades.csv"
 
     if not pff_path.exists():
@@ -238,28 +246,79 @@ def get_pff_grades() -> pd.DataFrame:
 
     try:
         df = pd.read_csv(pff_path)
+
         # Standardize column names for merging
         if "player_name" in df.columns:
             df = df.rename(columns={"player_name": "name"})
+
+        # Filter by season if specified
+        if season and "season" in df.columns:
+            df = df[df["season"] == season]
+        elif most_recent and "season" in df.columns:
+            # Get most recent season per player
+            df = df.sort_values("season", ascending=False)
+            df = df.drop_duplicates(subset=["pff_id"], keep="first")
+
         return df
     except Exception:
         return pd.DataFrame()
 
 
-def merge_pff_grades(df: pd.DataFrame) -> pd.DataFrame:
-    """Merge PFF grades into player DataFrame."""
-    pff_df = get_pff_grades()
+def merge_pff_grades(df: pd.DataFrame, season: int = 2025) -> pd.DataFrame:
+    """Merge PFF grades into player DataFrame.
+
+    Args:
+        df: DataFrame with player data (must have 'name' column)
+        season: Season to use for PFF grades (default: 2025)
+
+    Returns:
+        DataFrame with PFF grades merged in
+    """
+    pff_df = get_pff_grades(season=season, most_recent=True)
     if pff_df.empty:
         return df
 
-    # Select relevant PFF columns
+    # Select relevant PFF columns - including all advanced metrics from merged file
     pff_cols = [
-        "name", "pff_overall", "pff_offense", "pff_defense",
-        "pff_pass_block", "pff_run_block", "pff_receiving", "pff_rushing", "pff_passing",
+        # Identity
+        "name", "pff_id", "team", "position", "season", "games_played",
+        # Core grades
+        "pff_overall", "pff_offense", "pff_defense",
+        # OL grades
+        "pff_pass_block", "pff_run_block", "pass_blocking_efficiency",
+        "pressures_allowed", "sacks_allowed", "hurries_allowed", "hits_allowed",
+        # Skill position grades
+        "pff_receiving", "pff_rushing", "pff_passing",
+        # Defensive grades
         "pff_pass_rush", "pff_run_defense", "pff_coverage", "pff_tackling",
-        "total_snaps", "pressures", "pressures_allowed", "hurries", "hits",
-        "missed_tackles", "targets_allowed", "completions_allowed", "yards_allowed",
-        "tds_allowed", "ints", "pbus"
+        "pff_slot_coverage", "pff_zone_coverage", "pff_man_coverage",
+        # QB advanced
+        "adjusted_completion_pct", "big_time_throws", "big_time_throw_pct",
+        "turnover_worthy_plays", "turnover_worthy_play_pct",
+        "pff_under_pressure", "pff_clean_pocket", "pff_deep_passing",
+        "completion_pct", "passer_rating", "avg_depth_of_target", "time_to_throw",
+        # RB advanced
+        "elusive_rating", "yards_after_contact", "yaco_per_attempt",
+        "missed_tackles_forced", "breakaway_pct", "breakaway_yards",
+        # WR/TE advanced
+        "yards_per_route_run", "drop_rate", "drops",
+        "contested_catch_rate", "contested_catches", "yards_after_catch",
+        "routes_run", "catch_rate", "yac_per_reception",
+        # Pass rush advanced
+        "pass_rushing_productivity", "pressure_rate", "pass_rush_win_rate",
+        "pressures", "hurries", "hits", "sacks", "batted_passes",
+        # Run defense advanced
+        "run_stop_pct", "run_stops", "tackles", "tackles_for_loss",
+        # Coverage advanced
+        "passer_rating_allowed", "yards_per_coverage_snap",
+        "targets_allowed", "completions_allowed", "yards_allowed", "tds_allowed",
+        "forced_incompletes", "forced_incompletion_rate",
+        # Snap counts
+        "defensive_snaps", "offensive_snaps", "coverage_snaps", "pass_rush_snaps",
+        # Tackling
+        "missed_tackles", "missed_tackle_pct",
+        # Turnovers
+        "ints", "pbus", "forced_fumbles",
     ]
 
     # Only keep columns that exist
@@ -271,7 +330,7 @@ def merge_pff_grades(df: pd.DataFrame) -> pd.DataFrame:
         pff_subset = pff_subset.sort_values("pff_overall", ascending=False)
     pff_subset = pff_subset.drop_duplicates(subset=["name"], keep="first")
 
-    # Merge on player name
+    # Merge on player name - LEFT join preserves all existing data
     if "name" in df.columns:
         df = df.merge(pff_subset, on="name", how="left", suffixes=("", "_pff"))
 

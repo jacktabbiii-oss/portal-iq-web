@@ -326,6 +326,120 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         attempts = player_data.get("passing_attempts", 0) or 0
         rush_yds = player_data.get("rushing_yards", 0) or 0
         rush_tds = player_data.get("rushing_tds", 0) or 0
+        # PFF Premium metrics
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_passing = player_data.get("pff_passing", 0) or 0
+        adj_comp_pct = player_data.get("adjusted_completion_pct", 0) or 0
+        btt = player_data.get("big_time_throws", 0) or 0
+        btt_pct = player_data.get("big_time_throw_pct", 0) or 0
+        twp = player_data.get("turnover_worthy_plays", 0) or 0
+        twp_pct = player_data.get("turnover_worthy_play_pct", 0) or 0
+        time_to_throw = player_data.get("time_to_throw", 0) or 0
+        pff_under_pressure = player_data.get("pff_under_pressure", 0) or 0
+        pff_clean_pocket = player_data.get("pff_clean_pocket", 0) or 0
+        pff_deep = player_data.get("pff_deep_passing", 0) or 0
+
+        # PFF Grades
+        if pff_overall > 0:
+            if pff_overall >= 90:
+                perf_bonus += 250000
+                perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 85:
+                perf_bonus += 175000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 120000
+                perf_factors.append(f"Very good PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 60000
+                perf_factors.append(f"Strong PFF grade ({pff_overall:.1f})")
+            elif pff_overall < 55:
+                perf_bonus -= 40000
+                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+
+        # Adjusted Completion % (removes drops, throw aways, spikes)
+        if adj_comp_pct > 0:
+            if adj_comp_pct >= 80:
+                perf_bonus += 75000
+                perf_factors.append(f"Elite adj. comp% ({adj_comp_pct:.1f}%)")
+            elif adj_comp_pct >= 75:
+                perf_bonus += 45000
+                perf_factors.append(f"Excellent accuracy ({adj_comp_pct:.1f}% adj)")
+            elif adj_comp_pct >= 70:
+                perf_bonus += 20000
+                perf_factors.append(f"Accurate passer ({adj_comp_pct:.1f}% adj)")
+            elif adj_comp_pct < 60:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Accuracy concerns ({adj_comp_pct:.1f}% adj)")
+
+        # Big Time Throws (playmaking ability)
+        if btt > 0:
+            if btt >= 25:
+                perf_bonus += 80000
+                perf_factors.append(f"Elite playmaker ({btt} BTT)")
+            elif btt >= 18:
+                perf_bonus += 50000
+                perf_factors.append(f"Strong playmaker ({btt} BTT)")
+            elif btt >= 12:
+                perf_bonus += 25000
+                perf_factors.append(f"Makes plays ({btt} BTT)")
+
+        # Big Time Throw % (if available)
+        if btt_pct > 0 and attempts > 100:
+            if btt_pct >= 6:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite BTT rate ({btt_pct:.1f}%)")
+            elif btt_pct >= 5:
+                perf_bonus += 30000
+                perf_factors.append(f"High BTT rate ({btt_pct:.1f}%)")
+
+        # Turnover Worthy Plays (NEGATIVE - decision making)
+        if twp > 0 and attempts > 100:
+            if twp >= 15:
+                perf_bonus -= 75000
+                perf_factors.append(f"⚠️ Major turnover issues ({twp} TWP)")
+            elif twp >= 10:
+                perf_bonus -= 40000
+                perf_factors.append(f"⚠️ Turnover concerns ({twp} TWP)")
+            elif twp >= 7:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Some bad decisions ({twp} TWP)")
+            elif twp <= 3:
+                perf_bonus += 40000
+                perf_factors.append(f"Clean decision-maker ({twp} TWP)")
+
+        # TWP % (more telling than raw count)
+        if twp_pct > 0 and attempts > 100:
+            if twp_pct >= 4:
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ High TWP rate ({twp_pct:.1f}%)")
+            elif twp_pct < 2:
+                perf_bonus += 35000
+                perf_factors.append(f"Low turnover risk ({twp_pct:.1f}% TWP)")
+
+        # Under pressure grade (critical for NFL projection)
+        if pff_under_pressure > 0:
+            if pff_under_pressure >= 80:
+                perf_bonus += 60000
+                perf_factors.append(f"Elite under pressure ({pff_under_pressure:.1f})")
+            elif pff_under_pressure >= 70:
+                perf_bonus += 35000
+                perf_factors.append(f"Handles pressure ({pff_under_pressure:.1f})")
+            elif pff_under_pressure < 50:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Struggles under pressure ({pff_under_pressure:.1f})")
+
+        # Deep passing grade
+        if pff_deep > 0:
+            if pff_deep >= 85:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite deep ball ({pff_deep:.1f})")
+            elif pff_deep >= 75:
+                perf_bonus += 30000
+                perf_factors.append(f"Good deep ball ({pff_deep:.1f})")
+            elif pff_deep < 55:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Deep ball concerns ({pff_deep:.1f})")
 
         # Passing production
         if pass_yds > 3500:
@@ -401,6 +515,74 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         rec_yds = player_data.get("receiving_yards", 0) or 0
         receptions = player_data.get("receptions", 0) or 0
         fumbles_lost = player_data.get("fumbles_lost", 0) or 0
+        # PFF Premium metrics
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_rushing = player_data.get("pff_rushing", 0) or 0
+        pff_receiving = player_data.get("pff_receiving", 0) or 0
+        elusive_rating = player_data.get("elusive_rating", 0) or 0
+        yards_after_contact = player_data.get("yards_after_contact", 0) or 0
+        yaco_per_att = player_data.get("yaco_per_attempt", 0) or 0
+        mtf = player_data.get("missed_tackles_forced", 0) or 0
+        breakaway_pct = player_data.get("breakaway_pct", 0) or 0
+
+        # PFF Grades
+        if pff_overall > 0:
+            if pff_overall >= 90:
+                perf_bonus += 120000
+                perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 70000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong PFF grade ({pff_overall:.1f})")
+            elif pff_overall < 55:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+
+        # Elusive Rating (key RB metric)
+        if elusive_rating > 0:
+            if elusive_rating >= 100:
+                perf_bonus += 75000
+                perf_factors.append(f"Elite elusiveness ({elusive_rating:.1f})")
+            elif elusive_rating >= 80:
+                perf_bonus += 45000
+                perf_factors.append(f"Very elusive ({elusive_rating:.1f})")
+            elif elusive_rating >= 60:
+                perf_bonus += 20000
+                perf_factors.append(f"Elusive runner ({elusive_rating:.1f})")
+            elif elusive_rating < 30:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Limited elusiveness ({elusive_rating:.1f})")
+
+        # Yards After Contact per attempt
+        if yaco_per_att > 0 and carries > 50:
+            if yaco_per_att >= 3.5:
+                perf_bonus += 50000
+                perf_factors.append(f"Yards after contact monster ({yaco_per_att:.2f} YAC/att)")
+            elif yaco_per_att >= 3.0:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong after contact ({yaco_per_att:.2f} YAC/att)")
+            elif yaco_per_att < 2.0:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Falls on contact ({yaco_per_att:.2f} YAC/att)")
+
+        # Missed tackles forced
+        if mtf > 30:
+            perf_bonus += 40000
+            perf_factors.append(f"Tackle-breaking machine ({mtf} MTF)")
+        elif mtf > 20:
+            perf_bonus += 25000
+            perf_factors.append(f"Makes defenders miss ({mtf} MTF)")
+
+        # Breakaway percentage
+        if breakaway_pct > 0:
+            if breakaway_pct >= 40:
+                perf_bonus += 45000
+                perf_factors.append(f"Home run threat ({breakaway_pct:.0f}% breakaway)")
+            elif breakaway_pct >= 25:
+                perf_bonus += 25000
+                perf_factors.append(f"Big play ability ({breakaway_pct:.0f}% breakaway)")
 
         # Rushing production
         if rush_yds > 1500:
@@ -462,6 +644,87 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         receptions = player_data.get("receptions", 0) or 0
         ypr = player_data.get("yards_per_reception", 0) or 0
         long_rec = player_data.get("receiving_LONG", 0) or 0
+        # PFF Premium metrics
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_receiving = player_data.get("pff_receiving", 0) or 0
+        yards_per_route = player_data.get("yards_per_route_run", 0) or 0
+        drop_rate = player_data.get("drop_rate", 0) or 0
+        drops = player_data.get("drops", 0) or 0
+        contested_catch_rate = player_data.get("contested_catch_rate", 0) or 0
+        separation = player_data.get("separation", 0) or 0
+        routes_run = player_data.get("routes_run", 0) or 0
+
+        # PFF Grades
+        if pff_overall > 0:
+            if pff_overall >= 90:
+                perf_bonus += 130000
+                perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 75000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 40000
+                perf_factors.append(f"Strong PFF grade ({pff_overall:.1f})")
+            elif pff_overall < 55:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+
+        # Yards Per Route Run (YPRR) - THE key WR efficiency metric
+        if yards_per_route > 0:
+            if yards_per_route >= 3.0:
+                perf_bonus += 90000
+                perf_factors.append(f"Elite YPRR ({yards_per_route:.2f})")
+            elif yards_per_route >= 2.5:
+                perf_bonus += 60000
+                perf_factors.append(f"Excellent YPRR ({yards_per_route:.2f})")
+            elif yards_per_route >= 2.0:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong YPRR ({yards_per_route:.2f})")
+            elif yards_per_route >= 1.5:
+                perf_bonus += 15000
+                perf_factors.append(f"Solid YPRR ({yards_per_route:.2f})")
+            elif yards_per_route < 1.0 and routes_run > 100:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Low YPRR ({yards_per_route:.2f})")
+
+        # Drop rate (NEGATIVE - reliability)
+        if drop_rate > 0 and receptions > 20:
+            if drop_rate >= 15:
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ Major drop issues ({drop_rate:.1f}%)")
+            elif drop_rate >= 10:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Drop concerns ({drop_rate:.1f}%)")
+            elif drop_rate >= 7:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Some drops ({drop_rate:.1f}%)")
+            elif drop_rate < 3:
+                perf_bonus += 25000
+                perf_factors.append(f"Reliable hands ({drop_rate:.1f}% drop rate)")
+
+        # Contested catch rate (physical receiver)
+        if contested_catch_rate > 0:
+            if contested_catch_rate >= 60:
+                perf_bonus += 50000
+                perf_factors.append(f"Contested catch king ({contested_catch_rate:.0f}%)")
+            elif contested_catch_rate >= 50:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong contested catcher ({contested_catch_rate:.0f}%)")
+            elif contested_catch_rate < 30 and receptions > 30:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Struggles contested ({contested_catch_rate:.0f}%)")
+
+        # Separation (route running)
+        if separation > 0:
+            if separation >= 3.0:
+                perf_bonus += 40000
+                perf_factors.append(f"Elite separator ({separation:.1f} avg sep)")
+            elif separation >= 2.5:
+                perf_bonus += 25000
+                perf_factors.append(f"Gets open ({separation:.1f} avg sep)")
+            elif separation < 1.5 and routes_run > 100:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Struggles to separate ({separation:.1f})")
 
         # Receiving production
         if rec_yds > 1200:
@@ -516,6 +779,69 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         rec_yds = player_data.get("receiving_yards", 0) or 0
         rec_tds = player_data.get("receiving_tds", 0) or 0
         receptions = player_data.get("receptions", 0) or 0
+        # PFF Premium metrics
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_receiving = player_data.get("pff_receiving", 0) or 0
+        pff_run_block = player_data.get("pff_run_block", 0) or 0
+        pff_pass_block = player_data.get("pff_pass_block", 0) or 0
+        yards_per_route = player_data.get("yards_per_route_run", 0) or 0
+        drop_rate = player_data.get("drop_rate", 0) or 0
+
+        # PFF Grades
+        if pff_overall > 0:
+            if pff_overall >= 90:
+                perf_bonus += 100000
+                perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 60000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong PFF grade ({pff_overall:.1f})")
+
+            # Receiving grade
+            if pff_receiving >= 85:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite receiving grade ({pff_receiving:.1f})")
+            elif pff_receiving >= 75:
+                perf_bonus += 25000
+                perf_factors.append(f"Strong receiving grade ({pff_receiving:.1f})")
+
+            # Blocking grades (valuable for complete TEs)
+            if pff_run_block >= 80:
+                perf_bonus += 40000
+                perf_factors.append(f"Excellent run blocker ({pff_run_block:.1f})")
+            elif pff_run_block >= 70:
+                perf_bonus += 20000
+                perf_factors.append(f"Good run blocker ({pff_run_block:.1f})")
+
+            if pff_pass_block >= 75:
+                perf_bonus += 25000
+                perf_factors.append(f"Pass pro TE ({pff_pass_block:.1f})")
+
+        # Yards Per Route Run
+        if yards_per_route > 0:
+            if yards_per_route >= 2.5:
+                perf_bonus += 60000
+                perf_factors.append(f"Elite YPRR for TE ({yards_per_route:.2f})")
+            elif yards_per_route >= 2.0:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong YPRR ({yards_per_route:.2f})")
+            elif yards_per_route >= 1.5:
+                perf_bonus += 15000
+                perf_factors.append(f"Solid YPRR ({yards_per_route:.2f})")
+
+        # Drop rate (reliability)
+        if drop_rate > 0 and receptions > 15:
+            if drop_rate >= 12:
+                perf_bonus -= 35000
+                perf_factors.append(f"⚠️ Drop issues ({drop_rate:.1f}%)")
+            elif drop_rate >= 8:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Some drops ({drop_rate:.1f}%)")
+            elif drop_rate < 3:
+                perf_bonus += 20000
+                perf_factors.append(f"Reliable hands ({drop_rate:.1f}%)")
 
         # Receiving production
         if rec_yds > 700:
@@ -553,6 +879,8 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         pff_overall = player_data.get("pff_overall", 0) or 0
         pff_pass_block = player_data.get("pff_pass_grade", player_data.get("pff_pass_block", 0)) or 0
         pff_run_block = player_data.get("pff_run_grade", player_data.get("pff_run_block", 0)) or 0
+        pass_block_eff = player_data.get("pass_blocking_efficiency", 0) or 0
+        total_snaps = player_data.get("total_snaps", 0) or 0
 
         if pff_overall > 0:
             # PFF grades available - use them!
@@ -576,11 +904,37 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             if pff_pass_block >= 85 and position == "OT":
                 perf_bonus += 50000
                 perf_factors.append(f"Elite pass protector ({pff_pass_block:.1f})")
+            elif pff_pass_block >= 80:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong pass protector ({pff_pass_block:.1f})")
 
             # Run blocking
             if pff_run_block >= 85:
                 perf_bonus += 30000
                 perf_factors.append(f"Road grader ({pff_run_block:.1f} run block)")
+            elif pff_run_block >= 75:
+                perf_bonus += 15000
+                perf_factors.append(f"Solid run blocker ({pff_run_block:.1f})")
+
+            # Pass Blocking Efficiency (PBE) - key PFF metric
+            if pass_block_eff > 0:
+                if pass_block_eff >= 98:
+                    perf_bonus += 60000
+                    perf_factors.append(f"Elite PBE ({pass_block_eff:.1f}%)")
+                elif pass_block_eff >= 97:
+                    perf_bonus += 35000
+                    perf_factors.append(f"Very clean in pass pro ({pass_block_eff:.1f}%)")
+                elif pass_block_eff < 94:
+                    perf_bonus -= 25000
+                    perf_factors.append(f"⚠️ Pass pro concerns ({pass_block_eff:.1f}% PBE)")
+
+            # Snap count durability
+            if total_snaps > 800:
+                perf_bonus += 25000
+                perf_factors.append(f"Ironman ({total_snaps} snaps)")
+            elif total_snaps > 600:
+                perf_bonus += 15000
+                perf_factors.append(f"Durable starter ({total_snaps} snaps)")
         else:
             # No PFF data - fall back to traditional metrics
             perf_factors.append("ℹ️ No PFF grade (import for better accuracy)")
@@ -650,6 +1004,12 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         pff_overall = player_data.get("pff_overall", 0) or 0
         pff_pass_rush = player_data.get("pff_pass_rush", player_data.get("pff_pass_grade", 0)) or 0
         pff_run_def = player_data.get("pff_run_defense", player_data.get("pff_run_grade", 0)) or 0
+        pff_coverage = player_data.get("pff_coverage", 0) or 0
+        pass_rush_prod = player_data.get("pass_rushing_productivity", 0) or 0
+        run_stop_pct = player_data.get("run_stop_pct", 0) or 0
+        pressure_rate = player_data.get("pressure_rate", 0) or 0
+        pass_rush_wr = player_data.get("pass_rush_win_rate", 0) or 0
+        total_snaps = player_data.get("total_snaps", 0) or 0
 
         if pff_overall > 0:
             if pff_overall >= 90:
@@ -669,6 +1029,65 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             if pff_pass_rush >= 85 and position in ["EDGE", "DE"]:
                 perf_bonus += 60000
                 perf_factors.append(f"Elite pass rusher grade ({pff_pass_rush:.1f})")
+            elif pff_pass_rush >= 80:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong pass rusher grade ({pff_pass_rush:.1f})")
+
+            # Run defense grade
+            if pff_run_def >= 85:
+                perf_bonus += 40000
+                perf_factors.append(f"Stout run defender ({pff_run_def:.1f})")
+            elif pff_run_def >= 75:
+                perf_bonus += 20000
+                perf_factors.append(f"Solid run defender ({pff_run_def:.1f})")
+
+            # LB Coverage (important for modern LBs)
+            if position == "LB" and pff_coverage > 0:
+                if pff_coverage >= 80:
+                    perf_bonus += 50000
+                    perf_factors.append(f"Coverage LB ({pff_coverage:.1f} cov grade)")
+                elif pff_coverage >= 70:
+                    perf_bonus += 25000
+                    perf_factors.append(f"Capable in coverage ({pff_coverage:.1f})")
+                elif pff_coverage < 50:
+                    perf_bonus -= 20000
+                    perf_factors.append(f"⚠️ Coverage liability ({pff_coverage:.1f})")
+
+        # Pass Rushing Productivity (PRP) - key PFF metric
+        if pass_rush_prod > 0 and position in ["EDGE", "DE", "DT"]:
+            if pass_rush_prod >= 12:
+                perf_bonus += 75000
+                perf_factors.append(f"Elite PRP ({pass_rush_prod:.1f})")
+            elif pass_rush_prod >= 9:
+                perf_bonus += 45000
+                perf_factors.append(f"Strong PRP ({pass_rush_prod:.1f})")
+            elif pass_rush_prod >= 6:
+                perf_bonus += 20000
+                perf_factors.append(f"Solid PRP ({pass_rush_prod:.1f})")
+            elif pass_rush_prod < 4:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Low PRP ({pass_rush_prod:.1f})")
+
+        # Run Stop Percentage (RSP) - key for run defenders
+        if run_stop_pct > 0:
+            if run_stop_pct >= 12:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite run stopper ({run_stop_pct:.1f}% RSP)")
+            elif run_stop_pct >= 9:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong run stopper ({run_stop_pct:.1f}% RSP)")
+            elif run_stop_pct < 5:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Low run stop rate ({run_stop_pct:.1f}%)")
+
+        # Pass rush win rate (advanced metric)
+        if pass_rush_wr > 0 and position in ["EDGE", "DE"]:
+            if pass_rush_wr >= 20:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite win rate ({pass_rush_wr:.0f}%)")
+            elif pass_rush_wr >= 15:
+                perf_bonus += 25000
+                perf_factors.append(f"Strong win rate ({pass_rush_wr:.0f}%)")
 
         tackles = player_data.get("tackles", 0) or 0
         solo = player_data.get("solo_tackles", 0) or 0
@@ -796,6 +1215,13 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         pff_overall = player_data.get("pff_overall", 0) or 0
         pff_coverage = player_data.get("pff_coverage", 0) or 0
         pff_tackling = player_data.get("pff_tackling", 0) or 0
+        pff_run_defense = player_data.get("pff_run_defense", 0) or 0
+        pff_slot = player_data.get("pff_slot_coverage", 0) or 0
+        pff_zone = player_data.get("pff_zone_coverage", 0) or 0
+        pff_man = player_data.get("pff_man_coverage", 0) or 0
+        passer_rating_allowed = player_data.get("passer_rating_allowed", 0) or 0
+        yards_per_cov_snap = player_data.get("yards_per_coverage_snap", 0) or 0
+        coverage_snaps = player_data.get("coverage_snaps", 0) or 0
 
         if pff_overall > 0:
             if pff_overall >= 90:
@@ -818,6 +1244,65 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             elif pff_coverage >= 80:
                 perf_bonus += 30000
                 perf_factors.append(f"Strong coverage grade ({pff_coverage:.1f})")
+            elif pff_coverage >= 70:
+                perf_bonus += 15000
+                perf_factors.append(f"Solid coverage grade ({pff_coverage:.1f})")
+
+            # Slot coverage (premium skill)
+            if pff_slot >= 80:
+                perf_bonus += 35000
+                perf_factors.append(f"Elite slot corner ({pff_slot:.1f})")
+            elif pff_slot >= 70:
+                perf_bonus += 18000
+                perf_factors.append(f"Capable in slot ({pff_slot:.1f})")
+
+            # Man vs Zone coverage
+            if pff_man >= 85:
+                perf_bonus += 30000
+                perf_factors.append(f"Elite man coverage ({pff_man:.1f})")
+            if pff_zone >= 85:
+                perf_bonus += 25000
+                perf_factors.append(f"Elite zone coverage ({pff_zone:.1f})")
+
+            # Tackling grade (important for run support)
+            if pff_tackling >= 80:
+                perf_bonus += 20000
+                perf_factors.append(f"Sure tackler ({pff_tackling:.1f})")
+            elif pff_tackling < 55:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Tackling concerns ({pff_tackling:.1f})")
+
+            # Run defense (especially for safeties)
+            if position == "S" and pff_run_defense >= 75:
+                perf_bonus += 25000
+                perf_factors.append(f"Box safety ability ({pff_run_defense:.1f} run def)")
+
+        # Passer Rating Allowed (key coverage metric)
+        if passer_rating_allowed > 0 and coverage_snaps > 100:
+            if passer_rating_allowed < 60:
+                perf_bonus += 60000
+                perf_factors.append(f"Elite passer rating allowed ({passer_rating_allowed:.1f})")
+            elif passer_rating_allowed < 80:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong passer rating allowed ({passer_rating_allowed:.1f})")
+            elif passer_rating_allowed > 110:
+                perf_bonus -= 35000
+                perf_factors.append(f"⚠️ High passer rating allowed ({passer_rating_allowed:.1f})")
+            elif passer_rating_allowed > 95:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Concerning passer rating ({passer_rating_allowed:.1f})")
+
+        # Yards per coverage snap
+        if yards_per_cov_snap > 0 and coverage_snaps > 100:
+            if yards_per_cov_snap < 0.8:
+                perf_bonus += 40000
+                perf_factors.append(f"Blanket coverage ({yards_per_cov_snap:.2f} yds/snap)")
+            elif yards_per_cov_snap < 1.0:
+                perf_bonus += 20000
+                perf_factors.append(f"Tight coverage ({yards_per_cov_snap:.2f} yds/snap)")
+            elif yards_per_cov_snap > 1.5:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Soft coverage ({yards_per_cov_snap:.2f} yds/snap)")
 
         # PFF-scraped advanced coverage metrics
         targets_allowed = player_data.get("targets_allowed", 0) or 0
@@ -1403,9 +1888,16 @@ def render_search_mode():
 
         # Display as clickable cards with comparison option
         for idx, (_, player) in enumerate(filtered_df.head(20).iterrows()):
-            col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+            col_img, col1, col2, col3, col4, col5 = st.columns([0.5, 2.5, 1, 1, 1, 1])
+            with col_img:
+                headshot_url = player.get('headshot_url', '')
+                if headshot_url and pd.notna(headshot_url):
+                    st.image(headshot_url, width=40)
+                else:
+                    st.markdown("👤")
             with col1:
-                st.markdown(f"**{player['name']}**")
+                school_name = player.get('school', player.get('team', ''))
+                st.markdown(f"**{player['name']}**<br><span style='color: #7a8fa6; font-size: 0.85rem;'>{school_name}</span>", unsafe_allow_html=True)
             with col2:
                 st.markdown(f"{player.get('position', 'N/A')}")
             with col3:
@@ -1588,10 +2080,44 @@ def render_custom_mode():
 def render_valuation_results(player_data: dict):
     """Render the NIL valuation results."""
     st.divider()
+
+    # Player Profile Header with Headshot
+    player_name = player_data.get("name", "")
+    headshot_url = player_data.get("headshot_url", "")
+    school = player_data.get("school", player_data.get("team", ""))
+    position = player_data.get("position", "")
+    stars = player_data.get("stars", 0)
+    tier = player_data.get("tier", "solid")
+
+    col_photo, col_info = st.columns([1, 4])
+    with col_photo:
+        if headshot_url and pd.notna(headshot_url):
+            st.image(headshot_url, width=120)
+        else:
+            st.markdown("""
+            <div style="width: 120px; height: 120px; background: #1a2332; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #4a5568;">
+                👤
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_info:
+        star_display = "⭐" * int(stars) if stars else ""
+        tier_color = get_tier_color(tier)
+        st.markdown(f"""
+        <div>
+            <h2 style="color: {COLORS['text']}; margin-bottom: 5px;">{player_name}</h2>
+            <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem; margin-bottom: 5px;">
+                {position} • {school} {star_display}
+            </p>
+            <span style="background: {tier_color}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; text-transform: uppercase;">
+                {tier}
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.markdown("## 📊 Valuation Results")
 
     # Merge manual stats into player_data for calculation
-    player_name = player_data.get("name", "")
     manual_stats = load_manual_stats_for_player(player_name)
     if manual_stats:
         # Map manual stat keys to expected keys
@@ -2581,13 +3107,21 @@ def render_comparison_mode():
                 remove_from_comparison(player.get("name", ""))
                 st.rerun()
 
-            # Player card header
+            # Player card header with headshot
             stars = int(player.get("stars", 0)) if player.get("stars") else 0
             stars_display = "⭐" * stars if stars > 0 else "—"
+            headshot_url = player.get("headshot_url", "")
+
+            # Display headshot
+            if headshot_url and pd.notna(headshot_url):
+                headshot_html = f'<img src="{headshot_url}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 10px;">'
+            else:
+                headshot_html = '<div style="width: 80px; height: 80px; border-radius: 50%; background: #2d3748; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; font-size: 2rem;">👤</div>'
 
             st.markdown(f"""
             <div style="background: {COLORS['bg_medium']}; padding: 20px; border-radius: 12px; text-align: center;
                         border-top: 4px solid {COLORS['primary']};">
+                {headshot_html}
                 <h3 style="color: {COLORS['text_primary']}; margin: 0;">{player.get('name', 'Unknown')}</h3>
                 <p style="color: {COLORS['text_secondary']}; margin: 5px 0;">{player.get('position', 'ATH')} | {player.get('school', 'Unknown')}</p>
                 <p style="margin: 5px 0;">{stars_display}</p>
