@@ -113,6 +113,96 @@ def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge height/weight from CFBD rosters and ESPN rosters.
+
+    Priority:
+        1. cfbd_rosters.csv (primary - more comprehensive)
+        2. espn_rosters.csv (fallback - fills gaps)
+    """
+    if "name" not in df.columns:
+        return df
+
+    # Skip if already has measurables
+    if "height" in df.columns and "weight" in df.columns:
+        if df["height"].notna().any() and df["weight"].notna().any():
+            return df
+
+    # Collect measurables from multiple sources
+    all_measurables = {}
+
+    # Source 1: CFBD Rosters (primary - most comprehensive)
+    cfbd_path = _get_data_path("cfbd_rosters.csv")
+    if cfbd_path.exists():
+        try:
+            cfbd_df = pd.read_csv(cfbd_path)
+            # CFBD uses player_name column
+            name_col = "player_name" if "player_name" in cfbd_df.columns else "name" if "name" in cfbd_df.columns else None
+            if name_col and "height" in cfbd_df.columns and "weight" in cfbd_df.columns:
+                # Deduplicate - keep first occurrence (most recent in sorted data)
+                cfbd_df = cfbd_df.drop_duplicates(subset=[name_col], keep="first")
+                for _, row in cfbd_df.iterrows():
+                    name = row.get(name_col)
+                    height = row.get("height")
+                    weight = row.get("weight")
+                    if name and pd.notna(height) and pd.notna(weight):
+                        try:
+                            all_measurables[name] = {"height": float(height), "weight": float(weight)}
+                        except (ValueError, TypeError):
+                            pass
+        except Exception:
+            pass
+
+    # Source 2: ESPN Rosters (fallback)
+    espn_path = DATA_DIR / "espn_rosters.csv"
+    if espn_path.exists():
+        try:
+            espn_df = pd.read_csv(espn_path)
+            if "name" in espn_df.columns and "height" in espn_df.columns and "weight" in espn_df.columns:
+                for _, row in espn_df.iterrows():
+                    name = row.get("name")
+                    if name and name not in all_measurables:
+                        height = row.get("height")
+                        weight = row.get("weight")
+                        # ESPN height is like "6' 2\"" - convert to inches
+                        if pd.notna(height) and isinstance(height, str) and "'" in height:
+                            try:
+                                parts = height.replace('"', '').split("'")
+                                feet = int(parts[0].strip())
+                                inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
+                                height = feet * 12 + inches
+                            except:
+                                height = None
+                        if pd.notna(height) and pd.notna(weight):
+                            all_measurables[name] = {"height": height, "weight": weight}
+        except Exception:
+            pass
+
+    # Merge measurables
+    if all_measurables:
+        # Remove existing columns if empty
+        if "height" in df.columns and not df["height"].notna().any():
+            df = df.drop(columns=["height"])
+        if "weight" in df.columns and not df["weight"].notna().any():
+            df = df.drop(columns=["weight"])
+
+        measurables_df = pd.DataFrame([
+            {"name": name, "height": data["height"], "weight": data["weight"]}
+            for name, data in all_measurables.items()
+        ])
+        df = df.merge(measurables_df, on="name", how="left", suffixes=("", "_meas"))
+
+        # Use merged values if original was empty
+        if "height_meas" in df.columns:
+            df["height"] = df["height"].fillna(df["height_meas"])
+            df = df.drop(columns=["height_meas"])
+        if "weight_meas" in df.columns:
+            df["weight"] = df["weight"].fillna(df["weight_meas"])
+            df = df.drop(columns=["weight_meas"])
+
+    return df
+
+
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_database_stats() -> Dict[str, Any]:
     """Get real database statistics from loaded data.
@@ -288,6 +378,9 @@ def get_nil_players() -> pd.DataFrame:
 
     # MERGE HEADSHOTS from on3 data (consistent source)
     df = _merge_headshots(df)
+
+    # MERGE MEASURABLES (height/weight) from CFBD/ESPN rosters
+    df = _merge_measurables(df)
 
     return df
 
