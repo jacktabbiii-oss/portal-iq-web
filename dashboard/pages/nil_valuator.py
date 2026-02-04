@@ -29,6 +29,61 @@ from utils.data_loader import (
 )
 from utils.navigation import render_sidebar
 
+# =============================================================================
+# Manual Stats Persistence (CSV backup)
+# =============================================================================
+DATA_DIR = Path(__file__).parent.parent.parent / "ml-engine" / "data" / "processed"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+MANUAL_STATS_FILE = DATA_DIR / "manual_player_stats.csv"
+
+
+def load_manual_stats_for_player(player_name: str) -> dict:
+    """Load manually entered stats for a specific player."""
+    if not MANUAL_STATS_FILE.exists():
+        return {}
+    try:
+        df = pd.read_csv(MANUAL_STATS_FILE)
+        player_row = df[df["player_name"] == player_name]
+        if not player_row.empty:
+            return player_row.iloc[0].to_dict()
+    except Exception:
+        pass
+    return {}
+
+
+def save_manual_stats_for_player(player_name: str, team: str, position: str, stats: dict):
+    """Save/update manual stats for a player to CSV."""
+    try:
+        if MANUAL_STATS_FILE.exists():
+            df = pd.read_csv(MANUAL_STATS_FILE)
+        else:
+            df = pd.DataFrame()
+
+        # Prepare the record
+        record = {
+            "player_name": player_name,
+            "team": team,
+            "position": position,
+            **stats
+        }
+
+        if df.empty:
+            df = pd.DataFrame([record])
+        else:
+            # Update existing or add new
+            mask = df["player_name"] == player_name
+            if mask.any():
+                for key, value in record.items():
+                    df.loc[mask, key] = value
+            else:
+                df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+
+        df.to_csv(MANUAL_STATS_FILE, index=False)
+        return True
+    except Exception as e:
+        st.error(f"Error saving stats: {e}")
+        return False
+
 # Page config
 st.set_page_config(
     page_title="NIL Valuator | Portal IQ",
@@ -1486,6 +1541,29 @@ def render_valuation_results(player_data: dict):
     st.divider()
     st.markdown("## 📊 Valuation Results")
 
+    # Merge manual stats into player_data for calculation
+    player_name = player_data.get("name", "")
+    manual_stats = load_manual_stats_for_player(player_name)
+    if manual_stats:
+        # Map manual stat keys to expected keys
+        key_mapping = {
+            "height_inches": "height",  # Manual uses height_inches, calc uses height
+        }
+
+        # Only merge non-empty values from manual stats
+        for key, value in manual_stats.items():
+            if key not in ["player_name", "team", "position"] and pd.notna(value) and value:
+                # Use mapped key if exists
+                target_key = key_mapping.get(key, key)
+
+                # Don't overwrite existing CFBD data unless manual data is non-zero
+                existing_val = player_data.get(target_key)
+                if not existing_val or pd.isna(existing_val) or existing_val == 0:
+                    player_data[target_key] = value
+                elif value and value != 0:
+                    # Manual data takes precedence if both exist and manual is non-zero
+                    player_data[target_key] = value
+
     # Get both values
     on3_value = player_data.get("nil_value", 0) or 0
     custom_value, custom_breakdown = calculate_custom_nil_value(player_data)
@@ -1542,103 +1620,242 @@ def render_valuation_results(player_data: dict):
             """, unsafe_allow_html=True)
 
     # ===========================================================================
-    # MANUAL STATS ENTRY (until PFF integration)
+    # MANUAL STATS ENTRY (Persists to CSV - backup until PocketBase integration)
     # ===========================================================================
 
     position = player_data.get("position", "ATH")
     player_name = player_data.get("name", "Unknown")
+    team = player_data.get("school", "") or player_data.get("origin_school", "") or player_data.get("team", "")
 
-    with st.expander("✏️ Add/Edit Performance Data (Penalties, Stats)", expanded=False):
+    # Load any existing manual data for this player
+    existing_manual = load_manual_stats_for_player(player_name)
+
+    # Check if measurables are missing
+    has_height = player_data.get("height") and not pd.isna(player_data.get("height"))
+    has_weight = player_data.get("weight") and not pd.isna(player_data.get("weight"))
+    missing_measurables = not has_height or not has_weight
+
+    with st.expander("✏️ Add/Edit Performance Data & Measurables", expanded=missing_measurables):
         st.markdown("""
         <p style="color: #a8b8c8; font-size: 0.9rem;">
-            Enter additional stats not available in CFBD. This helps provide more accurate valuations.
+            Enter stats and measurables to improve valuation accuracy. <strong>Data persists to database.</strong>
         </p>
         """, unsafe_allow_html=True)
 
-        # Store manual entries in session state
-        if "manual_stats" not in st.session_state:
-            st.session_state.manual_stats = {}
+        player_key = f"manual_{player_name.replace(' ', '_')}"
 
-        player_key = f"manual_{player_name}"
+        # Track all stats to save
+        stats_to_save = {}
 
-        # Position-specific penalty/stat inputs
-        if position in ["OT", "OG", "C", "OL", "IOL"]:
+        # =========================================================
+        # MEASURABLES (Height/Weight) - Show prominently if missing
+        # =========================================================
+        if missing_measurables:
+            st.markdown(f"""
+            <div style="background: #2d1f1f; border: 1px solid #ff6b6b; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                <strong style="color: #ff6b6b;">⚠️ Missing Measurables</strong>
+                <p style="color: #c9d6e3; font-size: 0.85rem; margin: 5px 0 0 0;">
+                    Height/weight data not available from CFBD. Enter below for accurate size-based valuation.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("**Physical Measurables**")
+        meas_col1, meas_col2, meas_col3 = st.columns(3)
+        with meas_col1:
+            # Convert existing height to inches if stored as string like "6-2"
+            default_height = existing_manual.get("height_inches", 72)
+            if pd.isna(default_height):
+                default_height = 72
+            height_inches = st.number_input(
+                "Height (inches)",
+                min_value=60, max_value=84, value=int(default_height),
+                help="E.g., 6'2\" = 74 inches",
+                key=f"{player_key}_height"
+            )
+            stats_to_save["height_inches"] = height_inches
+
+        with meas_col2:
+            default_weight = existing_manual.get("weight", 200)
+            if pd.isna(default_weight):
+                default_weight = 200
+            weight = st.number_input(
+                "Weight (lbs)",
+                min_value=150, max_value=380, value=int(default_weight),
+                key=f"{player_key}_weight"
+            )
+            stats_to_save["weight"] = weight
+
+        with meas_col3:
+            # Display height in feet-inches for reference
+            feet = height_inches // 12
+            inches = height_inches % 12
+            st.markdown(f"""
+            <div style="padding-top: 25px;">
+                <span style="color: {COLORS['primary']}; font-size: 1.2rem; font-weight: bold;">
+                    {feet}'{inches}" / {weight} lbs
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # =========================================================
+        # POSITION-SPECIFIC PRODUCTION STATS
+        # =========================================================
+        if position == "QB":
+            st.markdown("**Quarterback Production Stats**")
+            qb_col1, qb_col2, qb_col3, qb_col4 = st.columns(4)
+            with qb_col1:
+                stats_to_save["passing_yards"] = st.number_input("Pass Yards", 0, 6000, int(existing_manual.get("passing_yards", 0) or 0), key=f"{player_key}_pass_yds")
+                stats_to_save["passing_tds"] = st.number_input("Pass TDs", 0, 60, int(existing_manual.get("passing_tds", 0) or 0), key=f"{player_key}_pass_tds")
+            with qb_col2:
+                stats_to_save["interceptions"] = st.number_input("INTs Thrown", 0, 30, int(existing_manual.get("interceptions", 0) or 0), key=f"{player_key}_ints")
+                stats_to_save["completion_pct"] = st.number_input("Comp %", 0.0, 100.0, float(existing_manual.get("completion_pct", 0) or 0), key=f"{player_key}_comp_pct")
+            with qb_col3:
+                stats_to_save["rushing_yards"] = st.number_input("Rush Yards", 0, 2000, int(existing_manual.get("rushing_yards", 0) or 0), key=f"{player_key}_rush_yds")
+                stats_to_save["rushing_tds"] = st.number_input("Rush TDs", 0, 30, int(existing_manual.get("rushing_tds", 0) or 0), key=f"{player_key}_rush_tds")
+            with qb_col4:
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
+                stats_to_save["sacks_taken"] = st.number_input("Sacks Taken", 0, 60, int(existing_manual.get("sacks_taken", 0) or 0), key=f"{player_key}_sacks_taken")
+
+        elif position == "RB":
+            st.markdown("**Running Back Production Stats**")
+            rb_col1, rb_col2, rb_col3, rb_col4 = st.columns(4)
+            with rb_col1:
+                stats_to_save["rushing_yards"] = st.number_input("Rush Yards", 0, 2500, int(existing_manual.get("rushing_yards", 0) or 0), key=f"{player_key}_rush_yds")
+                stats_to_save["rushing_tds"] = st.number_input("Rush TDs", 0, 30, int(existing_manual.get("rushing_tds", 0) or 0), key=f"{player_key}_rush_tds")
+            with rb_col2:
+                stats_to_save["rushing_attempts"] = st.number_input("Carries", 0, 400, int(existing_manual.get("rushing_attempts", 0) or 0), key=f"{player_key}_carries")
+                stats_to_save["yards_per_carry"] = st.number_input("YPC", 0.0, 15.0, float(existing_manual.get("yards_per_carry", 0) or 0), key=f"{player_key}_ypc")
+            with rb_col3:
+                stats_to_save["receptions"] = st.number_input("Receptions", 0, 100, int(existing_manual.get("receptions", 0) or 0), key=f"{player_key}_rec")
+                stats_to_save["receiving_yards"] = st.number_input("Rec Yards", 0, 1000, int(existing_manual.get("receiving_yards", 0) or 0), key=f"{player_key}_rec_yds")
+            with rb_col4:
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
+                stats_to_save["fumbles_lost"] = st.number_input("Fumbles Lost", 0, 15, int(existing_manual.get("fumbles_lost", 0) or 0), key=f"{player_key}_fum_lost")
+
+        elif position == "WR":
+            st.markdown("**Wide Receiver Production Stats**")
+            wr_col1, wr_col2, wr_col3, wr_col4 = st.columns(4)
+            with wr_col1:
+                stats_to_save["receptions"] = st.number_input("Receptions", 0, 150, int(existing_manual.get("receptions", 0) or 0), key=f"{player_key}_rec")
+                stats_to_save["receiving_yards"] = st.number_input("Rec Yards", 0, 2000, int(existing_manual.get("receiving_yards", 0) or 0), key=f"{player_key}_rec_yds")
+            with wr_col2:
+                stats_to_save["receiving_tds"] = st.number_input("Rec TDs", 0, 25, int(existing_manual.get("receiving_tds", 0) or 0), key=f"{player_key}_rec_tds")
+                stats_to_save["yards_per_reception"] = st.number_input("YPR", 0.0, 30.0, float(existing_manual.get("yards_per_reception", 0) or 0), key=f"{player_key}_ypr")
+            with wr_col3:
+                stats_to_save["targets"] = st.number_input("Targets", 0, 200, int(existing_manual.get("targets", 0) or 0), key=f"{player_key}_targets")
+                stats_to_save["drops"] = st.number_input("Drops", 0, 20, int(existing_manual.get("drops", 0) or 0), key=f"{player_key}_drops")
+            with wr_col4:
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
+
+        elif position == "TE":
+            st.markdown("**Tight End Production Stats**")
+            te_col1, te_col2, te_col3, te_col4 = st.columns(4)
+            with te_col1:
+                stats_to_save["receptions"] = st.number_input("Receptions", 0, 100, int(existing_manual.get("receptions", 0) or 0), key=f"{player_key}_rec")
+                stats_to_save["receiving_yards"] = st.number_input("Rec Yards", 0, 1500, int(existing_manual.get("receiving_yards", 0) or 0), key=f"{player_key}_rec_yds")
+            with te_col2:
+                stats_to_save["receiving_tds"] = st.number_input("Rec TDs", 0, 20, int(existing_manual.get("receiving_tds", 0) or 0), key=f"{player_key}_rec_tds")
+                stats_to_save["yards_per_reception"] = st.number_input("YPR", 0.0, 25.0, float(existing_manual.get("yards_per_reception", 0) or 0), key=f"{player_key}_ypr")
+            with te_col3:
+                stats_to_save["pff_pass_block"] = st.number_input("PFF Pass Block", 0.0, 100.0, float(existing_manual.get("pff_pass_block", 0) or 0), key=f"{player_key}_pff_pb")
+                stats_to_save["pff_run_block"] = st.number_input("PFF Run Block", 0.0, 100.0, float(existing_manual.get("pff_run_block", 0) or 0), key=f"{player_key}_pff_rb")
+            with te_col4:
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
+
+        elif position in ["OT", "OG", "C", "OL", "IOL"]:
             st.markdown("**Offensive Line Metrics**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                sacks_allowed = st.number_input("Sacks Allowed", 0, 30, 0, key=f"{player_key}_sacks_allowed")
-                holding = st.number_input("Holding Penalties", 0, 20, 0, key=f"{player_key}_holding")
-            with col2:
-                false_starts = st.number_input("False Starts", 0, 15, 0, key=f"{player_key}_false_starts")
-                pressures = st.number_input("Pressures Allowed", 0, 50, 0, key=f"{player_key}_pressures")
-            with col3:
-                pancakes = st.number_input("Pancake Blocks", 0, 50, 0, key=f"{player_key}_pancakes")
-                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+            ol_col1, ol_col2, ol_col3, ol_col4 = st.columns(4)
+            with ol_col1:
+                stats_to_save["pff_overall"] = st.number_input("PFF Overall", 0.0, 100.0, float(existing_manual.get("pff_overall", 0) or 0), key=f"{player_key}_pff")
+                stats_to_save["pff_pass_block"] = st.number_input("PFF Pass Block", 0.0, 100.0, float(existing_manual.get("pff_pass_block", 0) or 0), key=f"{player_key}_pff_pb")
+            with ol_col2:
+                stats_to_save["pff_run_block"] = st.number_input("PFF Run Block", 0.0, 100.0, float(existing_manual.get("pff_run_block", 0) or 0), key=f"{player_key}_pff_rb")
+                stats_to_save["sacks_allowed"] = st.number_input("Sacks Allowed", 0, 30, int(existing_manual.get("sacks_allowed", 0) or 0), key=f"{player_key}_sacks_allowed")
+            with ol_col3:
+                stats_to_save["pressures_allowed"] = st.number_input("Pressures Allowed", 0, 60, int(existing_manual.get("pressures_allowed", 0) or 0), key=f"{player_key}_pressures")
+                stats_to_save["holding_penalties"] = st.number_input("Holding Penalties", 0, 15, int(existing_manual.get("holding_penalties", 0) or 0), key=f"{player_key}_holding")
+            with ol_col4:
+                stats_to_save["false_starts"] = st.number_input("False Starts", 0, 15, int(existing_manual.get("false_starts", 0) or 0), key=f"{player_key}_false_starts")
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
 
         elif position in ["EDGE", "DT", "DL", "DE"]:
-            st.markdown("**Defensive Line Metrics**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                offsides = st.number_input("Offsides Penalties", 0, 15, 0, key=f"{player_key}_offsides")
-                roughing = st.number_input("Roughing the Passer", 0, 10, 0, key=f"{player_key}_roughing")
-            with col2:
-                encroachment = st.number_input("Encroachment", 0, 15, 0, key=f"{player_key}_encroachment")
-                missed_tackles = st.number_input("Missed Tackles", 0, 30, 0, key=f"{player_key}_missed_tackles")
-            with col3:
-                unsportsmanlike = st.number_input("Unsportsmanlike Conduct", 0, 5, 0, key=f"{player_key}_unsportsmanlike")
-                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+            st.markdown("**Defensive Line Production Stats**")
+            dl_col1, dl_col2, dl_col3, dl_col4 = st.columns(4)
+            with dl_col1:
+                stats_to_save["tackles"] = st.number_input("Total Tackles", 0, 150, int(existing_manual.get("tackles", 0) or 0), key=f"{player_key}_tkl")
+                stats_to_save["sacks"] = st.number_input("Sacks", 0.0, 25.0, float(existing_manual.get("sacks", 0) or 0), key=f"{player_key}_sacks")
+            with dl_col2:
+                stats_to_save["tackles_for_loss"] = st.number_input("TFL", 0.0, 30.0, float(existing_manual.get("tackles_for_loss", 0) or 0), key=f"{player_key}_tfl")
+                stats_to_save["qb_hits"] = st.number_input("QB Hits", 0, 40, int(existing_manual.get("qb_hits", 0) or 0), key=f"{player_key}_qb_hits")
+            with dl_col3:
+                stats_to_save["pff_overall"] = st.number_input("PFF Overall", 0.0, 100.0, float(existing_manual.get("pff_overall", 0) or 0), key=f"{player_key}_pff")
+                stats_to_save["missed_tackles"] = st.number_input("Missed Tackles", 0, 30, int(existing_manual.get("missed_tackles", 0) or 0), key=f"{player_key}_missed")
+            with dl_col4:
+                stats_to_save["offsides_penalties"] = st.number_input("Offsides", 0, 15, int(existing_manual.get("offsides_penalties", 0) or 0), key=f"{player_key}_offsides")
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
 
         elif position == "LB":
-            st.markdown("**Linebacker Metrics**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                missed_tackles = st.number_input("Missed Tackles", 0, 40, 0, key=f"{player_key}_missed_tackles")
-                offsides = st.number_input("Offsides/Encroachment", 0, 10, 0, key=f"{player_key}_offsides")
-            with col2:
-                coverage_busts = st.number_input("Coverage Busts (Est.)", 0, 20, 0, key=f"{player_key}_coverage_busts")
-                unsportsmanlike = st.number_input("Unsportsmanlike", 0, 5, 0, key=f"{player_key}_unsportsmanlike")
-            with col3:
-                run_fits = st.number_input("Missed Run Fits (Est.)", 0, 20, 0, key=f"{player_key}_run_fits")
-                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+            st.markdown("**Linebacker Production Stats**")
+            lb_col1, lb_col2, lb_col3, lb_col4 = st.columns(4)
+            with lb_col1:
+                stats_to_save["tackles"] = st.number_input("Total Tackles", 0, 200, int(existing_manual.get("tackles", 0) or 0), key=f"{player_key}_tkl")
+                stats_to_save["sacks"] = st.number_input("Sacks", 0.0, 20.0, float(existing_manual.get("sacks", 0) or 0), key=f"{player_key}_sacks")
+            with lb_col2:
+                stats_to_save["tackles_for_loss"] = st.number_input("TFL", 0.0, 30.0, float(existing_manual.get("tackles_for_loss", 0) or 0), key=f"{player_key}_tfl")
+                stats_to_save["interceptions"] = st.number_input("INTs", 0, 10, int(existing_manual.get("interceptions", 0) or 0), key=f"{player_key}_ints")
+            with lb_col3:
+                stats_to_save["passes_defended"] = st.number_input("Pass Breakups", 0, 20, int(existing_manual.get("passes_defended", 0) or 0), key=f"{player_key}_pbu")
+                stats_to_save["missed_tackles"] = st.number_input("Missed Tackles", 0, 40, int(existing_manual.get("missed_tackles", 0) or 0), key=f"{player_key}_missed")
+            with lb_col4:
+                stats_to_save["pff_overall"] = st.number_input("PFF Overall", 0.0, 100.0, float(existing_manual.get("pff_overall", 0) or 0), key=f"{player_key}_pff")
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
 
         elif position in ["CB", "S", "DB"]:
-            st.markdown("**Secondary Metrics**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                pi_calls = st.number_input("Pass Interference Calls", 0, 15, 0, key=f"{player_key}_pi")
-                holding = st.number_input("Defensive Holding", 0, 10, 0, key=f"{player_key}_holding")
-            with col2:
-                missed_tackles = st.number_input("Missed Tackles", 0, 25, 0, key=f"{player_key}_missed_tackles")
-                tds_allowed = st.number_input("TDs Allowed (Est.)", 0, 15, 0, key=f"{player_key}_tds_allowed")
-            with col3:
-                targets = st.number_input("Times Targeted", 0, 100, 0, key=f"{player_key}_targets")
-                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
-
-        elif position in ["QB", "RB", "WR", "TE"]:
-            st.markdown("**Skill Position Accountability**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                fumbles = st.number_input("Fumbles", 0, 15, 0, key=f"{player_key}_fumbles")
-                fumbles_lost = st.number_input("Fumbles Lost", 0, 10, 0, key=f"{player_key}_fumbles_lost")
-            with col2:
-                drops = st.number_input("Drops (WR/TE/RB)", 0, 20, 0, key=f"{player_key}_drops")
-                false_starts = st.number_input("False Starts", 0, 5, 0, key=f"{player_key}_false_starts")
-            with col3:
-                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
-                if position == "QB":
-                    sacks_taken = st.number_input("Sacks Taken", 0, 50, 0, key=f"{player_key}_sacks_taken")
+            st.markdown("**Secondary Production Stats**")
+            db_col1, db_col2, db_col3, db_col4 = st.columns(4)
+            with db_col1:
+                stats_to_save["tackles"] = st.number_input("Total Tackles", 0, 150, int(existing_manual.get("tackles", 0) or 0), key=f"{player_key}_tkl")
+                stats_to_save["interceptions"] = st.number_input("INTs", 0, 15, int(existing_manual.get("interceptions", 0) or 0), key=f"{player_key}_ints")
+            with db_col2:
+                stats_to_save["passes_defended"] = st.number_input("Pass Breakups", 0, 25, int(existing_manual.get("passes_defended", 0) or 0), key=f"{player_key}_pbu")
+                stats_to_save["forced_fumbles"] = st.number_input("Forced Fumbles", 0, 10, int(existing_manual.get("forced_fumbles", 0) or 0), key=f"{player_key}_ff")
+            with db_col3:
+                stats_to_save["pff_coverage"] = st.number_input("PFF Coverage", 0.0, 100.0, float(existing_manual.get("pff_coverage", 0) or 0), key=f"{player_key}_pff_cov")
+                stats_to_save["pass_interference"] = st.number_input("PI Calls", 0, 15, int(existing_manual.get("pass_interference", 0) or 0), key=f"{player_key}_pi")
+            with db_col4:
+                stats_to_save["tds_allowed"] = st.number_input("TDs Allowed", 0, 15, int(existing_manual.get("tds_allowed", 0) or 0), key=f"{player_key}_tds_allowed")
+                stats_to_save["games_played"] = st.number_input("Games", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
 
         else:
-            st.markdown("**General Metrics**")
-            col1, col2 = st.columns(2)
-            with col1:
-                penalties = st.number_input("Total Penalties", 0, 20, 0, key=f"{player_key}_penalties")
-            with col2:
-                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+            # Generic/ATH fallback
+            st.markdown("**General Stats**")
+            gen_col1, gen_col2, gen_col3 = st.columns(3)
+            with gen_col1:
+                stats_to_save["games_played"] = st.number_input("Games Played", 0, 15, int(existing_manual.get("games_played", 0) or 0), key=f"{player_key}_games")
+            with gen_col2:
+                stats_to_save["total_penalties"] = st.number_input("Total Penalties", 0, 20, int(existing_manual.get("total_penalties", 0) or 0), key=f"{player_key}_penalties")
+            with gen_col3:
+                stats_to_save["pff_overall"] = st.number_input("PFF Overall", 0.0, 100.0, float(existing_manual.get("pff_overall", 0) or 0), key=f"{player_key}_pff")
 
-        if st.button("💾 Apply Stats to Valuation", key=f"{player_key}_apply"):
-            st.success("Stats applied! Refresh to see updated valuation.")
-            st.rerun()
+        st.markdown("---")
+
+        # Save button
+        save_col1, save_col2 = st.columns([1, 3])
+        with save_col1:
+            if st.button("💾 Save to Database", key=f"{player_key}_save", type="primary"):
+                if save_manual_stats_for_player(player_name, team, position, stats_to_save):
+                    st.success(f"Saved stats for {player_name}!")
+                    st.cache_data.clear()  # Clear cache to reload with new data
+                    st.rerun()
+        with save_col2:
+            st.markdown(f"""
+            <p style="color: #7a8fa6; font-size: 0.8rem; padding-top: 8px;">
+                Data saved to CSV backup. Will sync to PocketBase when connected.
+            </p>
+            """, unsafe_allow_html=True)
 
     # ===========================================================================
     # COMPREHENSIVE METHODOLOGY & JUSTIFICATION SECTION
