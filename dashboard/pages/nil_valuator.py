@@ -494,25 +494,69 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
 
     # OL stats - trench players (limited individual stats available)
     elif position in ["OT", "OG", "C", "OL", "IOL"]:
-        # OL doesn't have traditional stats, so we rely heavily on:
-        # - Stars/rating (scouting consensus)
-        # - School/conference prestige (competition level)
-        # Note: If we had PFF grades or sacks allowed, we'd use those
-        # For now, give bonus for experience and school tier
+        # OL doesn't have traditional box score stats
+        # Key metrics that WOULD matter (need PFF or manual entry):
+        # - Sacks allowed, pressures allowed, penalties, pancake blocks
+        # For now, use available proxy metrics
+
+        # Star rating (scouting consensus on technique/potential)
         if stars >= 5:
             perf_bonus += 50000
             perf_factors.append("Elite prospect (5-star)")
         elif stars >= 4:
             perf_bonus += 25000
             perf_factors.append("High-upside lineman (4-star)")
+        elif stars <= 2:
+            perf_bonus -= 15000
+            perf_factors.append("⚠️ Lower recruiting profile")
 
-        # Position scarcity bonus
+        # Position scarcity bonus (OT is premium)
         if position == "OT":
             perf_bonus += 25000
             perf_factors.append("Premium position (OT)")
-        elif position in ["OG", "C", "IOL"]:
+        elif position == "C":
+            perf_bonus += 20000
+            perf_factors.append("Center (calls protections)")
+        elif position in ["OG", "IOL"]:
             perf_bonus += 15000
             perf_factors.append("Interior lineman")
+
+        # Manual penalty/accountability fields (if entered)
+        sacks_allowed = player_data.get("sacks_allowed", 0) or 0
+        penalties = player_data.get("penalties", 0) or 0
+        holding_calls = player_data.get("holding_penalties", 0) or 0
+        false_starts = player_data.get("false_starts", 0) or 0
+
+        # Negative metrics (when manually entered)
+        if sacks_allowed > 5:
+            perf_bonus -= 40000
+            perf_factors.append(f"⚠️ Pass pro issues ({sacks_allowed} sacks allowed)")
+        elif sacks_allowed > 3:
+            perf_bonus -= 20000
+            perf_factors.append(f"⚠️ Some sacks allowed ({sacks_allowed})")
+
+        if holding_calls > 5:
+            perf_bonus -= 30000
+            perf_factors.append(f"⚠️ Holding tendency ({holding_calls} calls)")
+        elif holding_calls > 3:
+            perf_bonus -= 15000
+            perf_factors.append(f"⚠️ Holding concerns ({holding_calls} calls)")
+
+        if false_starts > 3:
+            perf_bonus -= 25000
+            perf_factors.append(f"⚠️ Discipline issue ({false_starts} false starts)")
+        elif false_starts > 1:
+            perf_bonus -= 10000
+            perf_factors.append(f"⚠️ False start concerns ({false_starts})")
+
+        total_penalties = penalties + holding_calls + false_starts
+        if total_penalties > 8:
+            perf_bonus -= 35000
+            perf_factors.append(f"⚠️ High penalty count ({total_penalties} total)")
+
+        # If no penalty data entered, note the limitation
+        if sacks_allowed == 0 and penalties == 0 and holding_calls == 0:
+            perf_factors.append("ℹ️ No penalty data available (enter manually for accuracy)")
 
     # Defensive stats - DL/EDGE/LB (comprehensive GM evaluation)
     elif position in ["EDGE", "DT", "DL", "LB", "DE"]:
@@ -594,6 +638,47 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         if ff > 1:
             perf_bonus += 20000
             perf_factors.append(f"Ball disruptor ({ff} fumbles recovered)")
+
+        # DL/EDGE Penalty metrics (manual entry until PFF integration)
+        offsides = player_data.get("offsides_penalties", 0) or 0
+        roughing = player_data.get("roughing_passer", 0) or 0
+        encroachment = player_data.get("encroachment", 0) or 0
+        unsportsmanlike = player_data.get("unsportsmanlike", 0) or 0
+        missed_tackles = player_data.get("missed_tackles", 0) or 0
+
+        # Discipline concerns
+        if offsides > 4:
+            perf_bonus -= 35000
+            perf_factors.append(f"⚠️ Offsides issue ({offsides} penalties)")
+        elif offsides > 2:
+            perf_bonus -= 15000
+            perf_factors.append(f"⚠️ Jump offsides ({offsides} penalties)")
+
+        if roughing > 1:
+            perf_bonus -= 40000
+            perf_factors.append(f"⚠️ Roughing passer ({roughing} calls)")
+        elif roughing > 0:
+            perf_bonus -= 20000
+            perf_factors.append(f"⚠️ Roughing passer concern ({roughing})")
+
+        if encroachment > 3:
+            perf_bonus -= 25000
+            perf_factors.append(f"⚠️ Encroachment issues ({encroachment})")
+
+        if unsportsmanlike > 1:
+            perf_bonus -= 50000
+            perf_factors.append(f"⚠️ Character concern ({unsportsmanlike} unsportsmanlike)")
+        elif unsportsmanlike > 0:
+            perf_bonus -= 25000
+            perf_factors.append(f"⚠️ Unsportsmanlike penalty ({unsportsmanlike})")
+
+        # Missed tackles (reliability)
+        if missed_tackles > 15:
+            perf_bonus -= 40000
+            perf_factors.append(f"⚠️ Tackling liability ({missed_tackles} missed)")
+        elif missed_tackles > 10:
+            perf_bonus -= 20000
+            perf_factors.append(f"⚠️ Missed tackle concerns ({missed_tackles})")
 
     # Secondary stats - CB/S/DB (comprehensive coverage metrics)
     elif position in ["CB", "S", "DB"]:
@@ -1400,6 +1485,105 @@ def render_valuation_results(player_data: dict):
                 <p style="color: #c9d6e3; font-size: 0.8rem; margin-top: 5px;">No On3 data available</p>
             </div>
             """, unsafe_allow_html=True)
+
+    # ===========================================================================
+    # MANUAL STATS ENTRY (until PFF integration)
+    # ===========================================================================
+
+    position = player_data.get("position", "ATH")
+    player_name = player_data.get("name", "Unknown")
+
+    with st.expander("✏️ Add/Edit Performance Data (Penalties, Stats)", expanded=False):
+        st.markdown("""
+        <p style="color: #a8b8c8; font-size: 0.9rem;">
+            Enter additional stats not available in CFBD. This helps provide more accurate valuations.
+        </p>
+        """, unsafe_allow_html=True)
+
+        # Store manual entries in session state
+        if "manual_stats" not in st.session_state:
+            st.session_state.manual_stats = {}
+
+        player_key = f"manual_{player_name}"
+
+        # Position-specific penalty/stat inputs
+        if position in ["OT", "OG", "C", "OL", "IOL"]:
+            st.markdown("**Offensive Line Metrics**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                sacks_allowed = st.number_input("Sacks Allowed", 0, 30, 0, key=f"{player_key}_sacks_allowed")
+                holding = st.number_input("Holding Penalties", 0, 20, 0, key=f"{player_key}_holding")
+            with col2:
+                false_starts = st.number_input("False Starts", 0, 15, 0, key=f"{player_key}_false_starts")
+                pressures = st.number_input("Pressures Allowed", 0, 50, 0, key=f"{player_key}_pressures")
+            with col3:
+                pancakes = st.number_input("Pancake Blocks", 0, 50, 0, key=f"{player_key}_pancakes")
+                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+
+        elif position in ["EDGE", "DT", "DL", "DE"]:
+            st.markdown("**Defensive Line Metrics**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                offsides = st.number_input("Offsides Penalties", 0, 15, 0, key=f"{player_key}_offsides")
+                roughing = st.number_input("Roughing the Passer", 0, 10, 0, key=f"{player_key}_roughing")
+            with col2:
+                encroachment = st.number_input("Encroachment", 0, 15, 0, key=f"{player_key}_encroachment")
+                missed_tackles = st.number_input("Missed Tackles", 0, 30, 0, key=f"{player_key}_missed_tackles")
+            with col3:
+                unsportsmanlike = st.number_input("Unsportsmanlike Conduct", 0, 5, 0, key=f"{player_key}_unsportsmanlike")
+                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+
+        elif position == "LB":
+            st.markdown("**Linebacker Metrics**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                missed_tackles = st.number_input("Missed Tackles", 0, 40, 0, key=f"{player_key}_missed_tackles")
+                offsides = st.number_input("Offsides/Encroachment", 0, 10, 0, key=f"{player_key}_offsides")
+            with col2:
+                coverage_busts = st.number_input("Coverage Busts (Est.)", 0, 20, 0, key=f"{player_key}_coverage_busts")
+                unsportsmanlike = st.number_input("Unsportsmanlike", 0, 5, 0, key=f"{player_key}_unsportsmanlike")
+            with col3:
+                run_fits = st.number_input("Missed Run Fits (Est.)", 0, 20, 0, key=f"{player_key}_run_fits")
+                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+
+        elif position in ["CB", "S", "DB"]:
+            st.markdown("**Secondary Metrics**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                pi_calls = st.number_input("Pass Interference Calls", 0, 15, 0, key=f"{player_key}_pi")
+                holding = st.number_input("Defensive Holding", 0, 10, 0, key=f"{player_key}_holding")
+            with col2:
+                missed_tackles = st.number_input("Missed Tackles", 0, 25, 0, key=f"{player_key}_missed_tackles")
+                tds_allowed = st.number_input("TDs Allowed (Est.)", 0, 15, 0, key=f"{player_key}_tds_allowed")
+            with col3:
+                targets = st.number_input("Times Targeted", 0, 100, 0, key=f"{player_key}_targets")
+                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+
+        elif position in ["QB", "RB", "WR", "TE"]:
+            st.markdown("**Skill Position Accountability**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                fumbles = st.number_input("Fumbles", 0, 15, 0, key=f"{player_key}_fumbles")
+                fumbles_lost = st.number_input("Fumbles Lost", 0, 10, 0, key=f"{player_key}_fumbles_lost")
+            with col2:
+                drops = st.number_input("Drops (WR/TE/RB)", 0, 20, 0, key=f"{player_key}_drops")
+                false_starts = st.number_input("False Starts", 0, 5, 0, key=f"{player_key}_false_starts")
+            with col3:
+                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+                if position == "QB":
+                    sacks_taken = st.number_input("Sacks Taken", 0, 50, 0, key=f"{player_key}_sacks_taken")
+
+        else:
+            st.markdown("**General Metrics**")
+            col1, col2 = st.columns(2)
+            with col1:
+                penalties = st.number_input("Total Penalties", 0, 20, 0, key=f"{player_key}_penalties")
+            with col2:
+                games = st.number_input("Games Played", 0, 15, 0, key=f"{player_key}_games")
+
+        if st.button("💾 Apply Stats to Valuation", key=f"{player_key}_apply"):
+            st.success("Stats applied! Refresh to see updated valuation.")
+            st.rerun()
 
     # ===========================================================================
     # COMPREHENSIVE METHODOLOGY & JUSTIFICATION SECTION
