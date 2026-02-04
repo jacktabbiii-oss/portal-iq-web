@@ -71,9 +71,11 @@ api_keys.txt
 # Data Files
 # =============================================================================
 data/raw/
-data/processed/
+# KEEP processed data for deployment - contains CFBD stats needed for valuations
+# data/processed/
 data/cache/
-*.csv
+# Allow CSV files in processed folder for stats data
+# *.csv
 *.parquet
 *.pkl
 *.pickle
@@ -83,6 +85,7 @@ data/cache/
 *.arrow
 !data/.gitkeep
 !tests/fixtures/*.csv
+!data/processed/*.csv
 
 # =============================================================================
 # Model Artifacts

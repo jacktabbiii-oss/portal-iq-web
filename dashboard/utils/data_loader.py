@@ -5,7 +5,7 @@ Loads real data from On3 scraped files and CFBD stats.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -116,7 +116,7 @@ def load_sample_data(data_type: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=600)
 def get_nil_players() -> pd.DataFrame:
-    """Get NIL player data with proprietary valuations."""
+    """Get NIL player data with proprietary valuations AND performance stats."""
     # Try proprietary valuations first
     valuations_path = _get_data_path("portal_nil_valuations.csv")
 
@@ -137,48 +137,66 @@ def get_nil_players() -> pd.DataFrame:
         df["valuation_source"] = df["is_predicted"].apply(
             lambda x: "Predicted" if x else "On3 Actual"
         )
+    else:
+        # Fallback to On3 NIL rankings
+        nil_path = _get_data_path("on3_all_nil_rankings.csv")
 
-        return df
+        if not nil_path.exists():
+            st.warning("NIL data not found. Run the valuation model first.")
+            return pd.DataFrame()
 
-    # Fallback to On3 NIL rankings
-    nil_path = _get_data_path("on3_all_nil_rankings.csv")
+        df = pd.read_csv(nil_path)
 
-    if not nil_path.exists():
-        st.warning("NIL data not found. Run the valuation model first.")
-        return pd.DataFrame()
+        # Standardize column names
+        df = df.rename(columns={
+            "nil_valuation": "nil_value",
+            "recruiting_stars": "stars",
+            "recruiting_rating": "overall_rating",
+        })
 
-    df = pd.read_csv(nil_path)
+        # Add tier based on value
+        def get_tier(value):
+            if pd.isna(value) or value == 0:
+                return "unknown"
+            if value >= 1000000:
+                return "mega"
+            if value >= 500000:
+                return "premium"
+            if value >= 200000:
+                return "established"
+            if value >= 50000:
+                return "emerging"
+            return "developing"
 
-    # Standardize column names
-    df = df.rename(columns={
-        "nil_valuation": "nil_value",
-        "recruiting_stars": "stars",
-        "recruiting_rating": "overall_rating",
-    })
+        df["tier"] = df["nil_value"].apply(get_tier)
 
-    # Add tier based on value
-    def get_tier(value):
-        if pd.isna(value) or value == 0:
-            return "unknown"
-        if value >= 1000000:
-            return "mega"
-        if value >= 500000:
-            return "premium"
-        if value >= 200000:
-            return "established"
-        if value >= 50000:
-            return "emerging"
-        return "developing"
+        # Normalize rating to 0-1 scale if needed
+        if "overall_rating" in df.columns:
+            max_rating = df["overall_rating"].max()
+            if max_rating > 1:
+                df["overall_rating"] = df["overall_rating"] / 100
 
-    df["tier"] = df["nil_value"].apply(get_tier)
+        df["valuation_source"] = "On3 Actual"
 
-    # Normalize rating to 0-1 scale if needed
-    if "overall_rating" in df.columns:
-        max_rating = df["overall_rating"].max()
-        if max_rating > 1:
-            df["overall_rating"] = df["overall_rating"] / 100
+    # MERGE WITH CFBD STATS - Critical for accurate valuations
+    try:
+        stats_df = get_cfbd_player_stats()
+        if not stats_df.empty and "name" in df.columns:
+            # Get most recent season stats
+            if "season" in stats_df.columns:
+                stats_df = stats_df.sort_values("season", ascending=False)
+                stats_df = stats_df.drop_duplicates(subset=["player_name"], keep="first")
 
-    df["valuation_source"] = "On3 Actual"
+            # Merge on name
+            df = df.merge(
+                stats_df,
+                left_on="name",
+                right_on="player_name",
+                how="left",
+                suffixes=("", "_stats")
+            )
+    except Exception:
+        pass  # Continue without stats if merge fails
 
     return df
 
@@ -230,6 +248,12 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
         "to_school": "destination_school",
         "rating": "overall_rating",
     })
+
+    # Mark stars from On3 transfer portal as portal ratings (based on college performance)
+    # These are different from HS recruiting stars
+    if "stars" in df.columns:
+        df["transfer_stars"] = df["stars"]  # Preserve as explicit transfer portal stars
+        df["star_source"] = "portal"  # Mark source for calculations
 
     # Extract year from source column (e.g., "portal_industry_football_2025" -> 2025)
     if "source" in df.columns:
@@ -320,6 +344,41 @@ def _merge_valuations_players(portal_df: pd.DataFrame, valuations_df: pd.DataFra
     combined = pd.concat([portal_df, new_players], ignore_index=True)
 
     return combined
+
+
+def get_effective_stars(player: dict) -> Tuple[float, str]:
+    """Get the most relevant star rating for a player.
+
+    Transfer portal stars (based on college performance) take precedence over
+    high school recruiting stars, as they better reflect actual ability.
+
+    Args:
+        player: Player dict with star ratings
+
+    Returns:
+        Tuple of (stars, source) where source is "portal" or "recruiting"
+    """
+    # Check for transfer portal rating first (more relevant for portal players)
+    transfer_stars = player.get("transfer_stars") or player.get("portal_stars")
+    if transfer_stars and not pd.isna(transfer_stars) and transfer_stars > 0:
+        return float(transfer_stars), "portal"
+
+    # Fall back to main stars field (could be portal or recruiting depending on source)
+    stars = player.get("stars")
+    if stars and not pd.isna(stars) and stars > 0:
+        # Check if this is from transfer portal data vs recruiting
+        source = player.get("star_source", "unknown")
+        if source == "portal":
+            return float(stars), "portal"
+        return float(stars), "recruiting"
+
+    # Finally check HS recruiting stars
+    hs_stars = player.get("hs_stars") or player.get("recruiting_stars")
+    if hs_stars and not pd.isna(hs_stars) and hs_stars > 0:
+        return float(hs_stars), "recruiting"
+
+    # Default to 3 stars (average)
+    return 3.0, "default"
 
 
 def _basic_nil_estimate(position: str, stars: float, school: str) -> float:

@@ -209,12 +209,17 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
     Returns (value, breakdown_dict) where breakdown_dict explains the factors.
     """
     position = player_data.get("position", "ATH")
-    stars = player_data.get("stars", 3)
     school = player_data.get("school", "Unknown")
 
+    # Get effective stars - prefer transfer portal rating (college performance)
+    # over HS recruiting stars
+    stars = player_data.get("transfer_stars") or player_data.get("stars") or player_data.get("hs_stars")
+    star_source = "portal" if player_data.get("transfer_stars") else "recruiting"
+
     # Handle NaN stars
-    if pd.isna(stars):
+    if pd.isna(stars) or not stars:
         stars = 3
+        star_source = "default"
     else:
         stars = int(stars)
 
@@ -257,86 +262,355 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
     perf_bonus = 0
     perf_factors = []
 
-    # QB stats
+    # QB stats - comprehensive evaluation like a GM
     if position == "QB":
         pass_yds = player_data.get("passing_yards", 0) or 0
         pass_tds = player_data.get("passing_tds", 0) or 0
-        if pass_yds > 3000:
+        ints_thrown = player_data.get("interceptions", 0) or 0
+        comp_pct = player_data.get("completion_pct", 0) or 0
+        attempts = player_data.get("passing_attempts", 0) or 0
+        rush_yds = player_data.get("rushing_yards", 0) or 0
+        rush_tds = player_data.get("rushing_tds", 0) or 0
+
+        # Passing production
+        if pass_yds > 3500:
+            perf_bonus += 200000
+            perf_factors.append(f"Elite passer ({pass_yds:,} yds)")
+        elif pass_yds > 3000:
             perf_bonus += 150000
-            perf_factors.append(f"Elite passing yards ({pass_yds:,})")
+            perf_factors.append(f"Prolific passer ({pass_yds:,} yds)")
         elif pass_yds > 2000:
             perf_bonus += 75000
-            perf_factors.append(f"Strong passing yards ({pass_yds:,})")
-        if pass_tds > 25:
-            perf_bonus += 100000
-            perf_factors.append(f"Elite passing TDs ({pass_tds})")
+            perf_factors.append(f"Strong passing ({pass_yds:,} yds)")
+        elif pass_yds > 1000:
+            perf_bonus += 25000
+            perf_factors.append(f"Adequate passing ({pass_yds:,} yds)")
 
-    # RB stats
+        # TD production
+        if pass_tds > 30:
+            perf_bonus += 150000
+            perf_factors.append(f"TD machine ({pass_tds} TDs)")
+        elif pass_tds > 25:
+            perf_bonus += 100000
+            perf_factors.append(f"Elite TD production ({pass_tds} TDs)")
+        elif pass_tds > 15:
+            perf_bonus += 50000
+            perf_factors.append(f"Good TD count ({pass_tds} TDs)")
+
+        # Completion percentage (efficiency)
+        if comp_pct > 70:
+            perf_bonus += 75000
+            perf_factors.append(f"Pinpoint accuracy ({comp_pct:.1f}%)")
+        elif comp_pct > 65:
+            perf_bonus += 40000
+            perf_factors.append(f"Accurate passer ({comp_pct:.1f}%)")
+        elif comp_pct > 60:
+            perf_bonus += 20000
+            perf_factors.append(f"Solid accuracy ({comp_pct:.1f}%)")
+
+        # Turnover concern (NEGATIVE - critical for GMs)
+        if attempts > 100:  # Only penalize if meaningful sample size
+            td_int_ratio = pass_tds / max(ints_thrown, 1)
+            if ints_thrown > 12:
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ Turnover prone ({ints_thrown} INTs)")
+            elif ints_thrown > 8:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ INT concerns ({ints_thrown} INTs)")
+
+            # TD:INT ratio bonus/penalty
+            if td_int_ratio > 4:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite TD:INT ratio ({td_int_ratio:.1f}:1)")
+            elif td_int_ratio < 1.5 and ints_thrown > 5:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Poor TD:INT ratio ({td_int_ratio:.1f}:1)")
+
+        # Dual-threat premium
+        if rush_yds > 500:
+            perf_bonus += 75000
+            perf_factors.append(f"Dual-threat ({rush_yds:,} rush yds)")
+        elif rush_yds > 300:
+            perf_bonus += 40000
+            perf_factors.append(f"Mobile QB ({rush_yds:,} rush yds)")
+        if rush_tds > 5:
+            perf_bonus += 30000
+            perf_factors.append(f"Ground scorer ({rush_tds} rush TDs)")
+
+    # RB stats - comprehensive evaluation
     elif position == "RB":
         rush_yds = player_data.get("rushing_yards", 0) or 0
         rush_tds = player_data.get("rushing_tds", 0) or 0
-        if rush_yds > 1000:
-            perf_bonus += 80000
-            perf_factors.append(f"1000+ yard rusher ({rush_yds:,})")
-        if rush_tds > 10:
-            perf_bonus += 50000
-            perf_factors.append(f"Double-digit TDs ({rush_tds})")
+        ypc = player_data.get("yards_per_carry", 0) or 0
+        carries = player_data.get("rushing_attempts", 0) or 0
+        rec_yds = player_data.get("receiving_yards", 0) or 0
+        receptions = player_data.get("receptions", 0) or 0
+        fumbles_lost = player_data.get("fumbles_lost", 0) or 0
 
-    # WR stats
+        # Rushing production
+        if rush_yds > 1500:
+            perf_bonus += 150000
+            perf_factors.append(f"Elite workhorse ({rush_yds:,} yds)")
+        elif rush_yds > 1000:
+            perf_bonus += 80000
+            perf_factors.append(f"1000+ yard rusher ({rush_yds:,} yds)")
+        elif rush_yds > 700:
+            perf_bonus += 40000
+            perf_factors.append(f"Productive back ({rush_yds:,} yds)")
+        elif rush_yds > 400:
+            perf_bonus += 15000
+            perf_factors.append(f"Rotational production ({rush_yds:,} yds)")
+
+        # TD production
+        if rush_tds > 15:
+            perf_bonus += 80000
+            perf_factors.append(f"TD machine ({rush_tds} TDs)")
+        elif rush_tds > 10:
+            perf_bonus += 50000
+            perf_factors.append(f"Double-digit TDs ({rush_tds} TDs)")
+        elif rush_tds > 5:
+            perf_bonus += 25000
+            perf_factors.append(f"Scoring threat ({rush_tds} TDs)")
+
+        # Efficiency (YPC) - very important for GMs
+        if carries > 50:  # Meaningful sample
+            if ypc > 6.0:
+                perf_bonus += 60000
+                perf_factors.append(f"Explosive runner ({ypc:.1f} YPC)")
+            elif ypc > 5.0:
+                perf_bonus += 35000
+                perf_factors.append(f"Efficient back ({ypc:.1f} YPC)")
+            elif ypc < 3.5:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Low efficiency ({ypc:.1f} YPC)")
+
+        # Pass-catching (3-down back premium)
+        if receptions > 30 and rec_yds > 300:
+            perf_bonus += 50000
+            perf_factors.append(f"3-down back ({receptions} rec, {rec_yds:,} rec yds)")
+        elif receptions > 20:
+            perf_bonus += 25000
+            perf_factors.append(f"Pass-catching back ({receptions} rec)")
+
+        # Ball security concern (NEGATIVE)
+        if fumbles_lost > 3:
+            perf_bonus -= 40000
+            perf_factors.append(f"⚠️ Ball security issue ({fumbles_lost} fumbles lost)")
+        elif fumbles_lost > 1 and carries > 100:
+            perf_bonus -= 15000
+            perf_factors.append(f"⚠️ Fumble concerns ({fumbles_lost} fumbles lost)")
+
+    # WR stats - comprehensive evaluation
     elif position == "WR":
         rec_yds = player_data.get("receiving_yards", 0) or 0
         rec_tds = player_data.get("receiving_tds", 0) or 0
-        if rec_yds > 1000:
-            perf_bonus += 100000
-            perf_factors.append(f"1000+ yard receiver ({rec_yds:,})")
-        if rec_tds > 8:
-            perf_bonus += 60000
-            perf_factors.append(f"High TD count ({rec_tds})")
+        receptions = player_data.get("receptions", 0) or 0
+        ypr = player_data.get("yards_per_reception", 0) or 0
+        long_rec = player_data.get("receiving_LONG", 0) or 0
 
-    # Defensive stats - DL/EDGE/LB
-    elif position in ["EDGE", "DT", "DL", "LB"]:
+        # Receiving production
+        if rec_yds > 1200:
+            perf_bonus += 150000
+            perf_factors.append(f"Elite receiver ({rec_yds:,} yds)")
+        elif rec_yds > 1000:
+            perf_bonus += 100000
+            perf_factors.append(f"1000+ yard receiver ({rec_yds:,} yds)")
+        elif rec_yds > 700:
+            perf_bonus += 50000
+            perf_factors.append(f"Productive wideout ({rec_yds:,} yds)")
+        elif rec_yds > 400:
+            perf_bonus += 20000
+            perf_factors.append(f"Rotational receiver ({rec_yds:,} yds)")
+
+        # TD production
+        if rec_tds > 12:
+            perf_bonus += 100000
+            perf_factors.append(f"Elite TD threat ({rec_tds} TDs)")
+        elif rec_tds > 8:
+            perf_bonus += 60000
+            perf_factors.append(f"Red zone weapon ({rec_tds} TDs)")
+        elif rec_tds > 5:
+            perf_bonus += 30000
+            perf_factors.append(f"Scoring threat ({rec_tds} TDs)")
+
+        # Volume (reliable target)
+        if receptions > 80:
+            perf_bonus += 60000
+            perf_factors.append(f"Team's go-to target ({receptions} rec)")
+        elif receptions > 60:
+            perf_bonus += 35000
+            perf_factors.append(f"High-volume receiver ({receptions} rec)")
+        elif receptions > 40:
+            perf_bonus += 15000
+            perf_factors.append(f"Reliable hands ({receptions} rec)")
+
+        # Big play ability (YPR)
+        if receptions > 20:  # Meaningful sample
+            if ypr > 18:
+                perf_bonus += 50000
+                perf_factors.append(f"Deep threat ({ypr:.1f} YPR)")
+            elif ypr > 15:
+                perf_bonus += 30000
+                perf_factors.append(f"Big play ability ({ypr:.1f} YPR)")
+            elif ypr < 10 and receptions > 40:
+                perf_bonus -= 10000
+                perf_factors.append(f"⚠️ Short yardage specialist ({ypr:.1f} YPR)")
+
+    # TE stats - important for modern offenses
+    elif position == "TE":
+        rec_yds = player_data.get("receiving_yards", 0) or 0
+        rec_tds = player_data.get("receiving_tds", 0) or 0
+        receptions = player_data.get("receptions", 0) or 0
+
+        # Receiving production
+        if rec_yds > 700:
+            perf_bonus += 80000
+            perf_factors.append(f"Elite receiving TE ({rec_yds:,} yds)")
+        elif rec_yds > 500:
+            perf_bonus += 50000
+            perf_factors.append(f"Productive pass catcher ({rec_yds:,} yds)")
+        elif rec_yds > 300:
+            perf_bonus += 25000
+            perf_factors.append(f"Pass-catching TE ({rec_yds:,} yds)")
+
+        # TD production (premium in red zone)
+        if rec_tds > 8:
+            perf_bonus += 70000
+            perf_factors.append(f"Red zone mismatch ({rec_tds} TDs)")
+        elif rec_tds > 5:
+            perf_bonus += 40000
+            perf_factors.append(f"Scoring threat ({rec_tds} TDs)")
+        elif rec_tds > 2:
+            perf_bonus += 20000
+            perf_factors.append(f"TD contributor ({rec_tds} TDs)")
+
+        # Volume (target share)
+        if receptions > 50:
+            perf_bonus += 40000
+            perf_factors.append(f"High-volume target ({receptions} rec)")
+        elif receptions > 30:
+            perf_bonus += 20000
+            perf_factors.append(f"Reliable target ({receptions} rec)")
+
+    # OL stats - trench players (limited individual stats available)
+    elif position in ["OT", "OG", "C", "OL", "IOL"]:
+        # OL doesn't have traditional stats, so we rely heavily on:
+        # - Stars/rating (scouting consensus)
+        # - School/conference prestige (competition level)
+        # Note: If we had PFF grades or sacks allowed, we'd use those
+        # For now, give bonus for experience and school tier
+        if stars >= 5:
+            perf_bonus += 50000
+            perf_factors.append("Elite prospect (5-star)")
+        elif stars >= 4:
+            perf_bonus += 25000
+            perf_factors.append("High-upside lineman (4-star)")
+
+        # Position scarcity bonus
+        if position == "OT":
+            perf_bonus += 25000
+            perf_factors.append("Premium position (OT)")
+        elif position in ["OG", "C", "IOL"]:
+            perf_bonus += 15000
+            perf_factors.append("Interior lineman")
+
+    # Defensive stats - DL/EDGE/LB (comprehensive GM evaluation)
+    elif position in ["EDGE", "DT", "DL", "LB", "DE"]:
         tackles = player_data.get("tackles", 0) or 0
+        solo = player_data.get("solo_tackles", 0) or 0
         sacks = player_data.get("sacks", 0) or 0
         tfls = player_data.get("tackles_for_loss", 0) or 0
         qb_hurries = player_data.get("qb_hurries", 0) or 0
+        ff = player_data.get("fumbles_recovered", 0) or 0  # Forced fumbles proxy
+        def_td = player_data.get("defensive_TD", 0) or 0
 
-        if sacks > 8:
-            perf_bonus += 100000
-            perf_factors.append(f"Elite pass rusher ({sacks} sacks)")
-        elif sacks > 5:
-            perf_bonus += 50000
-            perf_factors.append(f"Strong pass rush ({sacks} sacks)")
-        elif sacks > 3:
-            perf_bonus += 25000
-            perf_factors.append(f"Productive pass rusher ({sacks} sacks)")
+        # Pass rush production - critical for EDGE/DL
+        if position in ["EDGE", "DE"]:
+            if sacks > 12:
+                perf_bonus += 175000
+                perf_factors.append(f"All-American pass rusher ({sacks} sacks)")
+            elif sacks > 8:
+                perf_bonus += 100000
+                perf_factors.append(f"Elite pass rusher ({sacks} sacks)")
+            elif sacks > 5:
+                perf_bonus += 50000
+                perf_factors.append(f"Productive pass rush ({sacks} sacks)")
+            elif sacks > 3:
+                perf_bonus += 25000
+                perf_factors.append(f"Pass rush contributor ({sacks} sacks)")
+        else:  # DT/LB
+            if sacks > 6:
+                perf_bonus += 75000
+                perf_factors.append(f"Interior pressure ({sacks} sacks)")
+            elif sacks > 3:
+                perf_bonus += 40000
+                perf_factors.append(f"Penetrating defender ({sacks} sacks)")
 
-        if tfls > 12:
+        # TFL production - elite disruption
+        if tfls > 15:
+            perf_bonus += 80000
+            perf_factors.append(f"Game-wrecker ({tfls} TFLs)")
+        elif tfls > 12:
             perf_bonus += 60000
             perf_factors.append(f"Elite disruptor ({tfls} TFLs)")
         elif tfls > 8:
             perf_bonus += 30000
             perf_factors.append(f"Strong TFL production ({tfls} TFLs)")
+        elif tfls > 5:
+            perf_bonus += 15000
+            perf_factors.append(f"Active behind LOS ({tfls} TFLs)")
 
-        if tackles > 80:
+        # Tackle production - more important for LB
+        if position == "LB":
+            if tackles > 100:
+                perf_bonus += 70000
+                perf_factors.append(f"Tackle machine ({tackles} tackles)")
+            elif tackles > 80:
+                perf_bonus += 45000
+                perf_factors.append(f"High-volume tackler ({tackles} tackles)")
+            elif tackles > 60:
+                perf_bonus += 25000
+                perf_factors.append(f"Solid run defender ({tackles} tackles)")
+        else:  # DL
+            if tackles > 50:
+                perf_bonus += 40000
+                perf_factors.append(f"Active DL ({tackles} tackles)")
+            elif tackles > 35:
+                perf_bonus += 20000
+                perf_factors.append(f"Run stuffer ({tackles} tackles)")
+
+        # QB hurries - pass rush pressure
+        if qb_hurries > 15:
             perf_bonus += 40000
-            perf_factors.append(f"High tackle count ({tackles})")
-        elif tackles > 60:
-            perf_bonus += 20000
-            perf_factors.append(f"Solid tackler ({tackles} tackles)")
-
-        if qb_hurries > 10:
-            perf_bonus += 25000
             perf_factors.append(f"Constant pressure ({qb_hurries} QB hurries)")
+        elif qb_hurries > 10:
+            perf_bonus += 25000
+            perf_factors.append(f"Disruptive presence ({qb_hurries} QB hurries)")
 
-    # Secondary stats - CB/S
-    elif position in ["CB", "S"]:
+        # Big plays
+        if def_td > 0:
+            perf_bonus += 25000 * def_td
+            perf_factors.append(f"Defensive playmaker ({def_td} def TD)")
+        if ff > 1:
+            perf_bonus += 20000
+            perf_factors.append(f"Ball disruptor ({ff} fumbles recovered)")
+
+    # Secondary stats - CB/S/DB (comprehensive coverage metrics)
+    elif position in ["CB", "S", "DB"]:
         ints = player_data.get("interceptions_def", player_data.get("interceptions", 0)) or 0
+        int_yds = player_data.get("int_return_yards", 0) or 0
+        int_tds = player_data.get("int_return_tds", 0) or 0
         pds = player_data.get("passes_defended", 0) or 0
         tackles = player_data.get("tackles", 0) or 0
+        solo = player_data.get("solo_tackles", 0) or 0
 
-        if ints > 4:
+        # Interceptions - premium for turnover creation
+        if ints > 6:
+            perf_bonus += 120000
+            perf_factors.append(f"All-American ball hawk ({ints} INTs)")
+        elif ints > 4:
             perf_bonus += 80000
-            perf_factors.append(f"Ball hawk ({ints} INTs)")
+            perf_factors.append(f"Elite ball hawk ({ints} INTs)")
         elif ints > 2:
             perf_bonus += 40000
             perf_factors.append(f"Playmaker ({ints} INTs)")
@@ -344,43 +618,182 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             perf_bonus += 15000
             perf_factors.append(f"Creates turnovers ({ints} INT)")
 
-        if pds > 12:
+        # Return ability on INTs
+        if int_tds > 0:
+            perf_bonus += 30000 * int_tds
+            perf_factors.append(f"Pick-6 threat ({int_tds} INT TD)")
+        if int_yds > 100:
+            perf_bonus += 20000
+            perf_factors.append(f"Return ability ({int_yds} INT ret yds)")
+
+        # Pass breakups - elite coverage
+        if pds > 15:
+            perf_bonus += 70000
+            perf_factors.append(f"Lockdown corner ({pds} PDs)")
+        elif pds > 12:
             perf_bonus += 50000
             perf_factors.append(f"Elite coverage ({pds} PDs)")
         elif pds > 8:
             perf_bonus += 25000
             perf_factors.append(f"Strong coverage ({pds} PDs)")
+        elif pds > 5:
+            perf_bonus += 12000
+            perf_factors.append(f"Active in coverage ({pds} PDs)")
 
-        if tackles > 60:
-            perf_bonus += 30000
-            perf_factors.append(f"Enforcer ({tackles} tackles)")
-        elif tackles > 40:
-            perf_bonus += 15000
-            perf_factors.append(f"Active tackler ({tackles} tackles)")
+        # Tackles - important for run support (especially safeties)
+        if position == "S":
+            if tackles > 80:
+                perf_bonus += 50000
+                perf_factors.append(f"Box safety/enforcer ({tackles} tackles)")
+            elif tackles > 60:
+                perf_bonus += 30000
+                perf_factors.append(f"Run support ({tackles} tackles)")
+            elif tackles > 40:
+                perf_bonus += 15000
+                perf_factors.append(f"Active in run game ({tackles} tackles)")
+        else:  # CB
+            if tackles > 50:
+                perf_bonus += 30000
+                perf_factors.append(f"Physical corner ({tackles} tackles)")
+            elif tackles > 35:
+                perf_bonus += 15000
+                perf_factors.append(f"Willing tackler ({tackles} tackles)")
 
-    # Kicker stats
+    # Kicker stats - comprehensive special teams evaluation
     elif position == "K":
         fg_made = player_data.get("fg_made", 0) or 0
         fg_att = player_data.get("fg_attempted", 0) or 0
+        xp_made = player_data.get("xp_made", 0) or 0
+        xp_att = player_data.get("xp_attempted", 0) or 0
+        kicking_pts = player_data.get("kicking_points", 0) or 0
+
         if fg_att > 0:
             fg_pct = fg_made / fg_att
-            if fg_pct > 0.85 and fg_made > 15:
-                perf_bonus += 50000
+            # FG accuracy tiers
+            if fg_pct > 0.90 and fg_made > 15:
+                perf_bonus += 75000
                 perf_factors.append(f"Elite accuracy ({fg_made}/{fg_att}, {fg_pct*100:.1f}%)")
+            elif fg_pct > 0.85 and fg_made > 12:
+                perf_bonus += 50000
+                perf_factors.append(f"Very reliable ({fg_made}/{fg_att}, {fg_pct*100:.1f}%)")
             elif fg_pct > 0.75 and fg_made > 10:
                 perf_bonus += 25000
                 perf_factors.append(f"Reliable kicker ({fg_made}/{fg_att})")
+            elif fg_pct < 0.70 and fg_att > 10:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Accuracy concerns ({fg_pct*100:.1f}%)")
 
-    # Punter stats
+        # Volume scoring
+        if kicking_pts > 100:
+            perf_bonus += 30000
+            perf_factors.append(f"High-volume scorer ({kicking_pts} pts)")
+        elif kicking_pts > 70:
+            perf_bonus += 15000
+            perf_factors.append(f"Solid production ({kicking_pts} pts)")
+
+        # XP reliability
+        if xp_att > 30:
+            xp_pct = xp_made / xp_att
+            if xp_pct < 0.95:
+                perf_bonus -= 10000
+                perf_factors.append(f"⚠️ XP misses ({xp_made}/{xp_att})")
+
+    # Punter stats - comprehensive evaluation
     elif position == "P":
         punt_avg = player_data.get("punt_avg", 0) or 0
+        punts = player_data.get("punts", 0) or 0
         punts_in_20 = player_data.get("punts_inside_20", 0) or 0
-        if punt_avg > 45:
+        touchbacks = player_data.get("touchbacks", 0) or 0
+
+        # Punt average (leg strength)
+        if punt_avg > 47:
+            perf_bonus += 45000
+            perf_factors.append(f"Cannon leg ({punt_avg:.1f} avg)")
+        elif punt_avg > 45:
             perf_bonus += 30000
-            perf_factors.append(f"Booming punts ({punt_avg:.1f} avg)")
-        if punts_in_20 > 20:
+            perf_factors.append(f"Strong leg ({punt_avg:.1f} avg)")
+        elif punt_avg > 42:
+            perf_bonus += 15000
+            perf_factors.append(f"Solid punting ({punt_avg:.1f} avg)")
+
+        # Placement skill (inside 20)
+        if punts_in_20 > 25:
+            perf_bonus += 40000
+            perf_factors.append(f"Elite placement ({punts_in_20} inside 20)")
+        elif punts_in_20 > 20:
             perf_bonus += 25000
             perf_factors.append(f"Pin specialist ({punts_in_20} inside 20)")
+        elif punts_in_20 > 15:
+            perf_bonus += 12000
+            perf_factors.append(f"Good placement ({punts_in_20} inside 20)")
+
+        # Touchback concerns (negative - kicking too far into end zone)
+        if punts > 30 and touchbacks > 10:
+            tb_rate = touchbacks / punts
+            if tb_rate > 0.20:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Too many TBs ({touchbacks} touchbacks)")
+
+    # Check for return ability (applies to any position - adds value)
+    kr_yds = player_data.get("kick_return_yards", 0) or 0
+    kr_tds = player_data.get("kick_return_tds", 0) or 0
+    pr_yds = player_data.get("punt_return_yards", 0) or 0
+    pr_tds = player_data.get("punt_return_tds", 0) or 0
+
+    # Kick return value
+    if kr_yds > 500:
+        perf_bonus += 40000
+        perf_factors.append(f"Dynamic KR ({kr_yds:,} KR yds)")
+    elif kr_yds > 300:
+        perf_bonus += 20000
+        perf_factors.append(f"Productive KR ({kr_yds:,} KR yds)")
+    if kr_tds > 1:
+        perf_bonus += 30000 * kr_tds
+        perf_factors.append(f"KR TD threat ({kr_tds} KR TDs)")
+    elif kr_tds > 0:
+        perf_bonus += 20000
+        perf_factors.append(f"KR scoring ability ({kr_tds} KR TD)")
+
+    # Punt return value
+    if pr_yds > 300:
+        perf_bonus += 35000
+        perf_factors.append(f"Dynamic PR ({pr_yds:,} PR yds)")
+    elif pr_yds > 200:
+        perf_bonus += 18000
+        perf_factors.append(f"Productive PR ({pr_yds:,} PR yds)")
+    if pr_tds > 1:
+        perf_bonus += 35000 * pr_tds
+        perf_factors.append(f"PR TD threat ({pr_tds} PR TDs)")
+    elif pr_tds > 0:
+        perf_bonus += 25000
+        perf_factors.append(f"PR scoring ability ({pr_tds} PR TD)")
+
+    # ==========================================================================
+    # NEGATIVE METRICS - Critical for accurate GM-style evaluation
+    # ==========================================================================
+
+    # Universal fumbles (any position that handles the ball)
+    fumbles = player_data.get("fumbles", 0) or 0
+    fumbles_lost = player_data.get("fumbles_lost", 0) or 0
+    if position in ["QB", "RB", "WR", "TE"]:
+        if fumbles_lost > 4:
+            perf_bonus -= 60000
+            perf_factors.append(f"⚠️ Major ball security issue ({fumbles_lost} fumbles lost)")
+        elif fumbles_lost > 2:
+            perf_bonus -= 30000
+            perf_factors.append(f"⚠️ Ball security concern ({fumbles_lost} fumbles lost)")
+
+    # Return fumbles (extra penalty for special teams miscues)
+    if kr_yds > 0 or pr_yds > 0:
+        if fumbles > 2:
+            perf_bonus -= 40000
+            perf_factors.append(f"⚠️ Return fumble risk ({fumbles} fumbles)")
+
+    # Experience/games played factor (limited sample = higher risk)
+    games = player_data.get("games_played", 0) or 0
+    if games > 0 and games < 5:
+        perf_bonus -= 25000
+        perf_factors.append(f"⚠️ Limited sample size ({games} games)")
 
     # Calculate total with size factor
     custom_value = (base * star_mult * school_mult * size_mult) + perf_bonus
@@ -390,6 +803,7 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         "base_position_value": base,
         "star_multiplier": star_mult,
         "star_rating": stars,
+        "star_source": star_source,  # "portal" (college performance) or "recruiting" (HS)
         "size_multiplier": size_mult,
         "size_description": size_desc,
         "school_multiplier": school_mult,
@@ -1067,7 +1481,7 @@ def render_valuation_results(player_data: dict):
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{player_data.get('position', 'ATH')} = <strong>{format_currency(base_val)}</strong></p>
 
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
-                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star = <strong>{star_mult}x</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star {'(Portal Rating)' if custom_breakdown.get('star_source') == 'portal' else '(HS Recruiting)'} = <strong>{star_mult}x</strong></p>
 
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('size_description', 'N/A')} = <strong>{size_mult:.2f}x</strong></p>
@@ -1100,10 +1514,14 @@ def render_valuation_results(player_data: dict):
             # Position - always high confidence
             conf_items_display.append(("Position", "HIGH", "#00C853", "Verified from roster data"))
 
-            # Stars
+            # Stars - distinguish between portal rating (better) and HS recruiting
             stars_check = custom_breakdown.get("star_rating", 0)
+            star_source = custom_breakdown.get("star_source", "unknown")
             if stars_check and stars_check > 0:
-                conf_items_display.append(("Star Rating", "HIGH", "#00C853", f"247Sports/Rivals verified ({stars_check}★)"))
+                if star_source == "portal":
+                    conf_items_display.append(("Star Rating", "HIGH", "#00C853", f"Portal rating ({stars_check}★) - College performance"))
+                else:
+                    conf_items_display.append(("Star Rating", "MEDIUM", "#FFB74D", f"HS recruiting ({stars_check}★) - No portal rating"))
             else:
                 conf_items_display.append(("Star Rating", "LOW", "#FF9800", "No recruiting data - using default"))
 

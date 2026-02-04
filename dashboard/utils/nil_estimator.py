@@ -341,11 +341,14 @@ def enrich_portal_data(portal_df: pd.DataFrame, valuations_df: pd.DataFrame = No
                 "is_predicted": existing["is_predicted"],
             }
         else:
+            # Get effective stars - prefer transfer portal rating over HS recruiting
+            stars = row.get("transfer_stars") or row.get("stars") or row.get("hs_stars")
+
             # Generate new estimate
             result = estimate_nil_value(
                 position=row.get("position"),
                 school=school,
-                stars=row.get("stars"),
+                stars=stars,
                 rating=row.get("rating", row.get("overall_rating")),
                 national_rank=row.get("national_rank"),
                 on3_value=on3_value,

@@ -427,9 +427,11 @@ def calculate_team_portal_score(
     star_counts = {5: 0, 4: 0, 3: 0, 2: 0}
 
     for _, player in incoming_players.iterrows():
+        # Prefer transfer portal stars (college performance) over HS recruiting
+        effective_stars = player.get("transfer_stars") or player.get("stars") or 3
         war_result = calculate_player_war(
             position=player.get("position"),
-            stars=player.get("stars"),
+            stars=effective_stars,
             rating=player.get("overall_rating"),
             nil_value=player.get("portaliq_value") or player.get("nil_value", 0),
             destination_school=team_name,
@@ -444,8 +446,8 @@ def calculate_team_portal_score(
         pos = player.get("position", "ATH")
         position_counts[pos] = position_counts.get(pos, 0) + 1
 
-        # Track star distribution
-        stars = int(player.get("stars", 3)) if pd.notna(player.get("stars")) else 3
+        # Track star distribution using effective stars
+        stars = int(effective_stars) if pd.notna(effective_stars) else 3
         if stars in star_counts:
             star_counts[stars] += 1
 
@@ -460,9 +462,11 @@ def calculate_team_portal_score(
     total_war_out = 0
     if outgoing_players is not None and not outgoing_players.empty:
         for _, player in outgoing_players.iterrows():
+            # Prefer transfer portal stars over HS recruiting
+            effective_stars = player.get("transfer_stars") or player.get("stars") or 3
             war_result = calculate_player_war(
                 position=player.get("position"),
-                stars=player.get("stars"),
+                stars=effective_stars,
                 rating=player.get("overall_rating"),
                 nil_value=player.get("nil_value", 0),
                 is_predicted_nil=True

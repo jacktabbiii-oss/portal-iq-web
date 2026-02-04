@@ -408,10 +408,11 @@ def render_player_tab():
 
         player = player_row.iloc[0]
 
-        # Calculate detailed WAR
+        # Calculate detailed WAR - prefer transfer portal stars (college performance) over HS recruiting
+        effective_stars = player.get("transfer_stars") or player.get("stars") or 3
         war_result = calculate_player_war(
             position=player.get("position"),
-            stars=player.get("stars"),
+            stars=effective_stars,
             rating=player.get("overall_rating"),
             nil_value=player.get("portaliq_value") or player.get("nil_value", 0),
             destination_school=player.get("destination_school") or player.get("school"),

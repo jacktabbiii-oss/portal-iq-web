@@ -220,8 +220,8 @@ def get_player_info(player_name: str) -> str:
         school = row.get('school', row.get('destination_school', row.get('origin_school', 'Unknown')))
         tier_name, tier_data = get_school_tier_info(school)
 
-        # Calculate Portal IQ WAR
-        stars_val = row.get('stars', 3)
+        # Calculate Portal IQ WAR - prefer transfer portal stars over HS recruiting
+        stars_val = row.get('transfer_stars') or row.get('stars') or 3
         if pd.isna(stars_val):
             stars_val = 3
 
