@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import html
 
 import sys
 from pathlib import Path
@@ -2508,20 +2509,28 @@ def render_valuation_results(player_data: dict):
         with calc_col1:
             st.markdown("#### Step-by-Step Calculation")
 
+            # Get values and escape for HTML safety
+            position_val = html.escape(str(player_data.get('position', 'ATH')))
+            star_rating_val = custom_breakdown.get('star_rating', 3)
+            star_source_val = custom_breakdown.get('star_source', '')
+            star_source_text = '(Portal Rating)' if star_source_val == 'portal' else '(HS Recruiting)'
+            size_desc_val = html.escape(str(custom_breakdown.get('size_description', 'N/A')))
+            school_tier_val = html.escape(str(custom_breakdown.get('school_tier', 'Standard')))
+
             # Show each calculation step
             st.markdown(f"""
             <div style="background: #161b22; padding: 20px; border-radius: 10px; font-family: monospace;">
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>1. Position Base Value</strong></p>
-                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{player_data.get('position', 'ATH')} = <strong>{format_currency(base_val)}</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{position_val} = <strong>{format_currency(base_val)}</strong></p>
 
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>2. Star Rating Multiplier</strong></p>
-                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('star_rating', 3)}-star {'(Portal Rating)' if custom_breakdown.get('star_source') == 'portal' else '(HS Recruiting)'} = <strong>{star_mult}x</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{star_rating_val}-star {star_source_text} = <strong>{star_mult}x</strong></p>
 
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>3. Size/Measurables Multiplier</strong></p>
-                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('size_description', 'N/A')} = <strong>{size_mult:.2f}x</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{size_desc_val} = <strong>{size_mult:.2f}x</strong></p>
 
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>4. School Brand Multiplier</strong></p>
-                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{custom_breakdown.get('school_tier', 'Standard')} = <strong>{school_mult}x</strong></p>
+                <p style="color: #58a6ff; margin: 5px 0 15px 20px;">{school_tier_val} = <strong>{school_mult}x</strong></p>
 
                 <p style="color: #c9d6e3; margin: 5px 0;"><strong>5. Performance Bonus</strong></p>
                 <p style="color: #58a6ff; margin: 5px 0 15px 20px;">Stats-based additions = <strong>+{format_currency(perf_bonus)}</strong></p>
@@ -2530,7 +2539,7 @@ def render_valuation_results(player_data: dict):
 
                 <p style="color: #c9d1d9; margin: 5px 0;"><strong>FORMULA:</strong></p>
                 <p style="color: #7ee787; margin: 5px 0 10px 20px; font-size: 0.95rem;">
-                    ({format_currency(base_val)} × {star_mult} × {size_mult:.2f} × {school_mult}) + {format_currency(perf_bonus)}
+                    ({format_currency(base_val)} x {star_mult} x {size_mult:.2f} x {school_mult}) + {format_currency(perf_bonus)}
                 </p>
 
                 <p style="color: {COLORS['primary']}; font-size: 1.3rem; margin: 15px 0 5px 0; text-align: center;">
