@@ -40,41 +40,75 @@ def _get_data_path(filename: str) -> Path:
 
 
 def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
-    """Merge headshot_url from on3 transfer portal data.
+    """Merge headshot_url from multiple sources with fallback chain.
 
     Ensures consistent headshot source across all data loading functions.
-    Primary source: on3_transfer_portal.csv (94%+ coverage)
-    Fallback: on3_all_nil_rankings.csv
+    Priority:
+        1. on3_transfer_portal.csv (94%+ coverage for portal players)
+        2. on3_all_nil_rankings.csv (backup On3 data)
+        3. espn_rosters.csv (ESPN rosters - fills remaining gaps)
     """
-    if "headshot_url" in df.columns and df["headshot_url"].notna().any():
-        return df  # Already has headshots
+    if "name" not in df.columns:
+        return df
 
-    # Try transfer portal first (more complete data)
+    # Remove existing headshot_url column if empty
+    if "headshot_url" in df.columns:
+        if df["headshot_url"].notna().any():
+            return df  # Already has headshots
+        df = df.drop(columns=["headshot_url"])
+
+    # Collect headshots from multiple sources
+    all_headshots = {}
+
+    # Source 1: On3 Transfer Portal (highest priority for portal players)
     portal_path = _get_data_path("on3_transfer_portal.csv")
-    nil_path = _get_data_path("on3_all_nil_rankings.csv")
-
-    headshot_source = None
     if portal_path.exists():
         try:
             source_df = pd.read_csv(portal_path)
             if "headshot_url" in source_df.columns and "name" in source_df.columns:
-                headshot_source = source_df[["name", "headshot_url"]].drop_duplicates(subset=["name"], keep="first")
+                for _, row in source_df.iterrows():
+                    name = row.get("name")
+                    url = row.get("headshot_url")
+                    if name and pd.notna(url) and str(url).startswith("http"):
+                        all_headshots[name] = url
         except Exception:
             pass
 
-    if headshot_source is None and nil_path.exists():
+    # Source 2: On3 NIL Rankings (backup)
+    nil_path = _get_data_path("on3_all_nil_rankings.csv")
+    if nil_path.exists():
         try:
             source_df = pd.read_csv(nil_path)
             if "headshot_url" in source_df.columns and "name" in source_df.columns:
-                headshot_source = source_df[["name", "headshot_url"]].drop_duplicates(subset=["name"], keep="first")
+                for _, row in source_df.iterrows():
+                    name = row.get("name")
+                    url = row.get("headshot_url")
+                    if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
+                        all_headshots[name] = url
         except Exception:
             pass
 
-    if headshot_source is not None and "name" in df.columns:
-        # Remove existing headshot_url column if it exists but is empty
-        if "headshot_url" in df.columns:
-            df = df.drop(columns=["headshot_url"])
-        df = df.merge(headshot_source, on="name", how="left")
+    # Source 3: ESPN Rosters (fills remaining gaps)
+    espn_path = DATA_DIR / "espn_rosters.csv"
+    if espn_path.exists():
+        try:
+            espn_df = pd.read_csv(espn_path)
+            if "headshot_url" in espn_df.columns and "name" in espn_df.columns:
+                for _, row in espn_df.iterrows():
+                    name = row.get("name")
+                    url = row.get("headshot_url")
+                    if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
+                        all_headshots[name] = url
+        except Exception:
+            pass
+
+    # Create headshot lookup DataFrame and merge
+    if all_headshots:
+        headshot_df = pd.DataFrame([
+            {"name": name, "headshot_url": url}
+            for name, url in all_headshots.items()
+        ])
+        df = df.merge(headshot_df, on="name", how="left")
 
     return df
 
