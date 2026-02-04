@@ -245,14 +245,13 @@ def render_main_page():
 def main():
     """Main application entry point."""
     render_sidebar()
-    show_user_menu()  # Show user info in sidebar when logged in
-
-    user = require_auth()  # Shows login form if not authenticated
-    if not user:
-        return  # Stop here - login form is displayed
-
-    if not require_subscription():  # Check for active Stripe subscription
-        return  # Stop here - paywall message is displayed
+    # Auth temporarily disabled for demo
+    # show_user_menu()  # Show user info in sidebar when logged in
+    # user = require_auth()  # Shows login form if not authenticated
+    # if not user:
+    #     return  # Stop here - login form is displayed
+    # if not require_subscription():  # Check for active Stripe subscription
+    #     return  # Stop here - paywall message is displayed
 
     render_main_page()
 
