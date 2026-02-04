@@ -1897,6 +1897,9 @@ def render_search_mode():
                     st.markdown("👤")
             with col1:
                 school_name = player.get('school', player.get('team', ''))
+                # Handle NaN values
+                if pd.isna(school_name) or str(school_name).lower() == 'nan':
+                    school_name = ''
                 st.markdown(f"**{player['name']}**<br><span style='color: #7a8fa6; font-size: 0.85rem;'>{school_name}</span>", unsafe_allow_html=True)
             with col2:
                 st.markdown(f"{player.get('position', 'N/A')}")
@@ -2105,7 +2108,7 @@ def render_valuation_results(player_data: dict):
         tier_color = get_tier_color(tier)
         st.markdown(f"""
         <div>
-            <h2 style="color: {COLORS['text']}; margin-bottom: 5px;">{player_name}</h2>
+            <h2 style="color: {COLORS['text_primary']}; margin-bottom: 5px;">{player_name}</h2>
             <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem; margin-bottom: 5px;">
                 {position} • {school} {star_display}
             </p>
