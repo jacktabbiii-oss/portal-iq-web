@@ -39,6 +39,46 @@ def _get_data_path(filename: str) -> Path:
     return DATA_DIR / filename
 
 
+def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge headshot_url from on3 transfer portal data.
+
+    Ensures consistent headshot source across all data loading functions.
+    Primary source: on3_transfer_portal.csv (94%+ coverage)
+    Fallback: on3_all_nil_rankings.csv
+    """
+    if "headshot_url" in df.columns and df["headshot_url"].notna().any():
+        return df  # Already has headshots
+
+    # Try transfer portal first (more complete data)
+    portal_path = _get_data_path("on3_transfer_portal.csv")
+    nil_path = _get_data_path("on3_all_nil_rankings.csv")
+
+    headshot_source = None
+    if portal_path.exists():
+        try:
+            source_df = pd.read_csv(portal_path)
+            if "headshot_url" in source_df.columns and "name" in source_df.columns:
+                headshot_source = source_df[["name", "headshot_url"]].drop_duplicates(subset=["name"], keep="first")
+        except Exception:
+            pass
+
+    if headshot_source is None and nil_path.exists():
+        try:
+            source_df = pd.read_csv(nil_path)
+            if "headshot_url" in source_df.columns and "name" in source_df.columns:
+                headshot_source = source_df[["name", "headshot_url"]].drop_duplicates(subset=["name"], keep="first")
+        except Exception:
+            pass
+
+    if headshot_source is not None and "name" in df.columns:
+        # Remove existing headshot_url column if it exists but is empty
+        if "headshot_url" in df.columns:
+            df = df.drop(columns=["headshot_url"])
+        df = df.merge(headshot_source, on="name", how="left")
+
+    return df
+
+
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_database_stats() -> Dict[str, Any]:
     """Get real database statistics from loaded data.
@@ -211,6 +251,9 @@ def get_nil_players() -> pd.DataFrame:
             )
     except Exception:
         pass  # Continue without manual stats if merge fails
+
+    # MERGE HEADSHOTS from on3 data (consistent source)
+    df = _merge_headshots(df)
 
     return df
 
