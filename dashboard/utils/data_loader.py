@@ -229,6 +229,55 @@ def get_manual_player_stats() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def get_pff_grades() -> pd.DataFrame:
+    """Load PFF player grades from scraped data."""
+    pff_path = DATA_DIR / "pff_player_grades.csv"
+
+    if not pff_path.exists():
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_csv(pff_path)
+        # Standardize column names for merging
+        if "player_name" in df.columns:
+            df = df.rename(columns={"player_name": "name"})
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def merge_pff_grades(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge PFF grades into player DataFrame."""
+    pff_df = get_pff_grades()
+    if pff_df.empty:
+        return df
+
+    # Select relevant PFF columns
+    pff_cols = [
+        "name", "pff_overall", "pff_offense", "pff_defense",
+        "pff_pass_block", "pff_run_block", "pff_receiving", "pff_rushing", "pff_passing",
+        "pff_pass_rush", "pff_run_defense", "pff_coverage", "pff_tackling",
+        "total_snaps", "pressures", "pressures_allowed", "hurries", "hits",
+        "missed_tackles", "targets_allowed", "completions_allowed", "yards_allowed",
+        "tds_allowed", "ints", "pbus"
+    ]
+
+    # Only keep columns that exist
+    available_cols = [c for c in pff_cols if c in pff_df.columns]
+    pff_subset = pff_df[available_cols].copy()
+
+    # Drop duplicates by name (keep highest overall grade)
+    if "pff_overall" in pff_subset.columns:
+        pff_subset = pff_subset.sort_values("pff_overall", ascending=False)
+    pff_subset = pff_subset.drop_duplicates(subset=["name"], keep="first")
+
+    # Merge on player name
+    if "name" in df.columns:
+        df = df.merge(pff_subset, on="name", how="left", suffixes=("", "_pff"))
+
+    return df
+
+
 @st.cache_data(ttl=600)
 def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = True, include_all_valuations: bool = False) -> pd.DataFrame:
     """Get transfer portal player data from On3 with NIL estimates.
@@ -323,6 +372,12 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
             )
             df["confidence"] = "low"
             df["is_predicted"] = True
+
+    # Merge PFF grades if available
+    try:
+        df = merge_pff_grades(df)
+    except Exception:
+        pass  # Continue without PFF grades if merge fails
 
     return df
 

@@ -792,10 +792,59 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
 
     # Secondary stats - CB/S/DB (comprehensive coverage metrics)
     elif position in ["CB", "S", "DB"]:
+        # PFF COVERAGE GRADES - Premium metrics for DBs
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_coverage = player_data.get("pff_coverage", 0) or 0
+        pff_tackling = player_data.get("pff_tackling", 0) or 0
+
+        if pff_overall > 0:
+            if pff_overall >= 90:
+                perf_bonus += 150000
+                perf_factors.append(f"Elite PFF coverage grade ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 85000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 40000
+                perf_factors.append(f"Above average PFF ({pff_overall:.1f})")
+            elif pff_overall < 50:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+
+            # Coverage grade premium for corners
+            if pff_coverage >= 85 and position == "CB":
+                perf_bonus += 50000
+                perf_factors.append(f"Lockdown coverage grade ({pff_coverage:.1f})")
+            elif pff_coverage >= 80:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong coverage grade ({pff_coverage:.1f})")
+
+        # PFF-scraped advanced coverage metrics
+        targets_allowed = player_data.get("targets_allowed", 0) or 0
+        completions_allowed = player_data.get("completions_allowed", 0) or 0
+        yards_allowed_pff = player_data.get("yards_allowed", 0) or 0
+        tds_allowed_pff = player_data.get("tds_allowed", 0) or 0
+
+        if targets_allowed > 30:  # Meaningful sample size
+            comp_pct_allowed = (completions_allowed / targets_allowed * 100) if targets_allowed > 0 else 0
+            if comp_pct_allowed < 50:
+                perf_bonus += 40000
+                perf_factors.append(f"Stingy coverage ({comp_pct_allowed:.1f}% allowed)")
+            elif comp_pct_allowed > 70:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ High completion % allowed ({comp_pct_allowed:.1f}%)")
+
+            if tds_allowed_pff > 5:
+                perf_bonus -= 40000
+                perf_factors.append(f"⚠️ Coverage liability ({tds_allowed_pff} TDs allowed)")
+            elif tds_allowed_pff > 3:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ TDs allowed concern ({tds_allowed_pff})")
+
         ints = player_data.get("interceptions_def", player_data.get("interceptions", 0)) or 0
         int_yds = player_data.get("int_return_yards", 0) or 0
         int_tds = player_data.get("int_return_tds", 0) or 0
-        pds = player_data.get("passes_defended", 0) or 0
+        pds = player_data.get("passes_defended", player_data.get("pbus", 0)) or 0
         tackles = player_data.get("tackles", 0) or 0
         solo = player_data.get("solo_tackles", 0) or 0
 
