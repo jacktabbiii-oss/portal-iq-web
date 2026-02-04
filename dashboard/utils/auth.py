@@ -18,7 +18,7 @@ from typing import Optional, Dict
 from datetime import datetime
 
 # Get PocketBase client
-from dashboard.utils.pocketbase_client import get_pocketbase_client
+from utils.pocketbase_client import get_pocketbase_client
 
 
 def init_auth_state():
