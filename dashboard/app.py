@@ -26,6 +26,7 @@ from utils.styling import apply_custom_css, COLORS
 from utils.api_client import PortalIQClient
 from utils.data_loader import get_database_stats, get_nil_players, get_portal_players, get_team_rankings
 from utils.navigation import render_sidebar, get_selected_season
+from utils.auth import require_auth, show_user_menu, require_subscription
 
 
 # =============================================================================
@@ -244,6 +245,15 @@ def render_main_page():
 def main():
     """Main application entry point."""
     render_sidebar()
+    show_user_menu()  # Show user info in sidebar when logged in
+
+    user = require_auth()  # Shows login form if not authenticated
+    if not user:
+        return  # Stop here - login form is displayed
+
+    if not require_subscription():  # Check for active Stripe subscription
+        return  # Stop here - paywall message is displayed
+
     render_main_page()
 
 
