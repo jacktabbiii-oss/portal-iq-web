@@ -494,10 +494,41 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
 
     # OL stats - trench players (limited individual stats available)
     elif position in ["OT", "OG", "C", "OL", "IOL"]:
-        # OL doesn't have traditional box score stats
-        # Key metrics that WOULD matter (need PFF or manual entry):
-        # - Sacks allowed, pressures allowed, penalties, pancake blocks
-        # For now, use available proxy metrics
+        # PFF GRADES - Premium data when available
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_pass_block = player_data.get("pff_pass_grade", player_data.get("pff_pass_block", 0)) or 0
+        pff_run_block = player_data.get("pff_run_grade", player_data.get("pff_run_block", 0)) or 0
+
+        if pff_overall > 0:
+            # PFF grades available - use them!
+            if pff_overall >= 90:
+                perf_bonus += 150000
+                perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 100000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 50000
+                perf_factors.append(f"Above average PFF ({pff_overall:.1f})")
+            elif pff_overall >= 60:
+                perf_bonus += 20000
+                perf_factors.append(f"Solid PFF grade ({pff_overall:.1f})")
+            elif pff_overall < 50:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+
+            # Pass blocking specific (OT premium)
+            if pff_pass_block >= 85 and position == "OT":
+                perf_bonus += 50000
+                perf_factors.append(f"Elite pass protector ({pff_pass_block:.1f})")
+
+            # Run blocking
+            if pff_run_block >= 85:
+                perf_bonus += 30000
+                perf_factors.append(f"Road grader ({pff_run_block:.1f} run block)")
+        else:
+            # No PFF data - fall back to traditional metrics
+            perf_factors.append("ℹ️ No PFF grade (import for better accuracy)")
 
         # Star rating (scouting consensus on technique/potential)
         if stars >= 5:
@@ -560,6 +591,30 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
 
     # Defensive stats - DL/EDGE/LB (comprehensive GM evaluation)
     elif position in ["EDGE", "DT", "DL", "LB", "DE"]:
+        # PFF GRADES - Premium defensive metrics
+        pff_overall = player_data.get("pff_overall", 0) or 0
+        pff_pass_rush = player_data.get("pff_pass_rush", player_data.get("pff_pass_grade", 0)) or 0
+        pff_run_def = player_data.get("pff_run_defense", player_data.get("pff_run_grade", 0)) or 0
+
+        if pff_overall > 0:
+            if pff_overall >= 90:
+                perf_bonus += 175000
+                perf_factors.append(f"Elite PFF defender ({pff_overall:.1f})")
+            elif pff_overall >= 80:
+                perf_bonus += 100000
+                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 50000
+                perf_factors.append(f"Above average PFF ({pff_overall:.1f})")
+            elif pff_overall < 50:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+
+            # Pass rush grade premium for EDGE
+            if pff_pass_rush >= 85 and position in ["EDGE", "DE"]:
+                perf_bonus += 60000
+                perf_factors.append(f"Elite pass rusher grade ({pff_pass_rush:.1f})")
+
         tackles = player_data.get("tackles", 0) or 0
         solo = player_data.get("solo_tackles", 0) or 0
         sacks = player_data.get("sacks", 0) or 0

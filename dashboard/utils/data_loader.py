@@ -198,7 +198,35 @@ def get_nil_players() -> pd.DataFrame:
     except Exception:
         pass  # Continue without stats if merge fails
 
+    # MERGE WITH MANUAL/PFF STATS (metrics that can't be auto-pulled)
+    try:
+        manual_stats = get_manual_player_stats()
+        if not manual_stats.empty and "name" in df.columns:
+            df = df.merge(
+                manual_stats,
+                left_on="name",
+                right_on="player_name",
+                how="left",
+                suffixes=("", "_pff")
+            )
+    except Exception:
+        pass  # Continue without manual stats if merge fails
+
     return df
+
+
+def get_manual_player_stats() -> pd.DataFrame:
+    """Load manually entered stats (PFF grades, pressures, etc.)."""
+    manual_path = DATA_DIR / "manual_player_stats.csv"
+
+    if not manual_path.exists():
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_csv(manual_path)
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=600)
