@@ -234,59 +234,209 @@ def main():
                 st.warning("Player name and team required.")
 
     # =========================================================================
-    # TAB 3: CSV UPLOAD
+    # TAB 3: CSV UPLOAD (PFF Export Support)
     # =========================================================================
     with tab3:
-        st.markdown("### Upload CSV File")
+        st.markdown("### Upload PFF CSV Export")
 
-        st.markdown("""
-        Upload a CSV with player stats. Required columns: `player_name`, `team`, `position`
+        st.markdown(f"""
+        <div style="background: #1a2332; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <h4 style="color: {COLORS['primary']}; margin-top: 0;">PFF Premium Export Support</h4>
+            <p style="color: {COLORS['text_secondary']}; font-size: 0.9rem;">
+                Upload CSV exports directly from PFF Premium. Column names are automatically mapped.
+            </p>
+            <p style="color: #7a8fa6; font-size: 0.85rem;">
+                <strong>How to export from PFF:</strong> Go to team grades page → Export → Download CSV
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        Optional columns: `pff_overall`, `pff_pass_grade`, `pff_run_grade`, `penalties`,
-        `sacks_allowed`, `pressures_allowed`, `missed_tackles`, `offsides_penalties`,
-        `roughing_passer`, `pass_interference`, `tds_allowed`
-        """)
+        # PFF column mapping (PFF export names -> our internal names)
+        PFF_COLUMN_MAP = {
+            # Player identity
+            "player": "player_name",
+            "player_name": "player_name",
+            "name": "player_name",
+            "full_name": "player_name",
+            "team": "team",
+            "school": "team",
+            "team_name": "team",
+            "position": "position",
+            "pos": "position",
 
-        # Download template
-        template_df = pd.DataFrame({
-            "player_name": ["Example Player"],
-            "team": ["Alabama"],
-            "position": ["OT"],
-            "pff_overall": [85.5],
-            "pff_pass_grade": [82.0],
-            "pff_run_grade": [88.0],
-            "penalties": [3],
-            "sacks_allowed": [2],
-            "pressures_allowed": [15],
-            "missed_tackles": [0],
-        })
+            # Overall grades
+            "overall": "pff_overall",
+            "overall_grade": "pff_overall",
+            "pff_grade": "pff_overall",
+            "grade": "pff_overall",
+            "offense": "pff_offense",
+            "offense_grade": "pff_offense",
+            "defense": "pff_defense",
+            "defense_grade": "pff_defense",
 
-        csv_template = template_df.to_csv(index=False)
-        st.download_button(
-            "📄 Download Template CSV",
-            csv_template,
-            "pff_import_template.csv",
-            "text/csv"
-        )
+            # Offensive grades
+            "pass_block": "pff_pass_block",
+            "pass_block_grade": "pff_pass_block",
+            "pbk": "pff_pass_block",
+            "run_block": "pff_run_block",
+            "run_block_grade": "pff_run_block",
+            "rbk": "pff_run_block",
+            "receiving": "pff_receiving",
+            "receiving_grade": "pff_receiving",
+            "recv": "pff_receiving",
+            "rushing": "pff_rushing",
+            "rushing_grade": "pff_rushing",
+            "rush": "pff_rushing",
+            "passing": "pff_passing",
+            "passing_grade": "pff_passing",
 
-        uploaded_file = st.file_uploader("Upload CSV", type=["csv"], key="csv_upload")
+            # Defensive grades
+            "pass_rush": "pff_pass_rush",
+            "pass_rush_grade": "pff_pass_rush",
+            "prs": "pff_pass_rush",
+            "run_defense": "pff_run_defense",
+            "run_def": "pff_run_defense",
+            "rdef": "pff_run_defense",
+            "coverage": "pff_coverage",
+            "coverage_grade": "pff_coverage",
+            "cov": "pff_coverage",
+            "tackling": "pff_tackling",
+            "tackling_grade": "pff_tackling",
+            "tack": "pff_tackling",
+
+            # Snap counts
+            "snaps": "total_snaps",
+            "total_snaps": "total_snaps",
+            "snap_count": "total_snaps",
+            "snap_counts": "total_snaps",
+            "pass_snaps": "pass_snaps",
+            "run_snaps": "run_snaps",
+
+            # Advanced metrics - pass rush
+            "pressures": "pressures",
+            "pressure": "pressures",
+            "hurries": "hurries",
+            "hurry": "hurries",
+            "hits": "hits",
+            "qb_hits": "hits",
+
+            # Advanced metrics - OL
+            "pressures_allowed": "pressures_allowed",
+            "pres_allowed": "pressures_allowed",
+            "sacks_allowed": "sacks_allowed",
+            "sack_allowed": "sacks_allowed",
+
+            # Advanced metrics - coverage
+            "targets": "targets_allowed",
+            "targets_allowed": "targets_allowed",
+            "tgt": "targets_allowed",
+            "receptions_allowed": "completions_allowed",
+            "catches_allowed": "completions_allowed",
+            "completions_allowed": "completions_allowed",
+            "yards_allowed": "yards_allowed",
+            "yds_allowed": "yards_allowed",
+            "tds_allowed": "tds_allowed",
+            "touchdowns_allowed": "tds_allowed",
+
+            # Tackling
+            "missed_tackles": "missed_tackles",
+            "missed_tkl": "missed_tackles",
+            "mtkl": "missed_tackles",
+
+            # Turnovers
+            "interceptions": "ints",
+            "ints": "ints",
+            "int": "ints",
+            "pass_breakups": "pbus",
+            "pbu": "pbus",
+            "pbus": "pbus",
+            "forced_fumbles": "forced_fumbles",
+            "ff": "forced_fumbles",
+        }
+
+        uploaded_file = st.file_uploader("Upload PFF CSV Export", type=["csv"], key="pff_csv_upload")
 
         if uploaded_file:
             try:
                 upload_df = pd.read_csv(uploaded_file)
-                st.success(f"Loaded {len(upload_df)} records!")
-                st.dataframe(upload_df.head(20), use_container_width=True)
+                original_cols = list(upload_df.columns)
 
-                if st.button("💾 Import All Records", key="import_csv"):
-                    existing = load_existing_manual_stats()
-                    combined = pd.concat([existing, upload_df], ignore_index=True)
-                    combined = combined.drop_duplicates(subset=["player_name", "team"], keep="last")
-                    save_manual_stats(combined)
-                    st.success(f"Imported {len(upload_df)} records!")
-                    st.rerun()
+                # Normalize column names (lowercase, strip whitespace)
+                upload_df.columns = [c.lower().strip().replace(" ", "_") for c in upload_df.columns]
+
+                # Auto-map PFF columns to our format
+                mapped_cols = {}
+                unmapped_cols = []
+                for col in upload_df.columns:
+                    if col in PFF_COLUMN_MAP:
+                        mapped_cols[col] = PFF_COLUMN_MAP[col]
+                    else:
+                        unmapped_cols.append(col)
+
+                # Apply mapping
+                upload_df = upload_df.rename(columns=mapped_cols)
+
+                # Show mapping results
+                st.success(f"Loaded {len(upload_df)} player records!")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Mapped Columns:**")
+                    for orig, mapped in mapped_cols.items():
+                        st.markdown(f"- `{orig}` → `{mapped}`")
+
+                with col2:
+                    if unmapped_cols:
+                        st.markdown("**Unmapped (kept as-is):**")
+                        for col in unmapped_cols[:10]:
+                            st.markdown(f"- `{col}`")
+                        if len(unmapped_cols) > 10:
+                            st.markdown(f"- ... and {len(unmapped_cols) - 10} more")
+
+                st.markdown("---")
+                st.markdown("**Preview (first 20 rows):**")
+                preview_cols = ["player_name", "team", "position", "pff_overall", "pff_pass_block", "pff_run_block", "pff_coverage", "total_snaps"]
+                preview_cols = [c for c in preview_cols if c in upload_df.columns]
+                st.dataframe(upload_df[preview_cols].head(20) if preview_cols else upload_df.head(20), use_container_width=True)
+
+                # Check for required columns
+                has_name = "player_name" in upload_df.columns
+                has_team = "team" in upload_df.columns
+
+                if not has_name:
+                    st.warning("⚠️ No player name column detected. Please ensure CSV has 'player', 'name', or 'player_name' column.")
+
+                if has_name:
+                    import_col1, import_col2 = st.columns([1, 3])
+                    with import_col1:
+                        if st.button("💾 Import All Records", key="import_pff_csv", type="primary"):
+                            existing = load_existing_manual_stats()
+                            combined = pd.concat([existing, upload_df], ignore_index=True)
+
+                            # Deduplicate - if team available use both, otherwise just name
+                            if "team" in combined.columns:
+                                combined = combined.drop_duplicates(subset=["player_name", "team"], keep="last")
+                            else:
+                                combined = combined.drop_duplicates(subset=["player_name"], keep="last")
+
+                            save_manual_stats(combined)
+                            st.success(f"Imported {len(upload_df)} PFF records!")
+                            st.cache_data.clear()
+                            st.rerun()
+
+                    with import_col2:
+                        st.markdown(f"""
+                        <p style="color: #7a8fa6; font-size: 0.85rem; padding-top: 8px;">
+                            Existing records for same player/team will be updated with new values.
+                        </p>
+                        """, unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"Error reading CSV: {e}")
+                st.markdown("**Troubleshooting:**")
+                st.markdown("- Ensure file is valid CSV format")
+                st.markdown("- Check for special characters in column names")
+                st.markdown("- Try re-exporting from PFF")
 
     # =========================================================================
     # TAB 4: VIEW DATA
