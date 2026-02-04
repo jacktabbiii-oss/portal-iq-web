@@ -378,3 +378,162 @@ def save_player_measurables(player_name: str, measurables: Dict) -> bool:
 def is_pocketbase_connected() -> bool:
     """Check if PocketBase is connected."""
     return get_pocketbase_client().is_connected
+
+
+# =============================================================================
+# PFF GRADES OPERATIONS
+# =============================================================================
+
+def get_pff_grades(player_name: str, season: Optional[int] = None) -> Optional[Dict]:
+    """
+    Get PFF grades for a player.
+
+    Args:
+        player_name: Player's full name
+        season: Optional season filter (e.g., 2024)
+
+    Returns:
+        Dict with core grades and stats_json, or None if not found
+    """
+    client = get_pocketbase_client()
+
+    if client.is_connected:
+        try:
+            filter_str = f'name ~ "{player_name}"'
+            if season:
+                filter_str += f' && season = {season}'
+
+            result = client._client.collection("pff_grades").get_list(
+                1, 1,
+                {"filter": filter_str, "sort": "-season"}  # Most recent first
+            )
+
+            if result.items:
+                record = dict(result.items[0])
+                # Merge stats_json into main dict for easy access
+                stats_json = record.pop("stats_json", {})
+                if isinstance(stats_json, str):
+                    import json
+                    stats_json = json.loads(stats_json)
+                return {**record, **stats_json}
+
+        except Exception as e:
+            logger.warning(f"PocketBase PFF query failed: {e}")
+
+    return None
+
+
+def get_all_pff_grades(season: Optional[int] = None, position: Optional[str] = None) -> pd.DataFrame:
+    """
+    Get all PFF grades as DataFrame.
+
+    Args:
+        season: Optional season filter
+        position: Optional position filter (e.g., "QB", "WR")
+
+    Returns:
+        DataFrame with all PFF data
+    """
+    client = get_pocketbase_client()
+
+    if client.is_connected:
+        try:
+            filters = []
+            if season:
+                filters.append(f'season = {season}')
+            if position:
+                filters.append(f'position = "{position}"')
+
+            filter_str = " && ".join(filters) if filters else ""
+
+            result = client._client.collection("pff_grades").get_full_list(
+                query_params={"filter": filter_str} if filter_str else {}
+            )
+
+            if result:
+                records = []
+                for item in result:
+                    record = dict(item)
+                    stats_json = record.pop("stats_json", {})
+                    if isinstance(stats_json, str):
+                        import json
+                        stats_json = json.loads(stats_json)
+                    records.append({**record, **stats_json})
+                return pd.DataFrame(records)
+
+        except Exception as e:
+            logger.warning(f"PocketBase PFF query failed: {e}")
+
+    # Fallback to CSV
+    csv_path = DATA_DIR / "pff_player_grades.csv"
+    if csv_path.exists():
+        df = pd.read_csv(csv_path)
+        if season:
+            df = df[df["season"] == season]
+        if position:
+            df = df[df["position"] == position]
+        return df
+
+    return pd.DataFrame()
+
+
+def search_pff_players(
+    query: str,
+    season: Optional[int] = None,
+    position: Optional[str] = None,
+    team: Optional[str] = None,
+    min_overall: Optional[float] = None,
+    limit: int = 50
+) -> pd.DataFrame:
+    """
+    Search PFF players with filters.
+
+    Args:
+        query: Search term (player name)
+        season: Optional season filter
+        position: Optional position filter
+        team: Optional team filter
+        min_overall: Minimum PFF overall grade
+        limit: Max results to return
+
+    Returns:
+        DataFrame of matching players
+    """
+    client = get_pocketbase_client()
+
+    if client.is_connected:
+        try:
+            filters = []
+            if query:
+                filters.append(f'name ~ "{query}"')
+            if season:
+                filters.append(f'season = {season}')
+            if position:
+                filters.append(f'position = "{position}"')
+            if team:
+                filters.append(f'team ~ "{team}"')
+            if min_overall:
+                filters.append(f'pff_overall >= {min_overall}')
+
+            filter_str = " && ".join(filters) if filters else ""
+
+            result = client._client.collection("pff_grades").get_list(
+                1, limit,
+                {"filter": filter_str, "sort": "-pff_overall"}
+            )
+
+            if result.items:
+                records = []
+                for item in result.items:
+                    record = dict(item)
+                    stats_json = record.pop("stats_json", {})
+                    if isinstance(stats_json, str):
+                        import json
+                        stats_json = json.loads(stats_json)
+                    records.append({**record, **stats_json})
+                return pd.DataFrame(records)
+
+        except Exception as e:
+            logger.warning(f"PocketBase search failed: {e}")
+
+    return pd.DataFrame()

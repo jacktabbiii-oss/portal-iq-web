@@ -1,14 +1,25 @@
 """Data loading utilities for Portal IQ Dashboard.
 
 Loads real data from On3 scraped files and CFBD stats.
+Supports PocketBase for cloud data with CSV fallback.
 """
 
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import logging
 
 import pandas as pd
 import streamlit as st
+
+# PocketBase client for cloud data
+from dashboard.utils.pocketbase_client import (
+    get_pff_grades as pb_get_pff_grades,
+    get_all_pff_grades as pb_get_all_pff_grades,
+    is_pocketbase_connected
+)
+
+logger = logging.getLogger(__name__)
 
 # Data directory paths - try multiple possible locations
 def _find_data_dir():
@@ -382,6 +393,12 @@ def get_nil_players() -> pd.DataFrame:
     # MERGE MEASURABLES (height/weight) from CFBD/ESPN rosters
     df = _merge_measurables(df)
 
+    # MERGE PFF GRADES AND STATS (yards, TDs, elusive rating, etc.)
+    try:
+        df = merge_pff_grades(df)
+    except Exception:
+        pass  # Continue without PFF grades if merge fails
+
     return df
 
 
@@ -400,7 +417,9 @@ def get_manual_player_stats() -> pd.DataFrame:
 
 
 def get_pff_grades(season: int = None, most_recent: bool = True) -> pd.DataFrame:
-    """Load PFF player grades from merged data.
+    """Load PFF player grades from PocketBase or CSV fallback.
+
+    Tries PocketBase first for cloud data, falls back to local CSV.
 
     Args:
         season: Optional filter for specific season (2023, 2024, 2025)
@@ -409,6 +428,23 @@ def get_pff_grades(season: int = None, most_recent: bool = True) -> pd.DataFrame
     Returns:
         DataFrame with PFF grades
     """
+    # Try PocketBase first
+    if is_pocketbase_connected():
+        try:
+            df = pb_get_all_pff_grades(season=season)
+            if not df.empty:
+                logger.info(f"Loaded {len(df):,} PFF records from PocketBase")
+
+                # Apply most_recent filter if needed
+                if not season and most_recent and "season" in df.columns:
+                    df = df.sort_values("season", ascending=False)
+                    df = df.drop_duplicates(subset=["pff_id"], keep="first")
+
+                return df
+        except Exception as e:
+            logger.warning(f"PocketBase PFF load failed, falling back to CSV: {e}")
+
+    # Fallback to CSV
     pff_path = DATA_DIR / "pff_player_grades.csv"
 
     if not pff_path.exists():
@@ -448,47 +484,176 @@ def merge_pff_grades(df: pd.DataFrame, season: int = 2025) -> pd.DataFrame:
     if pff_df.empty:
         return df
 
-    # Select relevant PFF columns - including all advanced metrics from merged file
+    # Select ALL relevant PFF columns - comprehensive metrics for elite valuations
     pff_cols = [
-        # Identity
+        # ===========================================
+        # IDENTITY & CORE
+        # ===========================================
         "name", "pff_id", "team", "position", "season", "games_played",
-        # Core grades
         "pff_overall", "pff_offense", "pff_defense",
-        # OL grades
-        "pff_pass_block", "pff_run_block", "pass_blocking_efficiency",
-        "pressures_allowed", "sacks_allowed", "hurries_allowed", "hits_allowed",
-        # Skill position grades
-        "pff_receiving", "pff_rushing", "pff_passing",
-        # Defensive grades
-        "pff_pass_rush", "pff_run_defense", "pff_coverage", "pff_tackling",
-        "pff_slot_coverage", "pff_zone_coverage", "pff_man_coverage",
-        # QB advanced
-        "adjusted_completion_pct", "big_time_throws", "big_time_throw_pct",
+
+        # ===========================================
+        # QUARTERBACK - Complete Arsenal
+        # ===========================================
+        "pff_passing",
+        # Accuracy & efficiency
+        "adjusted_completion_pct", "completion_pct", "passer_rating",
+        "avg_depth_of_target", "avg_time_to_throw",
+        # Playmaking
+        "big_time_throws", "big_time_throw_pct",
+        # Decision making (negatives)
         "turnover_worthy_plays", "turnover_worthy_play_pct",
-        "pff_under_pressure", "pff_clean_pocket", "pff_deep_passing",
-        "completion_pct", "passer_rating", "avg_depth_of_target", "time_to_throw",
-        # RB advanced
+        # Under pressure performance
+        "pressure_completion_percent", "pressure_qb_rating", "pressure_yards",
+        "pressure_big_time_throws", "pressure_btt_rate",
+        "pressure_turnover_worthy_plays", "pressure_twp_rate",
+        "pressure_sack_percent", "pressure_dropbacks",
+        # Clean pocket performance
+        "no_pressure_completion_percent", "no_pressure_qb_rating",
+        "no_pressure_big_time_throws", "no_pressure_btt_rate",
+        "no_pressure_turnover_worthy_plays", "no_pressure_twp_rate",
+        # Blitz handling
+        "blitz_completion_percent", "blitz_qb_rating", "blitz_big_time_throws",
+        "blitz_turnover_worthy_plays", "blitz_twp_rate", "blitz_sack_percent",
+        # Raw stats
+        "attempts", "completions", "yards", "touchdowns", "dropbacks",
+        "sacks", "scrambles", "scramble_yards", "hit_as_threw",
+
+        # ===========================================
+        # RUNNING BACK - Complete Arsenal
+        # ===========================================
+        "pff_rushing", "pff_receiving",
+        # Elusiveness & contact
         "elusive_rating", "yards_after_contact", "yaco_per_attempt",
-        "missed_tackles_forced", "breakaway_pct", "breakaway_yards",
-        # WR/TE advanced
-        "yards_per_route_run", "drop_rate", "drops",
-        "contested_catch_rate", "contested_catches", "yards_after_catch",
-        "routes_run", "catch_rate", "yac_per_reception",
-        # Pass rush advanced
-        "pass_rushing_productivity", "pressure_rate", "pass_rush_win_rate",
-        "pressures", "hurries", "hits", "sacks", "batted_passes",
-        # Run defense advanced
-        "run_stop_pct", "run_stops", "tackles", "tackles_for_loss",
-        # Coverage advanced
+        "missed_tackles_forced", "elu_rush_mtf", "elu_recv_mtf",
+        # Explosiveness
+        "breakaway_pct", "breakaway_yards", "breakaway_attempts", "explosive",
+        # Efficiency
+        "ypa", "first_downs", "run_plays",
+        # Ball security
+        "fumbles", "grades_hands_fumble",
+        # Pass game contribution
+        "receptions", "rec_yards", "targets", "routes_run",
+        "yards_after_catch", "catch_rate",
+
+        # ===========================================
+        # WIDE RECEIVER / TIGHT END - Complete Arsenal
+        # ===========================================
+        # Route running
+        "yards_per_route_run", "route_rate",
+        # Hands
+        "drops", "drop_rate", "grades_hands_drop",
+        # Contested catches
+        "contested_catch_rate", "contested_receptions", "contested_targets",
+        # YAC ability
+        "yards_after_catch_per_reception",
+        # Alignment splits
+        "slot_rate", "slot_snaps", "wide_rate", "wide_snaps",
+        "inline_rate", "inline_snaps",
+        # Man vs Zone performance
+        "man_yards", "man_yards_per_reception", "man_yprr", "man_catch_rate",
+        "man_contested_catch_rate", "man_touchdowns",
+        "zone_yards", "zone_yards_per_reception", "zone_yprr", "zone_catch_rate",
+        "zone_contested_catch_rate", "zone_touchdowns",
+        # QB rating when targeted
+        "targeted_qb_rating",
+
+        # ===========================================
+        # OFFENSIVE LINE - Complete Arsenal
+        # ===========================================
+        "pff_pass_block", "pff_run_block",
+        # Pass protection efficiency
+        "pass_blocking_efficiency", "pass_block_percent",
+        "pressures_allowed", "sacks_allowed", "hurries_allowed", "hits_allowed",
+        # True pass sets (dropback protection)
+        "true_pass_set_pbe", "true_pass_set_pressures_allowed",
+        "true_pass_set_sacks_allowed", "true_pass_set_hurries_allowed",
+        # Run blocking
+        "run_block_percent",
+        "gap_grades_run_block", "gap_run_block_percent",
+        "zone_grades_run_block", "zone_run_block_percent",
+        # Snap counts by position
+        "snap_counts_lt", "snap_counts_lg", "snap_counts_ce",
+        "snap_counts_rg", "snap_counts_rt", "snap_counts_te",
+        "snap_counts_pass_block", "snap_counts_run_block",
+        "offensive_snaps",
+        # Penalties
+        "penalties", "grades_offense_penalty",
+
+        # ===========================================
+        # EDGE RUSHER / INTERIOR DL - Complete Arsenal
+        # ===========================================
+        "pff_pass_rush", "pff_run_defense",
+        # Pass rush production
+        "pass_rushing_productivity", "pass_rush_win_rate", "pass_rush_wins",
+        "pressures", "sacks", "hits", "hurries", "batted_passes",
+        "pass_rush_snaps", "pass_rush_percent",
+        # True pass rush (not play action)
+        "true_pass_set_prp", "true_pass_set_pass_rush_win_rate",
+        "true_pass_set_total_pressures", "true_pass_set_sacks",
+        # Run defense
+        "stops", "run_stop_opp", "stop_percent",
+        "tackles", "tackles_for_loss", "assists",
+        # Alignment splits
+        "snap_counts_dl", "snap_counts_dl_a_gap", "snap_counts_dl_b_gap",
+        "snap_counts_dl_outside_t", "snap_counts_dl_over_t",
+        # Left vs Right production
+        "lhs_pressures", "lhs_sacks", "lhs_prp",
+        "rhs_pressures", "rhs_sacks", "rhs_prp",
+        "defensive_snaps",
+
+        # ===========================================
+        # LINEBACKER - Complete Arsenal
+        # ===========================================
+        "pff_tackling", "pff_coverage",
+        # Run defense
+        "snap_counts_run_defense", "snap_counts_box",
+        # Coverage
+        "snap_counts_coverage", "coverage_snaps",
         "passer_rating_allowed", "yards_per_coverage_snap",
-        "targets_allowed", "completions_allowed", "yards_allowed", "tds_allowed",
         "forced_incompletes", "forced_incompletion_rate",
-        # Snap counts
-        "defensive_snaps", "offensive_snaps", "coverage_snaps", "pass_rush_snaps",
+        "coverage_snaps_per_target", "coverage_snaps_per_reception",
+        # Tackling reliability
+        "missed_tackles", "missed_tackle_rate", "avg_depth_of_tackle",
+
+        # ===========================================
+        # CORNERBACK / SAFETY - Complete Arsenal
+        # ===========================================
+        # Coverage grades
+        "man_grades_coverage_defense", "zone_grades_coverage_defense",
+        # Man coverage performance
+        "man_qb_rating_against", "man_yards_per_coverage_snap",
+        "man_catch_rate", "man_forced_incompletes", "man_forced_incompletion_rate",
+        "man_coverage_snaps_per_target", "man_pass_break_ups",
+        "man_snap_counts_coverage", "man_coverage_percent",
+        # Zone coverage performance
+        "zone_qb_rating_against", "zone_yards_per_coverage_snap",
+        "zone_catch_rate", "zone_forced_incompletes", "zone_forced_incompletion_rate",
+        "zone_coverage_snaps_per_target", "zone_pass_break_ups",
+        "zone_snap_counts_coverage", "zone_coverage_percent",
+        # Alignment
+        "snap_counts_slot", "snap_counts_corner", "snap_counts_fs",
+        # Ball skills
+        "ints", "pbus", "dropped_ints", "interception_touchdowns",
         # Tackling
-        "missed_tackles", "missed_tackle_pct",
-        # Turnovers
-        "ints", "pbus", "forced_fumbles",
+        "man_missed_tackles", "man_missed_tackle_rate",
+        "zone_missed_tackles", "zone_missed_tackle_rate",
+        # Turnovers forced
+        "forced_fumbles", "fumble_recoveries",
+
+        # ===========================================
+        # SPECIAL TEAMS
+        # ===========================================
+        "grades_punt_return", "grades_kick_return", "grades_return",
+        "punt_yards", "punt_touchdowns", "kickoff_yards", "kickoff_touchdowns",
+
+        # ===========================================
+        # KICKER / PUNTER
+        # ===========================================
+        "grades_fgep_kicker", "grades_punter", "grades_kickoff_kicker",
+        "total_made", "total_percent", "pat_percent",
+        "fifty_percent", "forty_percent", "thirty_percent",
+        "average_hangtime", "average_net_yards", "inside_twenties",
     ]
 
     # Only keep columns that exist

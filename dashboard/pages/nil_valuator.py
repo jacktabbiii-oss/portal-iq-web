@@ -339,9 +339,20 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         pff_under_pressure = player_data.get("pff_under_pressure", 0) or 0
         pff_clean_pocket = player_data.get("pff_clean_pocket", 0) or 0
         pff_deep = player_data.get("pff_deep_passing", 0) or 0
+        games_played = player_data.get("games_played", 0) or 0
 
-        # PFF Grades
-        if pff_overall > 0:
+        # ===================================================================
+        # MINIMUM SAMPLE THRESHOLDS - Critical for valid PFF grade analysis
+        # ===================================================================
+        MIN_ATTEMPTS = 150  # Minimum pass attempts for QB grades
+        has_valid_sample = attempts >= MIN_ATTEMPTS
+
+        # Small sample warning
+        if pff_overall > 0 and not has_valid_sample:
+            perf_factors.append(f"⚠️ Limited sample ({attempts} att - need {MIN_ATTEMPTS}+)")
+
+        # PFF Grades (only apply bonuses with valid sample)
+        if pff_overall > 0 and has_valid_sample:
             if pff_overall >= 90:
                 perf_bonus += 250000
                 perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
@@ -874,68 +885,210 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
             perf_bonus += 20000
             perf_factors.append(f"Reliable target ({receptions} rec)")
 
-    # OL stats - trench players (limited individual stats available)
+    # OL stats - ELITE COMPREHENSIVE TRENCH EVALUATION
     elif position in ["OT", "OG", "C", "OL", "IOL"]:
-        # PFF GRADES - Premium data when available
+        # ===========================================
+        # PFF CORE GRADES
+        # ===========================================
         pff_overall = player_data.get("pff_overall", 0) or 0
-        pff_pass_block = player_data.get("pff_pass_grade", player_data.get("pff_pass_block", 0)) or 0
-        pff_run_block = player_data.get("pff_run_grade", player_data.get("pff_run_block", 0)) or 0
-        pass_block_eff = player_data.get("pass_blocking_efficiency", 0) or 0
-        total_snaps = player_data.get("total_snaps", 0) or 0
+        pff_pass_block = player_data.get("pff_pass_block", 0) or 0
+        pff_run_block = player_data.get("pff_run_block", 0) or 0
 
-        if pff_overall > 0:
-            # PFF grades available - use them!
-            if pff_overall >= 90:
-                perf_bonus += 150000
-                perf_factors.append(f"Elite PFF grade ({pff_overall:.1f})")
-            elif pff_overall >= 80:
-                perf_bonus += 100000
-                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
+        # ===========================================
+        # PASS PROTECTION METRICS
+        # ===========================================
+        pass_block_eff = player_data.get("pass_blocking_efficiency", 0) or 0
+        true_pass_pbe = player_data.get("true_pass_set_pbe", 0) or 0  # True dropback PBE
+        pressures_allowed = player_data.get("pressures_allowed", 0) or 0
+        sacks_allowed = player_data.get("sacks_allowed", 0) or 0
+        hurries_allowed = player_data.get("hurries_allowed", 0) or 0
+        hits_allowed = player_data.get("hits_allowed", 0) or 0
+        true_pass_pressures = player_data.get("true_pass_set_pressures_allowed", 0) or 0
+        true_pass_sacks = player_data.get("true_pass_set_sacks_allowed", 0) or 0
+
+        # ===========================================
+        # RUN BLOCKING METRICS
+        # ===========================================
+        run_block_pct = player_data.get("run_block_percent", 0) or 0
+        gap_run_grade = player_data.get("gap_grades_run_block", 0) or 0
+        zone_run_grade = player_data.get("zone_grades_run_block", 0) or 0
+        gap_run_pct = player_data.get("gap_run_block_percent", 0) or 0
+        zone_run_pct = player_data.get("zone_run_block_percent", 0) or 0
+
+        # ===========================================
+        # SNAP COUNTS & VERSATILITY
+        # ===========================================
+        offensive_snaps = player_data.get("offensive_snaps", 0) or 0
+        pass_block_snaps = player_data.get("snap_counts_pass_block", 0) or 0
+        run_block_snaps = player_data.get("snap_counts_run_block", 0) or 0
+        lt_snaps = player_data.get("snap_counts_lt", 0) or 0
+        lg_snaps = player_data.get("snap_counts_lg", 0) or 0
+        c_snaps = player_data.get("snap_counts_ce", 0) or 0
+        rg_snaps = player_data.get("snap_counts_rg", 0) or 0
+        rt_snaps = player_data.get("snap_counts_rt", 0) or 0
+
+        # ===========================================
+        # PENALTIES
+        # ===========================================
+        penalties = player_data.get("penalties", 0) or 0
+        penalty_grade = player_data.get("grades_offense_penalty", 0) or 0
+
+        # ===================================================================
+        # MINIMUM SNAP THRESHOLDS - Critical for valid PFF grade analysis
+        # ===================================================================
+        MIN_OFF_SNAPS = 250  # Minimum for overall offensive line grades
+        MIN_PASS_BLOCK_SNAPS = 150  # Minimum for pass blocking grades
+
+        has_valid_sample = offensive_snaps >= MIN_OFF_SNAPS
+        has_valid_pass_block = pass_block_snaps >= MIN_PASS_BLOCK_SNAPS
+
+        # Small sample warning
+        if pff_overall > 0 and not has_valid_sample:
+            perf_factors.append(f"⚠️ Limited sample ({offensive_snaps} snaps - need {MIN_OFF_SNAPS}+)")
+
+        if pff_overall > 0 and has_valid_sample:
+            # === OVERALL GRADE TIERS ===
+            if pff_overall >= 92:
+                perf_bonus += 200000
+                perf_factors.append(f"All-American caliber ({pff_overall:.1f} PFF)")
+            elif pff_overall >= 85:
+                perf_bonus += 140000
+                perf_factors.append(f"Elite OL grade ({pff_overall:.1f} PFF)")
+            elif pff_overall >= 78:
+                perf_bonus += 90000
+                perf_factors.append(f"Excellent OL ({pff_overall:.1f} PFF)")
             elif pff_overall >= 70:
                 perf_bonus += 50000
-                perf_factors.append(f"Above average PFF ({pff_overall:.1f})")
+                perf_factors.append(f"Solid starter ({pff_overall:.1f} PFF)")
             elif pff_overall >= 60:
                 perf_bonus += 20000
-                perf_factors.append(f"Solid PFF grade ({pff_overall:.1f})")
-            elif pff_overall < 50:
-                perf_bonus -= 30000
-                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+                perf_factors.append(f"Developmental grade ({pff_overall:.1f} PFF)")
+            elif pff_overall < 55:
+                perf_bonus -= 40000
+                perf_factors.append(f"⚠️ Concerning grade ({pff_overall:.1f} PFF)")
 
-            # Pass blocking specific (OT premium)
-            if pff_pass_block >= 85 and position == "OT":
-                perf_bonus += 50000
+            # === PASS BLOCKING GRADE (OT PREMIUM) ===
+            if pff_pass_block >= 90 and position == "OT":
+                perf_bonus += 80000
                 perf_factors.append(f"Elite pass protector ({pff_pass_block:.1f})")
-            elif pff_pass_block >= 80:
-                perf_bonus += 30000
+            elif pff_pass_block >= 85:
+                perf_bonus += 55000
+                perf_factors.append(f"Excellent pass pro ({pff_pass_block:.1f})")
+            elif pff_pass_block >= 78:
+                perf_bonus += 35000
                 perf_factors.append(f"Strong pass protector ({pff_pass_block:.1f})")
+            elif pff_pass_block >= 70:
+                perf_bonus += 18000
+                perf_factors.append(f"Capable pass pro ({pff_pass_block:.1f})")
+            elif pff_pass_block < 55 and position == "OT":
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ Pass pro liability ({pff_pass_block:.1f})")
 
-            # Run blocking
-            if pff_run_block >= 85:
-                perf_bonus += 30000
+            # === RUN BLOCKING GRADE ===
+            if pff_run_block >= 90:
+                perf_bonus += 50000
+                perf_factors.append(f"Mauler in the run game ({pff_run_block:.1f})")
+            elif pff_run_block >= 82:
+                perf_bonus += 35000
                 perf_factors.append(f"Road grader ({pff_run_block:.1f} run block)")
-            elif pff_run_block >= 75:
-                perf_bonus += 15000
+            elif pff_run_block >= 72:
+                perf_bonus += 18000
                 perf_factors.append(f"Solid run blocker ({pff_run_block:.1f})")
+            elif pff_run_block < 55:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Struggles in run game ({pff_run_block:.1f})")
 
-            # Pass Blocking Efficiency (PBE) - key PFF metric
-            if pass_block_eff > 0:
-                if pass_block_eff >= 98:
-                    perf_bonus += 60000
-                    perf_factors.append(f"Elite PBE ({pass_block_eff:.1f}%)")
-                elif pass_block_eff >= 97:
-                    perf_bonus += 35000
-                    perf_factors.append(f"Very clean in pass pro ({pass_block_eff:.1f}%)")
-                elif pass_block_eff < 94:
+            # === PASS BLOCKING EFFICIENCY (PBE) - ELITE METRIC ===
+            effective_pbe = true_pass_pbe if true_pass_pbe > 0 else pass_block_eff
+            if effective_pbe > 0:
+                if effective_pbe >= 99:
+                    perf_bonus += 90000
+                    perf_factors.append(f"Perfect PBE ({effective_pbe:.1f}%)")
+                elif effective_pbe >= 98:
+                    perf_bonus += 65000
+                    perf_factors.append(f"Elite PBE ({effective_pbe:.1f}%)")
+                elif effective_pbe >= 97:
+                    perf_bonus += 40000
+                    perf_factors.append(f"Excellent PBE ({effective_pbe:.1f}%)")
+                elif effective_pbe >= 95:
+                    perf_bonus += 20000
+                    perf_factors.append(f"Clean pass pro ({effective_pbe:.1f}% PBE)")
+                elif effective_pbe < 93:
+                    perf_bonus -= 35000
+                    perf_factors.append(f"⚠️ Pass pro issues ({effective_pbe:.1f}% PBE)")
+
+            # === PRESSURE METRICS (Negatives) ===
+            total_pressures = pressures_allowed + true_pass_pressures
+            if total_pressures > 0:
+                if sacks_allowed >= 6:
+                    perf_bonus -= 60000
+                    perf_factors.append(f"⚠️ Sack prone ({sacks_allowed} sacks allowed)")
+                elif sacks_allowed >= 4:
+                    perf_bonus -= 35000
+                    perf_factors.append(f"⚠️ Pass pro concerns ({sacks_allowed} sacks)")
+                elif sacks_allowed >= 2:
+                    perf_bonus -= 15000
+                    perf_factors.append(f"Some sacks allowed ({sacks_allowed})")
+                elif sacks_allowed == 0 and pass_block_snaps > 200:
+                    perf_bonus += 40000
+                    perf_factors.append("No sacks allowed!")
+
+                if pressures_allowed >= 30:
+                    perf_bonus -= 45000
+                    perf_factors.append(f"⚠️ High pressure rate ({pressures_allowed} allowed)")
+                elif pressures_allowed >= 20:
                     perf_bonus -= 25000
-                    perf_factors.append(f"⚠️ Pass pro concerns ({pass_block_eff:.1f}% PBE)")
+                    perf_factors.append(f"⚠️ Pressure issues ({pressures_allowed} allowed)")
+                elif pressures_allowed < 10 and pass_block_snaps > 300:
+                    perf_bonus += 30000
+                    perf_factors.append(f"Minimal pressures ({pressures_allowed} allowed)")
 
-            # Snap count durability
-            if total_snaps > 800:
-                perf_bonus += 25000
-                perf_factors.append(f"Ironman ({total_snaps} snaps)")
-            elif total_snaps > 600:
-                perf_bonus += 15000
-                perf_factors.append(f"Durable starter ({total_snaps} snaps)")
+            # === SCHEME VERSATILITY (Gap vs Zone) ===
+            if gap_run_grade > 0 and zone_run_grade > 0:
+                if gap_run_grade >= 80 and zone_run_grade >= 80:
+                    perf_bonus += 35000
+                    perf_factors.append(f"Scheme versatile ({gap_run_grade:.0f} gap/{zone_run_grade:.0f} zone)")
+                elif gap_run_grade >= 85:
+                    perf_bonus += 20000
+                    perf_factors.append(f"Gap scheme specialist ({gap_run_grade:.1f})")
+                elif zone_run_grade >= 85:
+                    perf_bonus += 20000
+                    perf_factors.append(f"Zone scheme specialist ({zone_run_grade:.1f})")
+
+            # === SNAP COUNT DURABILITY ===
+            if offensive_snaps > 900:
+                perf_bonus += 35000
+                perf_factors.append(f"Ironman ({offensive_snaps} snaps)")
+            elif offensive_snaps > 700:
+                perf_bonus += 22000
+                perf_factors.append(f"Full-time starter ({offensive_snaps} snaps)")
+            elif offensive_snaps > 500:
+                perf_bonus += 12000
+                perf_factors.append(f"Regular starter ({offensive_snaps} snaps)")
+
+            # === POSITIONAL VERSATILITY ===
+            positions_played = sum([1 for s in [lt_snaps, lg_snaps, c_snaps, rg_snaps, rt_snaps] if s > 50])
+            if positions_played >= 3:
+                perf_bonus += 40000
+                perf_factors.append(f"OL Swiss Army Knife ({positions_played} positions)")
+            elif positions_played >= 2:
+                perf_bonus += 20000
+                perf_factors.append(f"Multi-position flexibility ({positions_played} spots)")
+
+            # === PENALTY ASSESSMENT ===
+            if penalties >= 10:
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ Penalty machine ({penalties} penalties)")
+            elif penalties >= 6:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Penalty issues ({penalties} penalties)")
+            elif penalties >= 4:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Some penalties ({penalties})")
+            elif penalties <= 1 and offensive_snaps > 400:
+                perf_bonus += 20000
+                perf_factors.append(f"Clean player ({penalties} penalties)")
+
         else:
             # No PFF data - fall back to traditional metrics
             perf_factors.append("ℹ️ No PFF grade (import for better accuracy)")
@@ -999,407 +1152,837 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
         if sacks_allowed == 0 and penalties == 0 and holding_calls == 0:
             perf_factors.append("ℹ️ No penalty data available (enter manually for accuracy)")
 
-    # Defensive stats - DL/EDGE/LB (comprehensive GM evaluation)
+    # Defensive stats - ELITE COMPREHENSIVE EVALUATION (DL/EDGE/LB)
     elif position in ["EDGE", "DT", "DL", "LB", "DE"]:
-        # PFF GRADES - Premium defensive metrics
+        # ===========================================
+        # PFF CORE GRADES
+        # ===========================================
         pff_overall = player_data.get("pff_overall", 0) or 0
-        pff_pass_rush = player_data.get("pff_pass_rush", player_data.get("pff_pass_grade", 0)) or 0
-        pff_run_def = player_data.get("pff_run_defense", player_data.get("pff_run_grade", 0)) or 0
+        pff_pass_rush = player_data.get("pff_pass_rush", 0) or 0
+        pff_run_def = player_data.get("pff_run_defense", 0) or 0
+        pff_tackling = player_data.get("pff_tackling", 0) or 0
         pff_coverage = player_data.get("pff_coverage", 0) or 0
-        pass_rush_prod = player_data.get("pass_rushing_productivity", 0) or 0
-        run_stop_pct = player_data.get("run_stop_pct", 0) or 0
-        pressure_rate = player_data.get("pressure_rate", 0) or 0
-        pass_rush_wr = player_data.get("pass_rush_win_rate", 0) or 0
-        total_snaps = player_data.get("total_snaps", 0) or 0
 
-        if pff_overall > 0:
-            if pff_overall >= 90:
-                perf_bonus += 175000
+        # ===========================================
+        # PASS RUSH METRICS - THE MONEY STATS
+        # ===========================================
+        pass_rush_prod = player_data.get("pass_rushing_productivity", 0) or 0
+        pass_rush_wr = player_data.get("pass_rush_win_rate", 0) or 0
+        pass_rush_wins = player_data.get("pass_rush_wins", 0) or 0
+        pressures = player_data.get("pressures", 0) or 0
+        sacks = player_data.get("sacks", 0) or 0
+        hits = player_data.get("hits", 0) or 0
+        hurries = player_data.get("hurries", 0) or 0
+        batted_passes = player_data.get("batted_passes", 0) or 0
+        pass_rush_snaps = player_data.get("pass_rush_snaps", 0) or 0
+
+        # True pass rush (dropback, not play action)
+        true_pass_prp = player_data.get("true_pass_set_prp", 0) or 0
+        true_pass_wr = player_data.get("true_pass_set_pass_rush_win_rate", 0) or 0
+        true_pass_pressures = player_data.get("true_pass_set_total_pressures", 0) or 0
+        true_pass_sacks = player_data.get("true_pass_set_sacks", 0) or 0
+
+        # Left vs Right side production
+        lhs_pressures = player_data.get("lhs_pressures", 0) or 0
+        lhs_sacks = player_data.get("lhs_sacks", 0) or 0
+        lhs_prp = player_data.get("lhs_prp", 0) or 0
+        rhs_pressures = player_data.get("rhs_pressures", 0) or 0
+        rhs_sacks = player_data.get("rhs_sacks", 0) or 0
+        rhs_prp = player_data.get("rhs_prp", 0) or 0
+
+        # ===========================================
+        # RUN DEFENSE METRICS
+        # ===========================================
+        stops = player_data.get("stops", 0) or 0
+        stop_pct = player_data.get("stop_percent", 0) or 0
+        run_stop_opp = player_data.get("run_stop_opp", 0) or 0
+        tackles = player_data.get("tackles", 0) or 0
+        tfls = player_data.get("tackles_for_loss", 0) or 0
+        assists = player_data.get("assists", 0) or 0
+
+        # ===========================================
+        # TACKLING RELIABILITY
+        # ===========================================
+        missed_tackles = player_data.get("missed_tackles", 0) or 0
+        missed_tackle_rate = player_data.get("missed_tackle_rate", 0) or 0
+        avg_depth_tackle = player_data.get("avg_depth_of_tackle", 0) or 0
+
+        # ===========================================
+        # SNAP COUNTS & ALIGNMENT
+        # ===========================================
+        defensive_snaps = player_data.get("defensive_snaps", 0) or 0
+        dl_snaps = player_data.get("snap_counts_dl", 0) or 0
+        box_snaps = player_data.get("snap_counts_box", 0) or 0
+        coverage_snaps = player_data.get("coverage_snaps", 0) or 0
+
+        # ===========================================
+        # BALL DISRUPTION
+        # ===========================================
+        forced_fumbles = player_data.get("forced_fumbles", 0) or 0
+        fumble_recoveries = player_data.get("fumble_recoveries", 0) or 0
+        ints = player_data.get("ints", 0) or 0
+        pbus = player_data.get("pbus", 0) or 0
+
+        # ===========================================
+        # PENALTIES
+        # ===========================================
+        penalties = player_data.get("penalties", 0) or 0
+        penalty_grade = player_data.get("grades_defense_penalty", 0) or 0
+
+        # ===================================================================
+        # MINIMUM SNAP THRESHOLDS - Critical for valid PFF grade analysis
+        # ===================================================================
+        MIN_DEF_SNAPS = 200  # Minimum for overall defensive grades
+        MIN_PASS_RUSH_SNAPS = 100  # Minimum for pass rush grades
+
+        has_valid_sample = defensive_snaps >= MIN_DEF_SNAPS
+        has_valid_pass_rush = pass_rush_snaps >= MIN_PASS_RUSH_SNAPS
+
+        # Small sample warning
+        if pff_overall > 0 and not has_valid_sample:
+            perf_factors.append(f"⚠️ Limited sample ({defensive_snaps} snaps - need {MIN_DEF_SNAPS}+)")
+
+        if pff_overall > 0 and has_valid_sample:
+            # === OVERALL GRADE TIERS ===
+            if pff_overall >= 92:
+                perf_bonus += 225000
+                perf_factors.append(f"All-American defender ({pff_overall:.1f} PFF)")
+            elif pff_overall >= 85:
+                perf_bonus += 160000
                 perf_factors.append(f"Elite PFF defender ({pff_overall:.1f})")
-            elif pff_overall >= 80:
+            elif pff_overall >= 78:
                 perf_bonus += 100000
                 perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
             elif pff_overall >= 70:
-                perf_bonus += 50000
-                perf_factors.append(f"Above average PFF ({pff_overall:.1f})")
-            elif pff_overall < 50:
-                perf_bonus -= 30000
-                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+                perf_bonus += 55000
+                perf_factors.append(f"Above average defender ({pff_overall:.1f})")
+            elif pff_overall >= 60:
+                perf_bonus += 25000
+                perf_factors.append(f"Solid PFF grade ({pff_overall:.1f})")
+            elif pff_overall < 55:
+                perf_bonus -= 40000
+                perf_factors.append(f"⚠️ Concerning grade ({pff_overall:.1f})")
 
-            # Pass rush grade premium for EDGE
-            if pff_pass_rush >= 85 and position in ["EDGE", "DE"]:
-                perf_bonus += 60000
-                perf_factors.append(f"Elite pass rusher grade ({pff_pass_rush:.1f})")
-            elif pff_pass_rush >= 80:
-                perf_bonus += 35000
-                perf_factors.append(f"Strong pass rusher grade ({pff_pass_rush:.1f})")
-
-            # Run defense grade
-            if pff_run_def >= 85:
-                perf_bonus += 40000
-                perf_factors.append(f"Stout run defender ({pff_run_def:.1f})")
-            elif pff_run_def >= 75:
-                perf_bonus += 20000
-                perf_factors.append(f"Solid run defender ({pff_run_def:.1f})")
-
-            # LB Coverage (important for modern LBs)
-            if position == "LB" and pff_coverage > 0:
-                if pff_coverage >= 80:
-                    perf_bonus += 50000
-                    perf_factors.append(f"Coverage LB ({pff_coverage:.1f} cov grade)")
-                elif pff_coverage >= 70:
+            # === PASS RUSH GRADE (EDGE/DE PREMIUM) ===
+            if position in ["EDGE", "DE"]:
+                if pff_pass_rush >= 92:
+                    perf_bonus += 100000
+                    perf_factors.append(f"Elite pass rush grade ({pff_pass_rush:.1f})")
+                elif pff_pass_rush >= 85:
+                    perf_bonus += 70000
+                    perf_factors.append(f"Excellent pass rusher ({pff_pass_rush:.1f})")
+                elif pff_pass_rush >= 78:
+                    perf_bonus += 45000
+                    perf_factors.append(f"Strong pass rusher ({pff_pass_rush:.1f})")
+                elif pff_pass_rush >= 70:
                     perf_bonus += 25000
-                    perf_factors.append(f"Capable in coverage ({pff_coverage:.1f})")
+                    perf_factors.append(f"Capable pass rusher ({pff_pass_rush:.1f})")
+                elif pff_pass_rush < 55:
+                    perf_bonus -= 35000
+                    perf_factors.append(f"⚠️ Pass rush concerns ({pff_pass_rush:.1f})")
+
+            # === RUN DEFENSE GRADE ===
+            if pff_run_def >= 90:
+                perf_bonus += 55000
+                perf_factors.append(f"Elite run defender ({pff_run_def:.1f})")
+            elif pff_run_def >= 82:
+                perf_bonus += 38000
+                perf_factors.append(f"Stout vs the run ({pff_run_def:.1f})")
+            elif pff_run_def >= 72:
+                perf_bonus += 22000
+                perf_factors.append(f"Solid run defender ({pff_run_def:.1f})")
+            elif pff_run_def < 55:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Run defense liability ({pff_run_def:.1f})")
+
+            # === LB COVERAGE (CRITICAL FOR MODERN LBs) ===
+            if position == "LB" and pff_coverage > 0:
+                if pff_coverage >= 85:
+                    perf_bonus += 75000
+                    perf_factors.append(f"Elite coverage LB ({pff_coverage:.1f})")
+                elif pff_coverage >= 75:
+                    perf_bonus += 45000
+                    perf_factors.append(f"Coverage capable ({pff_coverage:.1f})")
+                elif pff_coverage >= 65:
+                    perf_bonus += 20000
+                    perf_factors.append(f"Adequate in coverage ({pff_coverage:.1f})")
                 elif pff_coverage < 50:
-                    perf_bonus -= 20000
+                    perf_bonus -= 35000
                     perf_factors.append(f"⚠️ Coverage liability ({pff_coverage:.1f})")
 
-        # Pass Rushing Productivity (PRP) - key PFF metric
-        if pass_rush_prod > 0 and position in ["EDGE", "DE", "DT"]:
-            if pass_rush_prod >= 12:
-                perf_bonus += 75000
-                perf_factors.append(f"Elite PRP ({pass_rush_prod:.1f})")
-            elif pass_rush_prod >= 9:
-                perf_bonus += 45000
-                perf_factors.append(f"Strong PRP ({pass_rush_prod:.1f})")
-            elif pass_rush_prod >= 6:
-                perf_bonus += 20000
-                perf_factors.append(f"Solid PRP ({pass_rush_prod:.1f})")
-            elif pass_rush_prod < 4:
-                perf_bonus -= 20000
-                perf_factors.append(f"⚠️ Low PRP ({pass_rush_prod:.1f})")
+            # === TACKLING GRADE ===
+            if pff_tackling >= 85:
+                perf_bonus += 35000
+                perf_factors.append(f"Sure tackler ({pff_tackling:.1f})")
+            elif pff_tackling >= 75:
+                perf_bonus += 18000
+                perf_factors.append(f"Reliable tackler ({pff_tackling:.1f})")
+            elif pff_tackling < 55:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Tackling issues ({pff_tackling:.1f})")
 
-        # Run Stop Percentage (RSP) - key for run defenders
-        if run_stop_pct > 0:
-            if run_stop_pct >= 12:
+        # === PASS RUSHING PRODUCTIVITY (PRP) - THE MONEY METRIC ===
+        # Only evaluate rate metrics with sufficient pass rush snaps
+        effective_prp = true_pass_prp if true_pass_prp > 0 else pass_rush_prod
+        if effective_prp > 0 and position in ["EDGE", "DE", "DT"] and has_valid_pass_rush:
+            if effective_prp >= 15:
+                perf_bonus += 120000
+                perf_factors.append(f"Elite PRP ({effective_prp:.1f})")
+            elif effective_prp >= 12:
+                perf_bonus += 80000
+                perf_factors.append(f"Excellent PRP ({effective_prp:.1f})")
+            elif effective_prp >= 9:
                 perf_bonus += 50000
-                perf_factors.append(f"Elite run stopper ({run_stop_pct:.1f}% RSP)")
-            elif run_stop_pct >= 9:
+                perf_factors.append(f"Strong PRP ({effective_prp:.1f})")
+            elif effective_prp >= 6:
+                perf_bonus += 25000
+                perf_factors.append(f"Solid PRP ({effective_prp:.1f})")
+            elif effective_prp < 4:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Low PRP ({effective_prp:.1f})")
+
+        # === PASS RUSH WIN RATE ===
+        effective_wr = true_pass_wr if true_pass_wr > 0 else pass_rush_wr
+        if effective_wr > 0 and position in ["EDGE", "DE"] and has_valid_pass_rush:
+            if effective_wr >= 25:
+                perf_bonus += 80000
+                perf_factors.append(f"Dominant win rate ({effective_wr:.0f}%)")
+            elif effective_wr >= 20:
+                perf_bonus += 55000
+                perf_factors.append(f"Elite win rate ({effective_wr:.0f}%)")
+            elif effective_wr >= 15:
                 perf_bonus += 30000
-                perf_factors.append(f"Strong run stopper ({run_stop_pct:.1f}% RSP)")
-            elif run_stop_pct < 5:
-                perf_bonus -= 15000
-                perf_factors.append(f"⚠️ Low run stop rate ({run_stop_pct:.1f}%)")
+                perf_factors.append(f"Strong win rate ({effective_wr:.0f}%)")
+            elif effective_wr < 10:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Low win rate ({effective_wr:.0f}%)")
 
-        # Pass rush win rate (advanced metric)
-        if pass_rush_wr > 0 and position in ["EDGE", "DE"]:
-            if pass_rush_wr >= 20:
-                perf_bonus += 50000
-                perf_factors.append(f"Elite win rate ({pass_rush_wr:.0f}%)")
-            elif pass_rush_wr >= 15:
-                perf_bonus += 25000
-                perf_factors.append(f"Strong win rate ({pass_rush_wr:.0f}%)")
-
-        tackles = player_data.get("tackles", 0) or 0
-        solo = player_data.get("solo_tackles", 0) or 0
-        sacks = player_data.get("sacks", 0) or 0
-        tfls = player_data.get("tackles_for_loss", 0) or 0
-        qb_hurries = player_data.get("qb_hurries", 0) or 0
-        ff = player_data.get("fumbles_recovered", 0) or 0  # Forced fumbles proxy
-        def_td = player_data.get("defensive_TD", 0) or 0
-
-        # Pass rush production - critical for EDGE/DL
+        # === RAW PRODUCTION STATS ===
+        total_pressures = pressures + true_pass_pressures
         if position in ["EDGE", "DE"]:
-            if sacks > 12:
-                perf_bonus += 175000
-                perf_factors.append(f"All-American pass rusher ({sacks} sacks)")
-            elif sacks > 8:
-                perf_bonus += 100000
-                perf_factors.append(f"Elite pass rusher ({sacks} sacks)")
-            elif sacks > 5:
-                perf_bonus += 50000
-                perf_factors.append(f"Productive pass rush ({sacks} sacks)")
-            elif sacks > 3:
-                perf_bonus += 25000
-                perf_factors.append(f"Pass rush contributor ({sacks} sacks)")
-        else:  # DT/LB
-            if sacks > 6:
+            if sacks >= 14:
+                perf_bonus += 200000
+                perf_factors.append(f"All-American sack total ({sacks})")
+            elif sacks >= 10:
+                perf_bonus += 130000
+                perf_factors.append(f"Elite sack production ({sacks})")
+            elif sacks >= 7:
                 perf_bonus += 75000
-                perf_factors.append(f"Interior pressure ({sacks} sacks)")
-            elif sacks > 3:
-                perf_bonus += 40000
-                perf_factors.append(f"Penetrating defender ({sacks} sacks)")
+                perf_factors.append(f"Strong sack production ({sacks})")
+            elif sacks >= 4:
+                perf_bonus += 35000
+                perf_factors.append(f"Productive pass rusher ({sacks} sacks)")
 
-        # TFL production - elite disruption
-        if tfls > 15:
-            perf_bonus += 80000
+            if total_pressures >= 60:
+                perf_bonus += 70000
+                perf_factors.append(f"Pressure machine ({total_pressures} pressures)")
+            elif total_pressures >= 45:
+                perf_bonus += 45000
+                perf_factors.append(f"Constant pressure ({total_pressures})")
+            elif total_pressures >= 30:
+                perf_bonus += 25000
+                perf_factors.append(f"Disruptive ({total_pressures} pressures)")
+
+        elif position == "DT":
+            if sacks >= 8:
+                perf_bonus += 100000
+                perf_factors.append(f"Interior force ({sacks} sacks)")
+            elif sacks >= 5:
+                perf_bonus += 60000
+                perf_factors.append(f"Penetrating DT ({sacks} sacks)")
+            elif sacks >= 3:
+                perf_bonus += 30000
+                perf_factors.append(f"Interior pressure ({sacks} sacks)")
+
+            if total_pressures >= 40:
+                perf_bonus += 50000
+                perf_factors.append(f"Dominant interior ({total_pressures} pressures)")
+
+        # === LEFT VS RIGHT SIDE SPLITS ===
+        if lhs_prp > 0 and rhs_prp > 0:
+            if min(lhs_prp, rhs_prp) >= 8:
+                perf_bonus += 35000
+                perf_factors.append(f"Versatile rusher (L:{lhs_prp:.0f}/R:{rhs_prp:.0f} PRP)")
+            elif max(lhs_prp, rhs_prp) >= 15:
+                perf_bonus += 20000
+                perf_factors.append(f"One-side dominant ({max(lhs_prp, rhs_prp):.0f} PRP)")
+
+        # === RUN DEFENSE PRODUCTION ===
+        if stop_pct > 0:
+            if stop_pct >= 12:
+                perf_bonus += 55000
+                perf_factors.append(f"Elite run stopper ({stop_pct:.1f}% stop rate)")
+            elif stop_pct >= 9:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong run stopper ({stop_pct:.1f}%)")
+            elif stop_pct >= 6:
+                perf_bonus += 18000
+                perf_factors.append(f"Solid vs the run ({stop_pct:.1f}%)")
+            elif stop_pct < 4:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Run defense concerns ({stop_pct:.1f}%)")
+
+        if tfls >= 18:
+            perf_bonus += 90000
             perf_factors.append(f"Game-wrecker ({tfls} TFLs)")
-        elif tfls > 12:
-            perf_bonus += 60000
+        elif tfls >= 14:
+            perf_bonus += 65000
             perf_factors.append(f"Elite disruptor ({tfls} TFLs)")
-        elif tfls > 8:
-            perf_bonus += 30000
-            perf_factors.append(f"Strong TFL production ({tfls} TFLs)")
-        elif tfls > 5:
-            perf_bonus += 15000
+        elif tfls >= 10:
+            perf_bonus += 40000
+            perf_factors.append(f"Strong TFL production ({tfls})")
+        elif tfls >= 6:
+            perf_bonus += 20000
             perf_factors.append(f"Active behind LOS ({tfls} TFLs)")
 
-        # Tackle production - more important for LB
+        # === TACKLE PRODUCTION (LB EMPHASIS) ===
         if position == "LB":
-            if tackles > 100:
-                perf_bonus += 70000
-                perf_factors.append(f"Tackle machine ({tackles} tackles)")
-            elif tackles > 80:
-                perf_bonus += 45000
-                perf_factors.append(f"High-volume tackler ({tackles} tackles)")
-            elif tackles > 60:
-                perf_bonus += 25000
-                perf_factors.append(f"Solid run defender ({tackles} tackles)")
-        else:  # DL
-            if tackles > 50:
+            if tackles >= 120:
+                perf_bonus += 90000
+                perf_factors.append(f"Tackle machine ({tackles})")
+            elif tackles >= 100:
+                perf_bonus += 65000
+                perf_factors.append(f"High-volume tackler ({tackles})")
+            elif tackles >= 80:
                 perf_bonus += 40000
+                perf_factors.append(f"Productive tackler ({tackles})")
+            elif tackles >= 60:
+                perf_bonus += 22000
+                perf_factors.append(f"Solid tackler ({tackles})")
+        else:  # DL
+            if tackles >= 60:
+                perf_bonus += 45000
                 perf_factors.append(f"Active DL ({tackles} tackles)")
-            elif tackles > 35:
-                perf_bonus += 20000
+            elif tackles >= 45:
+                perf_bonus += 28000
                 perf_factors.append(f"Run stuffer ({tackles} tackles)")
 
-        # QB hurries - pass rush pressure
-        if qb_hurries > 15:
-            perf_bonus += 40000
-            perf_factors.append(f"Constant pressure ({qb_hurries} QB hurries)")
-        elif qb_hurries > 10:
-            perf_bonus += 25000
-            perf_factors.append(f"Disruptive presence ({qb_hurries} QB hurries)")
-
-        # Big plays
-        if def_td > 0:
-            perf_bonus += 25000 * def_td
-            perf_factors.append(f"Defensive playmaker ({def_td} def TD)")
-        if ff > 1:
-            perf_bonus += 20000
-            perf_factors.append(f"Ball disruptor ({ff} fumbles recovered)")
-
-        # DL/EDGE Penalty metrics (manual entry until PFF integration)
-        offsides = player_data.get("offsides_penalties", 0) or 0
-        roughing = player_data.get("roughing_passer", 0) or 0
-        encroachment = player_data.get("encroachment", 0) or 0
-        unsportsmanlike = player_data.get("unsportsmanlike", 0) or 0
-        missed_tackles = player_data.get("missed_tackles", 0) or 0
-
-        # Discipline concerns
-        if offsides > 4:
-            perf_bonus -= 35000
-            perf_factors.append(f"⚠️ Offsides issue ({offsides} penalties)")
-        elif offsides > 2:
-            perf_bonus -= 15000
-            perf_factors.append(f"⚠️ Jump offsides ({offsides} penalties)")
-
-        if roughing > 1:
+        # === TACKLING RELIABILITY ===
+        if missed_tackle_rate > 0:
+            if missed_tackle_rate >= 20:
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ Tackling liability ({missed_tackle_rate:.0f}% miss rate)")
+            elif missed_tackle_rate >= 15:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Missed tackle concerns ({missed_tackle_rate:.0f}%)")
+            elif missed_tackle_rate >= 10:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Some missed tackles ({missed_tackle_rate:.0f}%)")
+            elif missed_tackle_rate < 6:
+                perf_bonus += 25000
+                perf_factors.append(f"Sure tackler ({missed_tackle_rate:.0f}% miss rate)")
+        elif missed_tackles > 15:
             perf_bonus -= 40000
-            perf_factors.append(f"⚠️ Roughing passer ({roughing} calls)")
-        elif roughing > 0:
-            perf_bonus -= 20000
-            perf_factors.append(f"⚠️ Roughing passer concern ({roughing})")
-
-        if encroachment > 3:
-            perf_bonus -= 25000
-            perf_factors.append(f"⚠️ Encroachment issues ({encroachment})")
-
-        if unsportsmanlike > 1:
-            perf_bonus -= 50000
-            perf_factors.append(f"⚠️ Character concern ({unsportsmanlike} unsportsmanlike)")
-        elif unsportsmanlike > 0:
-            perf_bonus -= 25000
-            perf_factors.append(f"⚠️ Unsportsmanlike penalty ({unsportsmanlike})")
-
-        # Missed tackles (reliability)
-        if missed_tackles > 15:
-            perf_bonus -= 40000
-            perf_factors.append(f"⚠️ Tackling liability ({missed_tackles} missed)")
+            perf_factors.append(f"⚠️ Too many missed ({missed_tackles})")
         elif missed_tackles > 10:
             perf_bonus -= 20000
-            perf_factors.append(f"⚠️ Missed tackle concerns ({missed_tackles})")
+            perf_factors.append(f"⚠️ Missed tackles ({missed_tackles})")
 
-    # Secondary stats - CB/S/DB (comprehensive coverage metrics)
+        # === BALL DISRUPTION ===
+        if forced_fumbles >= 4:
+            perf_bonus += 50000
+            perf_factors.append(f"Fumble creator ({forced_fumbles} FF)")
+        elif forced_fumbles >= 2:
+            perf_bonus += 25000
+            perf_factors.append(f"Ball disruptor ({forced_fumbles} FF)")
+
+        if batted_passes >= 8:
+            perf_bonus += 35000
+            perf_factors.append(f"Batted ball artist ({batted_passes})")
+        elif batted_passes >= 5:
+            perf_bonus += 18000
+            perf_factors.append(f"Gets hands up ({batted_passes} batted)")
+
+        if ints > 0 and position == "LB":
+            perf_bonus += 30000 * ints
+            perf_factors.append(f"Ball hawk LB ({ints} INTs)")
+
+        # === SNAP COUNT DURABILITY ===
+        if defensive_snaps >= 800:
+            perf_bonus += 35000
+            perf_factors.append(f"Ironman defender ({defensive_snaps} snaps)")
+        elif defensive_snaps >= 600:
+            perf_bonus += 22000
+            perf_factors.append(f"Every-down player ({defensive_snaps} snaps)")
+
+        # === PENALTIES ===
+        if penalties >= 8:
+            perf_bonus -= 45000
+            perf_factors.append(f"⚠️ Penalty prone ({penalties} penalties)")
+        elif penalties >= 5:
+            perf_bonus -= 25000
+            perf_factors.append(f"⚠️ Discipline issues ({penalties} penalties)")
+        elif penalties >= 3:
+            perf_bonus -= 12000
+            perf_factors.append(f"⚠️ Some penalties ({penalties})")
+        elif penalties <= 1 and defensive_snaps > 400:
+            perf_bonus += 18000
+            perf_factors.append(f"Clean defender ({penalties} penalties)")
+
+    # Secondary stats - ELITE COMPREHENSIVE COVERAGE EVALUATION (CB/S/DB)
     elif position in ["CB", "S", "DB"]:
-        # PFF COVERAGE GRADES - Premium metrics for DBs
+        # ===========================================
+        # PFF CORE GRADES
+        # ===========================================
         pff_overall = player_data.get("pff_overall", 0) or 0
         pff_coverage = player_data.get("pff_coverage", 0) or 0
         pff_tackling = player_data.get("pff_tackling", 0) or 0
         pff_run_defense = player_data.get("pff_run_defense", 0) or 0
-        pff_slot = player_data.get("pff_slot_coverage", 0) or 0
-        pff_zone = player_data.get("pff_zone_coverage", 0) or 0
-        pff_man = player_data.get("pff_man_coverage", 0) or 0
+
+        # ===========================================
+        # MAN COVERAGE METRICS - THE MONEY STATS
+        # ===========================================
+        man_cov_grade = player_data.get("man_grades_coverage_defense", 0) or 0
+        man_qb_rating = player_data.get("man_qb_rating_against", 0) or 0
+        man_ypc_snap = player_data.get("man_yards_per_coverage_snap", 0) or 0
+        man_catch_rate = player_data.get("man_catch_rate", 0) or 0
+        man_forced_inc = player_data.get("man_forced_incompletes", 0) or 0
+        man_forced_inc_rate = player_data.get("man_forced_incompletion_rate", 0) or 0
+        man_coverage_snaps = player_data.get("man_snap_counts_coverage", 0) or 0
+        man_cov_pct = player_data.get("man_coverage_percent", 0) or 0
+        man_missed_tackles = player_data.get("man_missed_tackles", 0) or 0
+        man_miss_rate = player_data.get("man_missed_tackle_rate", 0) or 0
+        man_pbus = player_data.get("man_pass_break_ups", 0) or 0
+
+        # ===========================================
+        # ZONE COVERAGE METRICS
+        # ===========================================
+        zone_cov_grade = player_data.get("zone_grades_coverage_defense", 0) or 0
+        zone_qb_rating = player_data.get("zone_qb_rating_against", 0) or 0
+        zone_ypc_snap = player_data.get("zone_yards_per_coverage_snap", 0) or 0
+        zone_catch_rate = player_data.get("zone_catch_rate", 0) or 0
+        zone_forced_inc = player_data.get("zone_forced_incompletes", 0) or 0
+        zone_forced_inc_rate = player_data.get("zone_forced_incompletion_rate", 0) or 0
+        zone_coverage_snaps = player_data.get("zone_snap_counts_coverage", 0) or 0
+        zone_cov_pct = player_data.get("zone_coverage_percent", 0) or 0
+        zone_missed_tackles = player_data.get("zone_missed_tackles", 0) or 0
+        zone_miss_rate = player_data.get("zone_missed_tackle_rate", 0) or 0
+        zone_pbus = player_data.get("zone_pass_break_ups", 0) or 0
+
+        # ===========================================
+        # AGGREGATE COVERAGE METRICS
+        # ===========================================
         passer_rating_allowed = player_data.get("passer_rating_allowed", 0) or 0
         yards_per_cov_snap = player_data.get("yards_per_coverage_snap", 0) or 0
         coverage_snaps = player_data.get("coverage_snaps", 0) or 0
+        forced_inc = player_data.get("forced_incompletes", 0) or 0
+        forced_inc_rate = player_data.get("forced_incompletion_rate", 0) or 0
+        coverage_per_target = player_data.get("coverage_snaps_per_target", 0) or 0
 
-        if pff_overall > 0:
-            if pff_overall >= 90:
-                perf_bonus += 150000
-                perf_factors.append(f"Elite PFF coverage grade ({pff_overall:.1f})")
-            elif pff_overall >= 80:
-                perf_bonus += 85000
-                perf_factors.append(f"Excellent PFF grade ({pff_overall:.1f})")
-            elif pff_overall >= 70:
-                perf_bonus += 40000
-                perf_factors.append(f"Above average PFF ({pff_overall:.1f})")
-            elif pff_overall < 50:
-                perf_bonus -= 30000
-                perf_factors.append(f"⚠️ Low PFF grade ({pff_overall:.1f})")
+        # ===========================================
+        # BALL SKILLS
+        # ===========================================
+        ints = player_data.get("ints", 0) or 0
+        pbus = player_data.get("pbus", 0) or 0
+        dropped_ints = player_data.get("dropped_ints", 0) or 0
+        int_tds = player_data.get("interception_touchdowns", 0) or 0
+        forced_fumbles = player_data.get("forced_fumbles", 0) or 0
 
-            # Coverage grade premium for corners
-            if pff_coverage >= 85 and position == "CB":
-                perf_bonus += 50000
-                perf_factors.append(f"Lockdown coverage grade ({pff_coverage:.1f})")
-            elif pff_coverage >= 80:
-                perf_bonus += 30000
-                perf_factors.append(f"Strong coverage grade ({pff_coverage:.1f})")
-            elif pff_coverage >= 70:
-                perf_bonus += 15000
-                perf_factors.append(f"Solid coverage grade ({pff_coverage:.1f})")
-
-            # Slot coverage (premium skill)
-            if pff_slot >= 80:
-                perf_bonus += 35000
-                perf_factors.append(f"Elite slot corner ({pff_slot:.1f})")
-            elif pff_slot >= 70:
-                perf_bonus += 18000
-                perf_factors.append(f"Capable in slot ({pff_slot:.1f})")
-
-            # Man vs Zone coverage
-            if pff_man >= 85:
-                perf_bonus += 30000
-                perf_factors.append(f"Elite man coverage ({pff_man:.1f})")
-            if pff_zone >= 85:
-                perf_bonus += 25000
-                perf_factors.append(f"Elite zone coverage ({pff_zone:.1f})")
-
-            # Tackling grade (important for run support)
-            if pff_tackling >= 80:
-                perf_bonus += 20000
-                perf_factors.append(f"Sure tackler ({pff_tackling:.1f})")
-            elif pff_tackling < 55:
-                perf_bonus -= 15000
-                perf_factors.append(f"⚠️ Tackling concerns ({pff_tackling:.1f})")
-
-            # Run defense (especially for safeties)
-            if position == "S" and pff_run_defense >= 75:
-                perf_bonus += 25000
-                perf_factors.append(f"Box safety ability ({pff_run_defense:.1f} run def)")
-
-        # Passer Rating Allowed (key coverage metric)
-        if passer_rating_allowed > 0 and coverage_snaps > 100:
-            if passer_rating_allowed < 60:
-                perf_bonus += 60000
-                perf_factors.append(f"Elite passer rating allowed ({passer_rating_allowed:.1f})")
-            elif passer_rating_allowed < 80:
-                perf_bonus += 35000
-                perf_factors.append(f"Strong passer rating allowed ({passer_rating_allowed:.1f})")
-            elif passer_rating_allowed > 110:
-                perf_bonus -= 35000
-                perf_factors.append(f"⚠️ High passer rating allowed ({passer_rating_allowed:.1f})")
-            elif passer_rating_allowed > 95:
-                perf_bonus -= 15000
-                perf_factors.append(f"⚠️ Concerning passer rating ({passer_rating_allowed:.1f})")
-
-        # Yards per coverage snap
-        if yards_per_cov_snap > 0 and coverage_snaps > 100:
-            if yards_per_cov_snap < 0.8:
-                perf_bonus += 40000
-                perf_factors.append(f"Blanket coverage ({yards_per_cov_snap:.2f} yds/snap)")
-            elif yards_per_cov_snap < 1.0:
-                perf_bonus += 20000
-                perf_factors.append(f"Tight coverage ({yards_per_cov_snap:.2f} yds/snap)")
-            elif yards_per_cov_snap > 1.5:
-                perf_bonus -= 25000
-                perf_factors.append(f"⚠️ Soft coverage ({yards_per_cov_snap:.2f} yds/snap)")
-
-        # PFF-scraped advanced coverage metrics
-        targets_allowed = player_data.get("targets_allowed", 0) or 0
-        completions_allowed = player_data.get("completions_allowed", 0) or 0
-        yards_allowed_pff = player_data.get("yards_allowed", 0) or 0
-        tds_allowed_pff = player_data.get("tds_allowed", 0) or 0
-
-        if targets_allowed > 30:  # Meaningful sample size
-            comp_pct_allowed = (completions_allowed / targets_allowed * 100) if targets_allowed > 0 else 0
-            if comp_pct_allowed < 50:
-                perf_bonus += 40000
-                perf_factors.append(f"Stingy coverage ({comp_pct_allowed:.1f}% allowed)")
-            elif comp_pct_allowed > 70:
-                perf_bonus -= 25000
-                perf_factors.append(f"⚠️ High completion % allowed ({comp_pct_allowed:.1f}%)")
-
-            if tds_allowed_pff > 5:
-                perf_bonus -= 40000
-                perf_factors.append(f"⚠️ Coverage liability ({tds_allowed_pff} TDs allowed)")
-            elif tds_allowed_pff > 3:
-                perf_bonus -= 20000
-                perf_factors.append(f"⚠️ TDs allowed concern ({tds_allowed_pff})")
-
-        ints = player_data.get("interceptions_def", player_data.get("interceptions", 0)) or 0
-        int_yds = player_data.get("int_return_yards", 0) or 0
-        int_tds = player_data.get("int_return_tds", 0) or 0
-        pds = player_data.get("passes_defended", player_data.get("pbus", 0)) or 0
+        # ===========================================
+        # TACKLING & RUN SUPPORT
+        # ===========================================
         tackles = player_data.get("tackles", 0) or 0
-        solo = player_data.get("solo_tackles", 0) or 0
+        missed_tackles = player_data.get("missed_tackles", 0) or 0
+        missed_tackle_rate = player_data.get("missed_tackle_rate", 0) or 0
 
-        # Interceptions - premium for turnover creation
-        if ints > 6:
-            perf_bonus += 120000
+        # ===========================================
+        # ALIGNMENT
+        # ===========================================
+        slot_snaps = player_data.get("snap_counts_slot", 0) or 0
+        corner_snaps = player_data.get("snap_counts_corner", 0) or 0
+        fs_snaps = player_data.get("snap_counts_fs", 0) or 0
+        defensive_snaps = player_data.get("defensive_snaps", 0) or 0
+
+        # ===================================================================
+        # MINIMUM SNAP THRESHOLDS - Critical for valid PFF grade analysis
+        # ===================================================================
+        MIN_DEF_SNAPS = 200  # Minimum for overall defensive grades
+        MIN_COV_SNAPS = 150  # Minimum for coverage grades
+        MIN_MAN_SNAPS = 80   # Minimum for man coverage splits
+        MIN_ZONE_SNAPS = 80  # Minimum for zone coverage splits
+
+        has_valid_sample = defensive_snaps >= MIN_DEF_SNAPS
+        has_valid_coverage = coverage_snaps >= MIN_COV_SNAPS
+        has_valid_man = man_coverage_snaps >= MIN_MAN_SNAPS
+        has_valid_zone = zone_coverage_snaps >= MIN_ZONE_SNAPS
+
+        # Small sample warning
+        if pff_overall > 0 and not has_valid_sample:
+            perf_factors.append(f"⚠️ Limited sample ({defensive_snaps} snaps - need {MIN_DEF_SNAPS}+)")
+
+        if pff_overall > 0 and has_valid_sample:
+            # === OVERALL GRADE TIERS ===
+            if pff_overall >= 92:
+                perf_bonus += 200000
+                perf_factors.append(f"All-American DB ({pff_overall:.1f} PFF)")
+            elif pff_overall >= 85:
+                perf_bonus += 140000
+                perf_factors.append(f"Elite coverage grade ({pff_overall:.1f})")
+            elif pff_overall >= 78:
+                perf_bonus += 90000
+                perf_factors.append(f"Excellent DB ({pff_overall:.1f})")
+            elif pff_overall >= 70:
+                perf_bonus += 50000
+                perf_factors.append(f"Above average DB ({pff_overall:.1f})")
+            elif pff_overall >= 60:
+                perf_bonus += 22000
+                perf_factors.append(f"Solid coverage ({pff_overall:.1f})")
+            elif pff_overall < 55:
+                perf_bonus -= 40000
+                perf_factors.append(f"⚠️ Concerning grade ({pff_overall:.1f})")
+
+            # === COVERAGE GRADE (CB PREMIUM) ===
+            if position == "CB":
+                if pff_coverage >= 90:
+                    perf_bonus += 80000
+                    perf_factors.append(f"Lockdown corner ({pff_coverage:.1f} cov)")
+                elif pff_coverage >= 82:
+                    perf_bonus += 55000
+                    perf_factors.append(f"Excellent coverage ({pff_coverage:.1f})")
+                elif pff_coverage >= 72:
+                    perf_bonus += 30000
+                    perf_factors.append(f"Strong coverage ({pff_coverage:.1f})")
+                elif pff_coverage < 55:
+                    perf_bonus -= 40000
+                    perf_factors.append(f"⚠️ Coverage liability ({pff_coverage:.1f})")
+            else:  # Safety
+                if pff_coverage >= 85:
+                    perf_bonus += 60000
+                    perf_factors.append(f"Elite coverage safety ({pff_coverage:.1f})")
+                elif pff_coverage >= 75:
+                    perf_bonus += 35000
+                    perf_factors.append(f"Strong coverage ({pff_coverage:.1f})")
+
+            # === TACKLING GRADE ===
+            if pff_tackling >= 85:
+                perf_bonus += 35000
+                perf_factors.append(f"Sure tackler ({pff_tackling:.1f})")
+            elif pff_tackling >= 75:
+                perf_bonus += 18000
+                perf_factors.append(f"Reliable tackler ({pff_tackling:.1f})")
+            elif pff_tackling < 55:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Tackling liability ({pff_tackling:.1f})")
+
+            # === RUN DEFENSE (SAFETY PREMIUM) ===
+            if position == "S" and pff_run_defense > 0:
+                if pff_run_defense >= 82:
+                    perf_bonus += 45000
+                    perf_factors.append(f"Elite box safety ({pff_run_defense:.1f} run def)")
+                elif pff_run_defense >= 72:
+                    perf_bonus += 25000
+                    perf_factors.append(f"Strong run support ({pff_run_defense:.1f})")
+
+        # === MAN COVERAGE ANALYSIS ===
+        if man_coverage_snaps > 100:
+            if man_cov_grade >= 85:
+                perf_bonus += 65000
+                perf_factors.append(f"Elite man coverage ({man_cov_grade:.1f})")
+            elif man_cov_grade >= 75:
+                perf_bonus += 38000
+                perf_factors.append(f"Strong man coverage ({man_cov_grade:.1f})")
+            elif man_cov_grade < 55:
+                perf_bonus -= 35000
+                perf_factors.append(f"⚠️ Man coverage struggles ({man_cov_grade:.1f})")
+
+            if man_qb_rating > 0:
+                if man_qb_rating < 60:
+                    perf_bonus += 55000
+                    perf_factors.append(f"Shutdown in man ({man_qb_rating:.1f} QBR)")
+                elif man_qb_rating < 75:
+                    perf_bonus += 30000
+                    perf_factors.append(f"Strong man QBR ({man_qb_rating:.1f})")
+                elif man_qb_rating > 110:
+                    perf_bonus -= 40000
+                    perf_factors.append(f"⚠️ Targeted in man ({man_qb_rating:.1f} QBR)")
+
+            if man_forced_inc >= 12:
+                perf_bonus += 40000
+                perf_factors.append(f"Forces incompletes ({man_forced_inc} in man)")
+            elif man_forced_inc >= 8:
+                perf_bonus += 22000
+                perf_factors.append(f"Active hands ({man_forced_inc} forced inc)")
+
+        # === ZONE COVERAGE ANALYSIS ===
+        if zone_coverage_snaps > 100:
+            if zone_cov_grade >= 85:
+                perf_bonus += 55000
+                perf_factors.append(f"Elite zone coverage ({zone_cov_grade:.1f})")
+            elif zone_cov_grade >= 75:
+                perf_bonus += 32000
+                perf_factors.append(f"Strong zone player ({zone_cov_grade:.1f})")
+            elif zone_cov_grade < 55:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ Zone coverage issues ({zone_cov_grade:.1f})")
+
+            if zone_qb_rating > 0:
+                if zone_qb_rating < 65:
+                    perf_bonus += 45000
+                    perf_factors.append(f"Zone eraser ({zone_qb_rating:.1f} QBR)")
+                elif zone_qb_rating < 80:
+                    perf_bonus += 25000
+                    perf_factors.append(f"Strong zone QBR ({zone_qb_rating:.1f})")
+                elif zone_qb_rating > 105:
+                    perf_bonus -= 30000
+                    perf_factors.append(f"⚠️ Exploited in zone ({zone_qb_rating:.1f} QBR)")
+
+        # === SCHEME VERSATILITY ===
+        if man_coverage_snaps > 80 and zone_coverage_snaps > 80:
+            if man_cov_grade >= 70 and zone_cov_grade >= 70:
+                perf_bonus += 45000
+                perf_factors.append(f"Scheme versatile (M:{man_cov_grade:.0f}/Z:{zone_cov_grade:.0f})")
+            if man_qb_rating > 0 and zone_qb_rating > 0 and man_qb_rating < 85 and zone_qb_rating < 85:
+                perf_bonus += 30000
+                perf_factors.append("Effective in all coverages")
+
+        # === AGGREGATE PASSER RATING ALLOWED ===
+        if passer_rating_allowed > 0 and coverage_snaps > 150:
+            if passer_rating_allowed < 55:
+                perf_bonus += 75000
+                perf_factors.append(f"Elite passer rating ({passer_rating_allowed:.1f})")
+            elif passer_rating_allowed < 70:
+                perf_bonus += 50000
+                perf_factors.append(f"Excellent passer rating ({passer_rating_allowed:.1f})")
+            elif passer_rating_allowed < 85:
+                perf_bonus += 28000
+                perf_factors.append(f"Strong passer rating ({passer_rating_allowed:.1f})")
+            elif passer_rating_allowed > 110:
+                perf_bonus -= 45000
+                perf_factors.append(f"⚠️ Targeted ({passer_rating_allowed:.1f} QBR allowed)")
+            elif passer_rating_allowed > 95:
+                perf_bonus -= 22000
+                perf_factors.append(f"⚠️ Concerning QBR ({passer_rating_allowed:.1f})")
+
+        # === YARDS PER COVERAGE SNAP ===
+        if yards_per_cov_snap > 0 and coverage_snaps > 150:
+            if yards_per_cov_snap < 0.7:
+                perf_bonus += 55000
+                perf_factors.append(f"Blanket coverage ({yards_per_cov_snap:.2f} y/snap)")
+            elif yards_per_cov_snap < 0.9:
+                perf_bonus += 30000
+                perf_factors.append(f"Tight coverage ({yards_per_cov_snap:.2f} y/snap)")
+            elif yards_per_cov_snap < 1.1:
+                perf_bonus += 15000
+                perf_factors.append(f"Solid coverage ({yards_per_cov_snap:.2f} y/snap)")
+            elif yards_per_cov_snap > 1.5:
+                perf_bonus -= 35000
+                perf_factors.append(f"⚠️ Soft coverage ({yards_per_cov_snap:.2f} y/snap)")
+
+        # === BALL SKILLS - TURNOVERS ===
+        if ints >= 7:
+            perf_bonus += 150000
             perf_factors.append(f"All-American ball hawk ({ints} INTs)")
-        elif ints > 4:
-            perf_bonus += 80000
+        elif ints >= 5:
+            perf_bonus += 100000
             perf_factors.append(f"Elite ball hawk ({ints} INTs)")
-        elif ints > 2:
-            perf_bonus += 40000
+        elif ints >= 3:
+            perf_bonus += 55000
             perf_factors.append(f"Playmaker ({ints} INTs)")
-        elif ints > 0:
-            perf_bonus += 15000
+        elif ints >= 1:
+            perf_bonus += 22000
             perf_factors.append(f"Creates turnovers ({ints} INT)")
 
-        # Return ability on INTs
         if int_tds > 0:
-            perf_bonus += 30000 * int_tds
-            perf_factors.append(f"Pick-6 threat ({int_tds} INT TD)")
-        if int_yds > 100:
-            perf_bonus += 20000
-            perf_factors.append(f"Return ability ({int_yds} INT ret yds)")
+            perf_bonus += 40000 * int_tds
+            perf_factors.append(f"Pick-6 threat ({int_tds} INT TDs)")
 
-        # Pass breakups - elite coverage
-        if pds > 15:
-            perf_bonus += 70000
-            perf_factors.append(f"Lockdown corner ({pds} PDs)")
-        elif pds > 12:
+        if dropped_ints >= 4:
+            perf_bonus -= 30000
+            perf_factors.append(f"⚠️ Ball tracking issues ({dropped_ints} dropped)")
+        elif dropped_ints >= 2:
+            perf_bonus -= 12000
+            perf_factors.append(f"⚠️ Some drops ({dropped_ints} dropped INTs)")
+
+        # === PASS BREAK UPS ===
+        total_pbus = pbus + man_pbus + zone_pbus
+        if total_pbus >= 18:
+            perf_bonus += 85000
+            perf_factors.append(f"Elite ball disruption ({total_pbus} PBUs)")
+        elif total_pbus >= 14:
+            perf_bonus += 60000
+            perf_factors.append(f"Lockdown coverage ({total_pbus} PBUs)")
+        elif total_pbus >= 10:
+            perf_bonus += 38000
+            perf_factors.append(f"Strong coverage ({total_pbus} PBUs)")
+        elif total_pbus >= 6:
+            perf_bonus += 18000
+            perf_factors.append(f"Active in coverage ({total_pbus} PBUs)")
+
+        # === FORCED INCOMPLETES ===
+        total_forced = forced_inc + man_forced_inc + zone_forced_inc
+        if total_forced >= 20:
             perf_bonus += 50000
-            perf_factors.append(f"Elite coverage ({pds} PDs)")
-        elif pds > 8:
-            perf_bonus += 25000
-            perf_factors.append(f"Strong coverage ({pds} PDs)")
-        elif pds > 5:
-            perf_bonus += 12000
-            perf_factors.append(f"Active in coverage ({pds} PDs)")
+            perf_factors.append(f"Forces incompletes ({total_forced} total)")
+        elif total_forced >= 14:
+            perf_bonus += 32000
+            perf_factors.append(f"Active hands ({total_forced} forced inc)")
 
-        # Tackles - important for run support (especially safeties)
+        # === TACKLING RELIABILITY ===
+        if missed_tackle_rate > 0:
+            if missed_tackle_rate >= 18:
+                perf_bonus -= 50000
+                perf_factors.append(f"⚠️ Tackling liability ({missed_tackle_rate:.0f}%)")
+            elif missed_tackle_rate >= 12:
+                perf_bonus -= 28000
+                perf_factors.append(f"⚠️ Missed tackle issues ({missed_tackle_rate:.0f}%)")
+            elif missed_tackle_rate < 6:
+                perf_bonus += 28000
+                perf_factors.append(f"Sure tackler ({missed_tackle_rate:.0f}% miss)")
+        elif missed_tackles > 12:
+            perf_bonus -= 35000
+            perf_factors.append(f"⚠️ Too many missed ({missed_tackles})")
+        elif missed_tackles > 8:
+            perf_bonus -= 18000
+            perf_factors.append(f"⚠️ Some missed tackles ({missed_tackles})")
+
+        # === TACKLE PRODUCTION (SAFETY PREMIUM) ===
         if position == "S":
-            if tackles > 80:
-                perf_bonus += 50000
+            if tackles >= 90:
+                perf_bonus += 65000
                 perf_factors.append(f"Box safety/enforcer ({tackles} tackles)")
-            elif tackles > 60:
-                perf_bonus += 30000
-                perf_factors.append(f"Run support ({tackles} tackles)")
-            elif tackles > 40:
-                perf_bonus += 15000
+            elif tackles >= 70:
+                perf_bonus += 42000
+                perf_factors.append(f"Strong run support ({tackles} tackles)")
+            elif tackles >= 50:
+                perf_bonus += 22000
                 perf_factors.append(f"Active in run game ({tackles} tackles)")
         else:  # CB
-            if tackles > 50:
-                perf_bonus += 30000
+            if tackles >= 60:
+                perf_bonus += 40000
                 perf_factors.append(f"Physical corner ({tackles} tackles)")
-            elif tackles > 35:
-                perf_bonus += 15000
+            elif tackles >= 45:
+                perf_bonus += 22000
                 perf_factors.append(f"Willing tackler ({tackles} tackles)")
 
-    # Kicker stats - comprehensive special teams evaluation
+        # === ALIGNMENT VERSATILITY ===
+        alignments_played = sum([1 for s in [slot_snaps, corner_snaps, fs_snaps] if s > 75])
+        if alignments_played >= 2:
+            perf_bonus += 35000
+            perf_factors.append(f"Versatile DB ({alignments_played} alignments)")
+
+        if slot_snaps > 200:
+            perf_bonus += 25000
+            perf_factors.append(f"Slot specialist ({slot_snaps} slot snaps)")
+
+        # === SNAP COUNT DURABILITY ===
+        if defensive_snaps >= 800:
+            perf_bonus += 30000
+            perf_factors.append(f"Ironman DB ({defensive_snaps} snaps)")
+        elif defensive_snaps >= 600:
+            perf_bonus += 18000
+            perf_factors.append(f"Every-down DB ({defensive_snaps} snaps)")
+
+    # Kicker stats - ELITE COMPREHENSIVE SPECIAL TEAMS EVALUATION
     elif position == "K":
+        # CFBD basic stats
         fg_made = player_data.get("fg_made", 0) or 0
         fg_att = player_data.get("fg_attempted", 0) or 0
         xp_made = player_data.get("xp_made", 0) or 0
         xp_att = player_data.get("xp_attempted", 0) or 0
         kicking_pts = player_data.get("kicking_points", 0) or 0
 
-        if fg_att > 0:
+        # PFF KICKER GRADES & ADVANCED METRICS
+        pff_kicker_grade = player_data.get("grades_fgep_kicker", 0) or 0
+        pff_kickoff_grade = player_data.get("grades_kickoff_kicker", 0) or 0
+        pff_total_made = player_data.get("total_made", 0) or 0
+        pff_total_pct = player_data.get("total_percent", 0) or 0
+        pff_fifty_pct = player_data.get("fifty_percent", 0) or 0
+        pff_forty_pct = player_data.get("forty_percent", 0) or 0
+        pff_thirty_pct = player_data.get("thirty_percent", 0) or 0
+        pff_pat_pct = player_data.get("pat_percent", 0) or 0
+        pff_avg_distance = player_data.get("average_distance", 0) or 0
+        pff_ko_touchbacks = player_data.get("touchbacks", 0) or 0
+
+        # ===================================================================
+        # MINIMUM SAMPLE THRESHOLDS - Critical for valid kicker evaluation
+        # ===================================================================
+        MIN_FG_ATTEMPTS = 10  # Minimum FG attempts for grades to be meaningful
+
+        # Use PFF total_made if available, fallback to CFBD fg_att
+        total_attempts = pff_total_made if pff_total_made > 0 else fg_att
+        has_valid_sample = total_attempts >= MIN_FG_ATTEMPTS
+
+        # Small sample warning
+        if pff_kicker_grade > 0 and not has_valid_sample:
+            perf_factors.append(f"⚠️ Limited sample ({total_attempts} FG att - need {MIN_FG_ATTEMPTS}+)")
+
+        # === PFF KICKER GRADE (PRIMARY EVALUATION) ===
+        if pff_kicker_grade > 0 and has_valid_sample:
+            if pff_kicker_grade >= 90:
+                perf_bonus += 125000
+                perf_factors.append(f"Elite PFF kicker ({pff_kicker_grade:.1f})")
+            elif pff_kicker_grade >= 80:
+                perf_bonus += 85000
+                perf_factors.append(f"Outstanding kicker ({pff_kicker_grade:.1f} PFF)")
+            elif pff_kicker_grade >= 70:
+                perf_bonus += 50000
+                perf_factors.append(f"Quality kicker ({pff_kicker_grade:.1f} PFF)")
+            elif pff_kicker_grade >= 60:
+                perf_bonus += 25000
+                perf_factors.append(f"Solid kicker ({pff_kicker_grade:.1f} PFF)")
+            elif pff_kicker_grade < 50:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Kicking concerns ({pff_kicker_grade:.1f} PFF)")
+
+        # === RANGE ACCURACY (50+ YARD SPECIALISTS) - only with valid sample ===
+        if has_valid_sample:
+            if pff_fifty_pct >= 80:
+                perf_bonus += 75000
+                perf_factors.append(f"Elite range (50+: {pff_fifty_pct:.0f}%)")
+            elif pff_fifty_pct >= 65:
+                perf_bonus += 45000
+                perf_factors.append(f"Strong range (50+: {pff_fifty_pct:.0f}%)")
+            elif pff_fifty_pct >= 50:
+                perf_bonus += 25000
+                perf_factors.append(f"Good from 50+ ({pff_fifty_pct:.0f}%)")
+            elif pff_fifty_pct > 0 and pff_fifty_pct < 35:
+                perf_bonus -= 15000
+                perf_factors.append(f"⚠️ Limited range (50+: {pff_fifty_pct:.0f}%)")
+
+            # === 40-49 YARD ACCURACY ===
+            if pff_forty_pct >= 90:
+                perf_bonus += 50000
+                perf_factors.append(f"Automatic 40-49 ({pff_forty_pct:.0f}%)")
+            elif pff_forty_pct >= 80:
+                perf_bonus += 30000
+                perf_factors.append(f"Reliable 40-49 ({pff_forty_pct:.0f}%)")
+            elif pff_forty_pct > 0 and pff_forty_pct < 65:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Shaky from 40-49 ({pff_forty_pct:.0f}%)")
+
+            # === 30-39 YARD ACCURACY (SHOULD BE AUTOMATIC) ===
+            if pff_thirty_pct >= 95:
+                perf_bonus += 25000
+                perf_factors.append(f"Automatic 30-39 ({pff_thirty_pct:.0f}%)")
+            elif pff_thirty_pct > 0 and pff_thirty_pct < 80:
+                perf_bonus -= 35000
+                perf_factors.append(f"⚠️ Misses chip shots ({pff_thirty_pct:.0f}% 30-39)")
+
+            # === PAT ACCURACY ===
+            if pff_pat_pct >= 99:
+                perf_bonus += 20000
+                perf_factors.append(f"Perfect PATs ({pff_pat_pct:.0f}%)")
+            elif pff_pat_pct > 0 and pff_pat_pct < 90:
+                perf_bonus -= 30000
+                perf_factors.append(f"⚠️ PAT concerns ({pff_pat_pct:.0f}%)")
+
+        # === PFF KICKOFF GRADE ===
+        if pff_kickoff_grade >= 85:
+            perf_bonus += 45000
+            perf_factors.append(f"Elite kickoffs ({pff_kickoff_grade:.1f} PFF)")
+        elif pff_kickoff_grade >= 75:
+            perf_bonus += 28000
+            perf_factors.append(f"Strong kickoffs ({pff_kickoff_grade:.1f} PFF)")
+        elif pff_kickoff_grade >= 65:
+            perf_bonus += 15000
+            perf_factors.append(f"Solid kickoffs ({pff_kickoff_grade:.1f} PFF)")
+        elif pff_kickoff_grade > 0 and pff_kickoff_grade < 50:
+            perf_bonus -= 15000
+            perf_factors.append(f"⚠️ Kickoff issues ({pff_kickoff_grade:.1f} PFF)")
+
+        # === FALLBACK: CFBD STATS (if no PFF data) ===
+        if pff_kicker_grade == 0 and fg_att > 0:
             fg_pct = fg_made / fg_att
-            # FG accuracy tiers
             if fg_pct > 0.90 and fg_made > 15:
                 perf_bonus += 75000
                 perf_factors.append(f"Elite accuracy ({fg_made}/{fg_att}, {fg_pct*100:.1f}%)")
@@ -1413,90 +1996,304 @@ def calculate_custom_nil_value(player_data: dict) -> tuple[float, dict]:
                 perf_bonus -= 15000
                 perf_factors.append(f"⚠️ Accuracy concerns ({fg_pct*100:.1f}%)")
 
-        # Volume scoring
-        if kicking_pts > 100:
+        # === VOLUME SCORING ===
+        if kicking_pts > 120:
+            perf_bonus += 45000
+            perf_factors.append(f"Go-to scorer ({kicking_pts} pts)")
+        elif kicking_pts > 100:
             perf_bonus += 30000
             perf_factors.append(f"High-volume scorer ({kicking_pts} pts)")
         elif kicking_pts > 70:
             perf_bonus += 15000
             perf_factors.append(f"Solid production ({kicking_pts} pts)")
 
-        # XP reliability
-        if xp_att > 30:
+        # === XP RELIABILITY (CFBD fallback) ===
+        if pff_pat_pct == 0 and xp_att > 30:
             xp_pct = xp_made / xp_att
             if xp_pct < 0.95:
                 perf_bonus -= 10000
                 perf_factors.append(f"⚠️ XP misses ({xp_made}/{xp_att})")
 
-    # Punter stats - comprehensive evaluation
+    # Punter stats - ELITE COMPREHENSIVE EVALUATION
     elif position == "P":
+        # CFBD basic stats
         punt_avg = player_data.get("punt_avg", 0) or 0
         punts = player_data.get("punts", 0) or 0
         punts_in_20 = player_data.get("punts_inside_20", 0) or 0
         touchbacks = player_data.get("touchbacks", 0) or 0
 
-        # Punt average (leg strength)
-        if punt_avg > 47:
-            perf_bonus += 45000
-            perf_factors.append(f"Cannon leg ({punt_avg:.1f} avg)")
-        elif punt_avg > 45:
-            perf_bonus += 30000
-            perf_factors.append(f"Strong leg ({punt_avg:.1f} avg)")
-        elif punt_avg > 42:
-            perf_bonus += 15000
-            perf_factors.append(f"Solid punting ({punt_avg:.1f} avg)")
+        # PFF PUNTER GRADES & ADVANCED METRICS
+        pff_punter_grade = player_data.get("grades_punter", 0) or 0
+        pff_avg_hangtime = player_data.get("average_hangtime", 0) or 0
+        pff_total_hangtime = player_data.get("total_hangtime", 0) or 0
+        pff_avg_net_yards = player_data.get("average_net_yards", 0) or 0
+        pff_total_net_yards = player_data.get("total_net_yards", 0) or 0
+        pff_inside_twenties = player_data.get("inside_twenties", 0) or 0
+        pff_punt_touchbacks = player_data.get("touchbacks", 0) or 0
+        pff_punt_returns = player_data.get("returns", 0) or 0
+        pff_return_yards = player_data.get("return_yards", 0) or 0
 
-        # Placement skill (inside 20)
-        if punts_in_20 > 25:
-            perf_bonus += 40000
-            perf_factors.append(f"Elite placement ({punts_in_20} inside 20)")
-        elif punts_in_20 > 20:
-            perf_bonus += 25000
-            perf_factors.append(f"Pin specialist ({punts_in_20} inside 20)")
-        elif punts_in_20 > 15:
-            perf_bonus += 12000
-            perf_factors.append(f"Good placement ({punts_in_20} inside 20)")
+        # ===================================================================
+        # MINIMUM SAMPLE THRESHOLDS - Critical for valid punter evaluation
+        # ===================================================================
+        MIN_PUNTS = 20  # Minimum punts for grades to be meaningful
 
-        # Touchback concerns (negative - kicking too far into end zone)
+        has_valid_sample = punts >= MIN_PUNTS
+
+        # Small sample warning
+        if pff_punter_grade > 0 and not has_valid_sample:
+            perf_factors.append(f"⚠️ Limited sample ({punts} punts - need {MIN_PUNTS}+)")
+
+        # === PFF PUNTER GRADE (PRIMARY EVALUATION) ===
+        if pff_punter_grade > 0 and has_valid_sample:
+            if pff_punter_grade >= 90:
+                perf_bonus += 100000
+                perf_factors.append(f"Elite PFF punter ({pff_punter_grade:.1f})")
+            elif pff_punter_grade >= 80:
+                perf_bonus += 65000
+                perf_factors.append(f"Outstanding punter ({pff_punter_grade:.1f} PFF)")
+            elif pff_punter_grade >= 70:
+                perf_bonus += 40000
+                perf_factors.append(f"Quality punter ({pff_punter_grade:.1f} PFF)")
+            elif pff_punter_grade >= 60:
+                perf_bonus += 20000
+                perf_factors.append(f"Solid punter ({pff_punter_grade:.1f} PFF)")
+            elif pff_punter_grade < 50:
+                perf_bonus -= 25000
+                perf_factors.append(f"⚠️ Punting concerns ({pff_punter_grade:.1f} PFF)")
+
+        # === HANGTIME (COVERAGE TEAM VALUE) - only with valid sample ===
+        if has_valid_sample:
+            if pff_avg_hangtime >= 4.6:
+                perf_bonus += 55000
+                perf_factors.append(f"Elite hangtime ({pff_avg_hangtime:.2f}s)")
+            elif pff_avg_hangtime >= 4.4:
+                perf_bonus += 35000
+                perf_factors.append(f"Strong hangtime ({pff_avg_hangtime:.2f}s)")
+            elif pff_avg_hangtime >= 4.2:
+                perf_bonus += 18000
+                perf_factors.append(f"Good hangtime ({pff_avg_hangtime:.2f}s)")
+            elif pff_avg_hangtime > 0 and pff_avg_hangtime < 4.0:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Low hangtime ({pff_avg_hangtime:.2f}s)")
+
+            # === NET PUNTING EFFICIENCY ===
+            if pff_avg_net_yards >= 44:
+                perf_bonus += 50000
+                perf_factors.append(f"Elite net punting ({pff_avg_net_yards:.1f} net)")
+            elif pff_avg_net_yards >= 42:
+                perf_bonus += 32000
+                perf_factors.append(f"Strong net punting ({pff_avg_net_yards:.1f} net)")
+            elif pff_avg_net_yards >= 40:
+                perf_bonus += 18000
+                perf_factors.append(f"Solid net punting ({pff_avg_net_yards:.1f} net)")
+            elif pff_avg_net_yards > 0 and pff_avg_net_yards < 37:
+                perf_bonus -= 20000
+                perf_factors.append(f"⚠️ Poor net ({pff_avg_net_yards:.1f} net)")
+
+            # === INSIDE-20 PLACEMENT (PFF DATA) ===
+            if pff_inside_twenties >= 30:
+                perf_bonus += 60000
+                perf_factors.append(f"Elite coffin corner ({pff_inside_twenties} inside 20)")
+            elif pff_inside_twenties >= 25:
+                perf_bonus += 40000
+                perf_factors.append(f"Pin master ({pff_inside_twenties} inside 20)")
+            elif pff_inside_twenties >= 20:
+                perf_bonus += 25000
+                perf_factors.append(f"Quality placement ({pff_inside_twenties} inside 20)")
+            elif pff_inside_twenties >= 15:
+                perf_bonus += 12000
+                perf_factors.append(f"Good placement ({pff_inside_twenties} inside 20)")
+
+            # === RETURN PREVENTION ===
+            if pff_punt_returns > 0 and pff_return_yards > 0:
+                avg_return = pff_return_yards / pff_punt_returns
+                if avg_return < 5:
+                    perf_bonus += 30000
+                    perf_factors.append(f"Return killer ({avg_return:.1f} yds/return)")
+                elif avg_return < 8:
+                    perf_bonus += 15000
+                    perf_factors.append(f"Good coverage punt ({avg_return:.1f} yds/return)")
+                elif avg_return > 15:
+                    perf_bonus -= 20000
+                    perf_factors.append(f"⚠️ Returnable punts ({avg_return:.1f} yds/return)")
+
+        # === FALLBACK: CFBD STATS (if no PFF data) ===
+        if pff_punter_grade == 0:
+            # Punt average (leg strength)
+            if punt_avg > 47:
+                perf_bonus += 45000
+                perf_factors.append(f"Cannon leg ({punt_avg:.1f} avg)")
+            elif punt_avg > 45:
+                perf_bonus += 30000
+                perf_factors.append(f"Strong leg ({punt_avg:.1f} avg)")
+            elif punt_avg > 42:
+                perf_bonus += 15000
+                perf_factors.append(f"Solid punting ({punt_avg:.1f} avg)")
+
+            # CFBD placement
+            if punts_in_20 > 25:
+                perf_bonus += 40000
+                perf_factors.append(f"Elite placement ({punts_in_20} inside 20)")
+            elif punts_in_20 > 20:
+                perf_bonus += 25000
+                perf_factors.append(f"Pin specialist ({punts_in_20} inside 20)")
+            elif punts_in_20 > 15:
+                perf_bonus += 12000
+                perf_factors.append(f"Good placement ({punts_in_20} inside 20)")
+
+        # === TOUCHBACK CONCERNS (applies to both) ===
         if punts > 30 and touchbacks > 10:
             tb_rate = touchbacks / punts
             if tb_rate > 0.20:
                 perf_bonus -= 15000
                 perf_factors.append(f"⚠️ Too many TBs ({touchbacks} touchbacks)")
 
-    # Check for return ability (applies to any position - adds value)
+    # ==========================================================================
+    # RETURN SPECIALIST - ELITE COMPREHENSIVE EVALUATION
+    # (Applies to any position - special teams value adds to NIL)
+    # ==========================================================================
+
+    # CFBD basic return stats
     kr_yds = player_data.get("kick_return_yards", 0) or 0
     kr_tds = player_data.get("kick_return_tds", 0) or 0
     pr_yds = player_data.get("punt_return_yards", 0) or 0
     pr_tds = player_data.get("punt_return_tds", 0) or 0
 
-    # Kick return value
-    if kr_yds > 500:
-        perf_bonus += 40000
-        perf_factors.append(f"Dynamic KR ({kr_yds:,} KR yds)")
-    elif kr_yds > 300:
-        perf_bonus += 20000
-        perf_factors.append(f"Productive KR ({kr_yds:,} KR yds)")
-    if kr_tds > 1:
-        perf_bonus += 30000 * kr_tds
-        perf_factors.append(f"KR TD threat ({kr_tds} KR TDs)")
-    elif kr_tds > 0:
-        perf_bonus += 20000
-        perf_factors.append(f"KR scoring ability ({kr_tds} KR TD)")
+    # PFF RETURN GRADES & ADVANCED METRICS
+    pff_kr_grade = player_data.get("grades_kick_return", 0) or 0
+    pff_pr_grade = player_data.get("grades_punt_return", 0) or 0
+    pff_return_grade = player_data.get("grades_return", 0) or 0
+    pff_kickoff_yds = player_data.get("kickoff_yards", 0) or 0
+    pff_kickoff_tds = player_data.get("kickoff_touchdowns", 0) or 0
+    pff_kickoff_long = player_data.get("kickoff_long", 0) or 0
+    pff_kickoff_ypa = player_data.get("kickoff_ypa", 0) or 0
+    pff_punt_yds = player_data.get("punt_yards", 0) or 0
+    pff_punt_tds = player_data.get("punt_touchdowns", 0) or 0
+    pff_punt_long = player_data.get("punt_long", 0) or 0
+    pff_punt_ypa = player_data.get("punt_ypa", 0) or 0
 
-    # Punt return value
-    if pr_yds > 300:
+    # === PFF KICK RETURN GRADE ===
+    if pff_kr_grade >= 90:
+        perf_bonus += 100000
+        perf_factors.append(f"Elite KR specialist ({pff_kr_grade:.1f} PFF)")
+    elif pff_kr_grade >= 80:
+        perf_bonus += 65000
+        perf_factors.append(f"Outstanding returner ({pff_kr_grade:.1f} KR PFF)")
+    elif pff_kr_grade >= 70:
+        perf_bonus += 40000
+        perf_factors.append(f"Quality KR ({pff_kr_grade:.1f} PFF)")
+    elif pff_kr_grade >= 60:
+        perf_bonus += 22000
+        perf_factors.append(f"Solid KR ability ({pff_kr_grade:.1f} PFF)")
+
+    # === PFF PUNT RETURN GRADE ===
+    if pff_pr_grade >= 90:
+        perf_bonus += 90000
+        perf_factors.append(f"Elite PR specialist ({pff_pr_grade:.1f} PFF)")
+    elif pff_pr_grade >= 80:
+        perf_bonus += 55000
+        perf_factors.append(f"Outstanding PR ({pff_pr_grade:.1f} PFF)")
+    elif pff_pr_grade >= 70:
         perf_bonus += 35000
-        perf_factors.append(f"Dynamic PR ({pr_yds:,} PR yds)")
-    elif pr_yds > 200:
+        perf_factors.append(f"Quality PR ({pff_pr_grade:.1f} PFF)")
+    elif pff_pr_grade >= 60:
         perf_bonus += 18000
-        perf_factors.append(f"Productive PR ({pr_yds:,} PR yds)")
-    if pr_tds > 1:
-        perf_bonus += 35000 * pr_tds
-        perf_factors.append(f"PR TD threat ({pr_tds} PR TDs)")
-    elif pr_tds > 0:
+        perf_factors.append(f"Solid PR ability ({pff_pr_grade:.1f} PFF)")
+
+    # === KICK RETURN YARDS PER ATTEMPT (EFFICIENCY) ===
+    if pff_kickoff_ypa >= 30:
+        perf_bonus += 60000
+        perf_factors.append(f"Explosive KR ({pff_kickoff_ypa:.1f} yds/ret)")
+    elif pff_kickoff_ypa >= 26:
+        perf_bonus += 38000
+        perf_factors.append(f"Dynamic KR ({pff_kickoff_ypa:.1f} yds/ret)")
+    elif pff_kickoff_ypa >= 23:
+        perf_bonus += 20000
+        perf_factors.append(f"Good KR average ({pff_kickoff_ypa:.1f} yds/ret)")
+    elif pff_kickoff_ypa > 0 and pff_kickoff_ypa < 18:
+        perf_bonus -= 15000
+        perf_factors.append(f"⚠️ Below avg KR ({pff_kickoff_ypa:.1f} yds/ret)")
+
+    # === PUNT RETURN YARDS PER ATTEMPT (EFFICIENCY) ===
+    if pff_punt_ypa >= 15:
+        perf_bonus += 55000
+        perf_factors.append(f"Explosive PR ({pff_punt_ypa:.1f} yds/ret)")
+    elif pff_punt_ypa >= 12:
+        perf_bonus += 35000
+        perf_factors.append(f"Dynamic PR ({pff_punt_ypa:.1f} yds/ret)")
+    elif pff_punt_ypa >= 9:
+        perf_bonus += 18000
+        perf_factors.append(f"Good PR average ({pff_punt_ypa:.1f} yds/ret)")
+    elif pff_punt_ypa > 0 and pff_punt_ypa < 6:
+        perf_bonus -= 12000
+        perf_factors.append(f"⚠️ Below avg PR ({pff_punt_ypa:.1f} yds/ret)")
+
+    # === BIG PLAY ABILITY (LONG RETURNS) ===
+    if pff_kickoff_long >= 90:
+        perf_bonus += 45000
+        perf_factors.append(f"House call threat ({pff_kickoff_long} KR long)")
+    elif pff_kickoff_long >= 70:
+        perf_bonus += 28000
+        perf_factors.append(f"Big play KR ({pff_kickoff_long} long)")
+    elif pff_kickoff_long >= 50:
+        perf_bonus += 15000
+        perf_factors.append(f"Explosive runs ({pff_kickoff_long} KR long)")
+
+    if pff_punt_long >= 75:
+        perf_bonus += 40000
+        perf_factors.append(f"House call threat ({pff_punt_long} PR long)")
+    elif pff_punt_long >= 55:
         perf_bonus += 25000
-        perf_factors.append(f"PR scoring ability ({pr_tds} PR TD)")
+        perf_factors.append(f"Big play PR ({pff_punt_long} long)")
+    elif pff_punt_long >= 40:
+        perf_bonus += 12000
+        perf_factors.append(f"Can break one ({pff_punt_long} PR long)")
+
+    # === PFF TOUCHDOWN PRODUCTION ===
+    if pff_kickoff_tds >= 2:
+        perf_bonus += 80000
+        perf_factors.append(f"KR TD machine ({pff_kickoff_tds} KR TDs)")
+    elif pff_kickoff_tds == 1:
+        perf_bonus += 35000
+        perf_factors.append(f"KR touchdown ({pff_kickoff_tds} KR TD)")
+
+    if pff_punt_tds >= 2:
+        perf_bonus += 75000
+        perf_factors.append(f"PR TD machine ({pff_punt_tds} PR TDs)")
+    elif pff_punt_tds == 1:
+        perf_bonus += 32000
+        perf_factors.append(f"PR touchdown ({pff_punt_tds} PR TD)")
+
+    # === FALLBACK: CFBD STATS (if no PFF data) ===
+    if pff_kr_grade == 0 and pff_pr_grade == 0:
+        # Kick return value (CFBD)
+        if kr_yds > 500:
+            perf_bonus += 40000
+            perf_factors.append(f"Dynamic KR ({kr_yds:,} KR yds)")
+        elif kr_yds > 300:
+            perf_bonus += 20000
+            perf_factors.append(f"Productive KR ({kr_yds:,} KR yds)")
+        if kr_tds > 1:
+            perf_bonus += 30000 * kr_tds
+            perf_factors.append(f"KR TD threat ({kr_tds} KR TDs)")
+        elif kr_tds > 0:
+            perf_bonus += 20000
+            perf_factors.append(f"KR scoring ability ({kr_tds} KR TD)")
+
+        # Punt return value (CFBD)
+        if pr_yds > 300:
+            perf_bonus += 35000
+            perf_factors.append(f"Dynamic PR ({pr_yds:,} PR yds)")
+        elif pr_yds > 200:
+            perf_bonus += 18000
+            perf_factors.append(f"Productive PR ({pr_yds:,} PR yds)")
+        if pr_tds > 1:
+            perf_bonus += 35000 * pr_tds
+            perf_factors.append(f"PR TD threat ({pr_tds} PR TDs)")
+        elif pr_tds > 0:
+            perf_bonus += 25000
+            perf_factors.append(f"PR scoring ability ({pr_tds} PR TD)")
 
     # ==========================================================================
     # NEGATIVE METRICS - Critical for accurate GM-style evaluation
