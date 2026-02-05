@@ -23,12 +23,23 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
+    console.log("Attempting login with:", email);
+    console.log("PocketBase URL:", process.env.NEXT_PUBLIC_POCKETBASE_URL || "NOT SET - using localhost:8090");
+
     try {
       await login(email, password);
+      console.log("Login successful, redirecting...");
       router.push("/dashboard");
-    } catch (err) {
-      setError("Invalid email or password. Please try again.");
+    } catch (err: unknown) {
       console.error("Login error:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
+        setError("Cannot connect to authentication server. Please check your connection.");
+      } else if (errorMessage.includes("Invalid") || errorMessage.includes("credentials")) {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        setError(`Login failed: ${errorMessage}`);
+      }
     } finally {
       setIsLoading(false);
     }

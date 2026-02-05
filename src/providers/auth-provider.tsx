@@ -72,10 +72,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 // Auth utility functions
 export async function login(email: string, password: string) {
-  const authData = await pb
-    .collection("users")
-    .authWithPassword(email, password);
-  return authData;
+  console.log("auth-provider: Attempting PocketBase login...");
+  try {
+    const authData = await pb
+      .collection("users")
+      .authWithPassword(email, password);
+    console.log("auth-provider: Login successful!", authData.record?.email);
+    return authData;
+  } catch (error) {
+    console.error("auth-provider: Login failed:", error);
+    throw error;
+  }
 }
 
 export async function register(
