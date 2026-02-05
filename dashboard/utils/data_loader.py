@@ -1,7 +1,12 @@
 """Data loading utilities for Portal IQ Dashboard.
 
 Loads real data from On3 scraped files and CFBD stats.
-Supports PocketBase for cloud data with CSV fallback.
+Supports S3/R2 cloud storage, PocketBase, and local CSV fallback.
+
+Priority order:
+1. S3/R2 storage (Cloudflare R2) - primary for production
+2. PocketBase - for real-time data and auth
+3. Local CSV files - fallback for development
 """
 
 from datetime import datetime
@@ -16,14 +21,19 @@ from utils.logging_config import get_logger, log_data_operation, log_error
 
 logger = get_logger(__name__)
 
+# S3/R2 storage client
+from utils.s3_storage import (
+    load_csv_with_fallback,
+    load_data as s3_load_data,
+    is_s3_configured,
+)
+
 # PocketBase client for cloud data
 from utils.pocketbase_client import (
     get_pff_grades as pb_get_pff_grades,
     get_all_pff_grades as pb_get_all_pff_grades,
     is_pocketbase_connected
 )
-
-logger = logging.getLogger(__name__)
 
 # Data directory paths - try multiple possible locations
 def _find_data_dir():
@@ -54,6 +64,25 @@ def _get_data_path(filename: str) -> Path:
     return DATA_DIR / filename
 
 
+def _load_csv(filename: str, **kwargs) -> pd.DataFrame:
+    """Load CSV from S3 or local storage with fallback.
+
+    This is the primary way to load data files.
+    Tries S3/R2 first, then falls back to local files.
+
+    Args:
+        filename: CSV filename (e.g., "portal_nil_valuations.csv")
+        **kwargs: Additional arguments for pd.read_csv
+
+    Returns:
+        DataFrame
+    """
+    s3_key = f"processed/{filename}"
+    local_path = _get_data_path(filename)
+
+    return load_csv_with_fallback(s3_key, local_path, cache_hours=1, **kwargs)
+
+
 def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
     """Merge headshot_url from multiple sources with fallback chain.
 
@@ -76,51 +105,45 @@ def _merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
     all_headshots = {}
 
     # Source 1: On3 Transfer Portal (highest priority for portal players)
-    portal_path = _get_data_path("on3_transfer_portal.csv")
-    if portal_path.exists():
-        try:
-            source_df = pd.read_csv(portal_path)
-            if "headshot_url" in source_df.columns and "name" in source_df.columns:
-                for _, row in source_df.iterrows():
-                    name = row.get("name")
-                    url = row.get("headshot_url")
-                    if name and pd.notna(url) and str(url).startswith("http"):
-                        all_headshots[name] = url
-            log_data_operation("load_headshots", f"portal: {len(all_headshots)} headshots")
-        except Exception as e:
-            log_error(e, "Failed to load headshots from portal data")
+    try:
+        source_df = _load_csv("on3_transfer_portal.csv")
+        if not source_df.empty and "headshot_url" in source_df.columns and "name" in source_df.columns:
+            for _, row in source_df.iterrows():
+                name = row.get("name")
+                url = row.get("headshot_url")
+                if name and pd.notna(url) and str(url).startswith("http"):
+                    all_headshots[name] = url
+        log_data_operation("load_headshots", f"portal: {len(all_headshots)} headshots")
+    except Exception as e:
+        log_error(e, "Failed to load headshots from portal data")
 
     # Source 2: On3 NIL Rankings (backup)
-    nil_path = _get_data_path("on3_all_nil_rankings.csv")
-    if nil_path.exists():
-        try:
-            source_df = pd.read_csv(nil_path)
-            if "headshot_url" in source_df.columns and "name" in source_df.columns:
-                count_before = len(all_headshots)
-                for _, row in source_df.iterrows():
-                    name = row.get("name")
-                    url = row.get("headshot_url")
-                    if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
-                        all_headshots[name] = url
-                log_data_operation("load_headshots", f"nil: +{len(all_headshots) - count_before} headshots")
-        except Exception as e:
-            log_error(e, "Failed to load headshots from NIL rankings")
+    try:
+        source_df = _load_csv("on3_all_nil_rankings.csv")
+        if not source_df.empty and "headshot_url" in source_df.columns and "name" in source_df.columns:
+            count_before = len(all_headshots)
+            for _, row in source_df.iterrows():
+                name = row.get("name")
+                url = row.get("headshot_url")
+                if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
+                    all_headshots[name] = url
+            log_data_operation("load_headshots", f"nil: +{len(all_headshots) - count_before} headshots")
+    except Exception as e:
+        log_error(e, "Failed to load headshots from NIL rankings")
 
     # Source 3: ESPN Rosters (fills remaining gaps)
-    espn_path = DATA_DIR / "espn_rosters.csv"
-    if espn_path.exists():
-        try:
-            espn_df = pd.read_csv(espn_path)
-            if "headshot_url" in espn_df.columns and "name" in espn_df.columns:
-                count_before = len(all_headshots)
-                for _, row in espn_df.iterrows():
-                    name = row.get("name")
-                    url = row.get("headshot_url")
-                    if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
-                        all_headshots[name] = url
-                log_data_operation("load_headshots", f"espn: +{len(all_headshots) - count_before} headshots")
-        except Exception as e:
-            log_error(e, "Failed to load headshots from ESPN rosters")
+    try:
+        espn_df = _load_csv("espn_rosters.csv")
+        if not espn_df.empty and "headshot_url" in espn_df.columns and "name" in espn_df.columns:
+            count_before = len(all_headshots)
+            for _, row in espn_df.iterrows():
+                name = row.get("name")
+                url = row.get("headshot_url")
+                if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
+                    all_headshots[name] = url
+            log_data_operation("load_headshots", f"espn: +{len(all_headshots) - count_before} headshots")
+    except Exception as e:
+        log_error(e, "Failed to load headshots from ESPN rosters")
 
     # Create headshot lookup DataFrame and merge
     if all_headshots:
@@ -152,10 +175,9 @@ def _merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
     all_measurables = {}
 
     # Source 1: CFBD Rosters (primary - most comprehensive)
-    cfbd_path = _get_data_path("cfbd_rosters.csv")
-    if cfbd_path.exists():
-        try:
-            cfbd_df = pd.read_csv(cfbd_path)
+    try:
+        cfbd_df = _load_csv("cfbd_rosters.csv")
+        if not cfbd_df.empty:
             # CFBD uses player_name column
             name_col = "player_name" if "player_name" in cfbd_df.columns else "name" if "name" in cfbd_df.columns else None
             if name_col and "height" in cfbd_df.columns and "weight" in cfbd_df.columns:
@@ -171,35 +193,33 @@ def _merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
                         except (ValueError, TypeError):
                             logger.debug(f"Invalid measurables for {name}: height={height}, weight={weight}")
             log_data_operation("load_measurables", f"cfbd: {len(all_measurables)} players")
-        except Exception as e:
-            log_error(e, "Failed to load measurables from CFBD rosters")
+    except Exception as e:
+        log_error(e, "Failed to load measurables from CFBD rosters")
 
     # Source 2: ESPN Rosters (fallback)
-    espn_path = DATA_DIR / "espn_rosters.csv"
-    if espn_path.exists():
-        try:
-            espn_df = pd.read_csv(espn_path)
-            if "name" in espn_df.columns and "height" in espn_df.columns and "weight" in espn_df.columns:
-                count_before = len(all_measurables)
-                for _, row in espn_df.iterrows():
-                    name = row.get("name")
-                    if name and name not in all_measurables:
-                        height = row.get("height")
-                        weight = row.get("weight")
-                        # ESPN height is like "6' 2\"" - convert to inches
-                        if pd.notna(height) and isinstance(height, str) and "'" in height:
-                            try:
-                                parts = height.replace('"', '').split("'")
-                                feet = int(parts[0].strip())
-                                inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
-                                height = feet * 12 + inches
-                            except (ValueError, IndexError):
-                                height = None
-                        if pd.notna(height) and pd.notna(weight):
-                            all_measurables[name] = {"height": height, "weight": weight}
-                log_data_operation("load_measurables", f"espn: +{len(all_measurables) - count_before} players")
-        except Exception as e:
-            log_error(e, "Failed to load measurables from ESPN rosters")
+    try:
+        espn_df = _load_csv("espn_rosters.csv")
+        if not espn_df.empty and "name" in espn_df.columns and "height" in espn_df.columns and "weight" in espn_df.columns:
+            count_before = len(all_measurables)
+            for _, row in espn_df.iterrows():
+                name = row.get("name")
+                if name and name not in all_measurables:
+                    height = row.get("height")
+                    weight = row.get("weight")
+                    # ESPN height is like "6' 2\"" - convert to inches
+                    if pd.notna(height) and isinstance(height, str) and "'" in height:
+                        try:
+                            parts = height.replace('"', '').split("'")
+                            feet = int(parts[0].strip())
+                            inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
+                            height = feet * 12 + inches
+                        except (ValueError, IndexError):
+                            height = None
+                    if pd.notna(height) and pd.notna(weight):
+                        all_measurables[name] = {"height": height, "weight": weight}
+            log_data_operation("load_measurables", f"espn: +{len(all_measurables) - count_before} players")
+    except Exception as e:
+        log_error(e, "Failed to load measurables from ESPN rosters")
 
     # Merge measurables
     if all_measurables:
@@ -245,9 +265,8 @@ def get_database_stats() -> Dict[str, Any]:
     }
 
     # Load NIL valuations (proprietary model predictions + actual values)
-    valuations_path = _get_data_path("portal_nil_valuations.csv")
-    if valuations_path.exists():
-        df = pd.read_csv(valuations_path)
+    df = _load_csv("portal_nil_valuations.csv")
+    if not df.empty:
         stats["nil_valuations"] = len(df)
         stats["total_players"] = len(df["name"].unique())
         # Count actual vs predicted
@@ -256,16 +275,14 @@ def get_database_stats() -> Dict[str, Any]:
         stats["predicted_nil_values"] = len(df) - int(actual_count)
     else:
         # Fallback to On3 NIL rankings
-        nil_path = _get_data_path("on3_all_nil_rankings.csv")
-        if nil_path.exists():
-            df = pd.read_csv(nil_path)
+        df = _load_csv("on3_all_nil_rankings.csv")
+        if not df.empty:
             stats["nil_valuations"] = len(df)
             stats["total_players"] = len(df["name"].unique())
 
     # Load portal data
-    portal_path = _get_data_path("on3_transfer_portal.csv")
-    if portal_path.exists():
-        df = pd.read_csv(portal_path)
+    df = _load_csv("on3_transfer_portal.csv")
+    if not df.empty:
         stats["portal_players"] = len(df)
         # Count entries in last 24 hours (approximate)
         if "commit_date" in df.columns:
@@ -273,9 +290,8 @@ def get_database_stats() -> Dict[str, Any]:
             stats["new_portal_today"] = len(df[df["commit_date"].str.startswith(today, na=False)])
 
     # Count unique schools
-    team_path = _get_data_path("on3_team_portal_rankings.csv")
-    if team_path.exists():
-        df = pd.read_csv(team_path)
+    df = _load_csv("on3_team_portal_rankings.csv")
+    if not df.empty and "team" in df.columns:
         stats["schools"] = len(df["team"].unique())
 
     return stats
@@ -305,11 +321,9 @@ def load_sample_data(data_type: str) -> pd.DataFrame:
 def get_nil_players() -> pd.DataFrame:
     """Get NIL player data with proprietary valuations AND performance stats."""
     # Try proprietary valuations first
-    valuations_path = _get_data_path("portal_nil_valuations.csv")
+    df = _load_csv("portal_nil_valuations.csv")
 
-    if valuations_path.exists():
-        df = pd.read_csv(valuations_path)
-
+    if not df.empty:
         # Standardize column names for compatibility
         df = df.rename(columns={
             "nil_value_predicted": "nil_value",
@@ -326,13 +340,11 @@ def get_nil_players() -> pd.DataFrame:
         )
     else:
         # Fallback to On3 NIL rankings
-        nil_path = _get_data_path("on3_all_nil_rankings.csv")
+        df = _load_csv("on3_all_nil_rankings.csv")
 
-        if not nil_path.exists():
+        if df.empty:
             st.warning("NIL data not found. Run the valuation model first.")
             return pd.DataFrame()
-
-        df = pd.read_csv(nil_path)
 
         # Standardize column names
         df = df.rename(columns={
@@ -419,14 +431,10 @@ def get_nil_players() -> pd.DataFrame:
 
 def get_manual_player_stats() -> pd.DataFrame:
     """Load manually entered stats (PFF grades, pressures, etc.)."""
-    manual_path = DATA_DIR / "manual_player_stats.csv"
-
-    if not manual_path.exists():
-        return pd.DataFrame()
-
     try:
-        df = pd.read_csv(manual_path)
-        log_data_operation("load_manual_stats", f"{len(df)} records loaded")
+        df = _load_csv("manual_player_stats.csv")
+        if not df.empty:
+            log_data_operation("load_manual_stats", f"{len(df)} records loaded")
         return df
     except Exception as e:
         log_error(e, "Failed to load manual player stats")
@@ -461,14 +469,11 @@ def get_pff_grades(season: int = None, most_recent: bool = True) -> pd.DataFrame
         except Exception as e:
             logger.warning(f"PocketBase PFF load failed, falling back to CSV: {e}")
 
-    # Fallback to CSV
-    pff_path = DATA_DIR / "pff_player_grades.csv"
-
-    if not pff_path.exists():
-        return pd.DataFrame()
-
+    # Fallback to S3/local CSV
     try:
-        df = pd.read_csv(pff_path)
+        df = _load_csv("pff_player_grades.csv")
+        if df.empty:
+            return pd.DataFrame()
 
         # Standardize column names for merging
         if "player_name" in df.columns:
@@ -704,14 +709,11 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
     Returns:
         DataFrame with portal players and NIL estimates
     """
-    portal_path = _get_data_path("on3_transfer_portal.csv")
-    valuations_path = _get_data_path("portal_nil_valuations.csv")
+    df = _load_csv("on3_transfer_portal.csv")
 
-    if not portal_path.exists():
+    if df.empty:
         st.warning("Portal data not found. Run the On3 scraper first.")
         return pd.DataFrame()
-
-    df = pd.read_csv(portal_path)
 
     # DEDUPLICATE: Remove duplicate players (keep first occurrence, prioritize committed)
     # Sort so committed players come first, then by name
@@ -768,8 +770,10 @@ def get_portal_players(year: int = 2026, status: str = None, enrich_nil: bool = 
         try:
             from utils.nil_estimator import enrich_portal_data
 
-            # Load existing valuations for lookup
-            valuations_df = pd.read_csv(valuations_path) if valuations_path.exists() else None
+            # Load existing valuations for lookup (from S3 or local)
+            valuations_df = _load_csv("portal_nil_valuations.csv")
+            if valuations_df.empty:
+                valuations_df = None
 
             df = enrich_portal_data(df, valuations_df)
 
@@ -911,13 +915,11 @@ def get_team_rankings(year: int = 2026) -> pd.DataFrame:
     Args:
         year: Filter by year
     """
-    team_path = _get_data_path("on3_team_portal_rankings.csv")
+    df = _load_csv("on3_team_portal_rankings.csv")
 
-    if not team_path.exists():
+    if df.empty:
         st.warning("Team rankings not found. Run the On3 scraper first.")
         return pd.DataFrame()
-
-    df = pd.read_csv(team_path)
 
     # Filter by year if specified
     if year and "year" in df.columns:
@@ -1074,20 +1076,10 @@ def get_portal_statuses() -> List[str]:
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_cfbd_rosters() -> pd.DataFrame:
     """Load CFBD roster data with measurables (height, weight)."""
-    roster_path = _get_data_path("cfbd_rosters.csv")
+    df = _load_csv("cfbd_rosters.csv")
 
-    if not roster_path.exists():
-        # Try dated version
-        import glob
-        pattern = str(DATA_DIR / "cfbd_rosters_*.csv")
-        files = glob.glob(pattern)
-        if files:
-            roster_path = Path(sorted(files)[-1])  # Most recent
-
-    if not roster_path.exists():
+    if df.empty:
         return pd.DataFrame()
-
-    df = pd.read_csv(roster_path)
 
     # Ensure height/weight are numeric
     if "height" in df.columns:
@@ -1101,20 +1093,10 @@ def get_cfbd_rosters() -> pd.DataFrame:
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_cfbd_player_stats() -> pd.DataFrame:
     """Load CFBD player stats data."""
-    stats_path = _get_data_path("cfbd_player_stats.csv")
+    df = _load_csv("cfbd_player_stats.csv")
 
-    if not stats_path.exists():
-        # Try dated version
-        import glob
-        pattern = str(DATA_DIR / "cfbd_player_stats_*.csv")
-        files = glob.glob(pattern)
-        if files:
-            stats_path = Path(sorted(files)[-1])  # Most recent
-
-    if not stats_path.exists():
+    if df.empty:
         return pd.DataFrame()
-
-    df = pd.read_csv(stats_path)
 
     # Rename columns to match expected format in nil_valuator
     column_renames = {
@@ -1530,3 +1512,414 @@ WEIGHT_PRESETS = {
     "CB": {"min": 175, "max": 210, "label": "175-210 lbs"},
     "S": {"min": 190, "ideal_min": 205, "label": "190+ lbs (ideal 205+)"},
 }
+
+
+# =============================================================================
+# Detailed PFF Stats (from S3)
+# =============================================================================
+
+def _load_pff_stat(category: str, stat_type: str, season: int = 2025, **kwargs) -> pd.DataFrame:
+    """Load a specific PFF stat file from S3.
+
+    Args:
+        category: Category folder (passing, rushing, receiving, defense, pass_rush, blocking, special)
+        stat_type: Stat file name without year prefix (e.g., "passing_summary")
+        season: Year to load (2023, 2024, or 2025)
+        **kwargs: Additional args for pd.read_csv
+
+    Returns:
+        DataFrame with the stats
+    """
+    filename = f"{season}_{stat_type}.csv"
+    s3_key = f"pff/{category}/{filename}"
+
+    try:
+        df = load_csv_with_fallback(s3_key, None, cache_hours=1, **kwargs)
+        if not df.empty:
+            df["season"] = season
+            log_data_operation("load_pff_stat", f"{category}/{stat_type} ({season}): {len(df)} rows")
+        return df
+    except Exception as e:
+        log_error(e, f"Failed to load PFF stat: {s3_key}")
+        return pd.DataFrame()
+
+
+def _load_pff_stat_multi_season(
+    category: str,
+    stat_type: str,
+    seasons: List[int] = None,
+    **kwargs
+) -> pd.DataFrame:
+    """Load a PFF stat file across multiple seasons.
+
+    Args:
+        category: Category folder
+        stat_type: Stat file name without year prefix
+        seasons: List of years to load (default: [2023, 2024, 2025])
+
+    Returns:
+        Combined DataFrame with season column
+    """
+    if seasons is None:
+        seasons = [2023, 2024, 2025]
+
+    dfs = []
+    for season in seasons:
+        df = _load_pff_stat(category, stat_type, season, **kwargs)
+        if not df.empty:
+            dfs.append(df)
+
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600)
+def get_pff_passing_stats(season: int = 2025) -> pd.DataFrame:
+    """Get detailed QB passing stats from PFF.
+
+    Includes: completion %, yards, TDs, INTs, passer rating, pressure stats
+    """
+    df = _load_pff_stat("passing", "passing_summary", season)
+
+    # Standardize player name column
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_rushing_stats(season: int = 2025) -> pd.DataFrame:
+    """Get detailed RB rushing stats from PFF.
+
+    Includes: yards, YPC, TDs, broken tackles, yards after contact
+    """
+    df = _load_pff_stat("rushing", "rushing_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_elusive_rating(season: int = 2025) -> pd.DataFrame:
+    """Get RB elusive rating and breakaway stats from PFF.
+
+    Includes: elusive rating, missed tackles forced, breakaway %
+    """
+    # Load both elusive and breakaway summaries
+    elusive_df = _load_pff_stat("rushing", "elusive_summary", season)
+    breakaway_df = _load_pff_stat("rushing", "breakaway_summary", season)
+
+    if elusive_df.empty:
+        return breakaway_df
+
+    # Merge if we have both
+    if not breakaway_df.empty:
+        # Find common key column
+        key_col = "player" if "player" in elusive_df.columns else "name"
+        if key_col in breakaway_df.columns:
+            # Avoid duplicate columns
+            breakaway_cols = [c for c in breakaway_df.columns if c not in elusive_df.columns or c == key_col]
+            elusive_df = elusive_df.merge(
+                breakaway_df[breakaway_cols],
+                on=key_col,
+                how="left"
+            )
+
+    if "player" in elusive_df.columns and "name" not in elusive_df.columns:
+        elusive_df = elusive_df.rename(columns={"player": "name"})
+
+    return elusive_df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_receiving_stats(season: int = 2025) -> pd.DataFrame:
+    """Get detailed WR/TE receiving stats from PFF.
+
+    Includes: targets, receptions, yards, TDs, yards per route run
+    """
+    df = _load_pff_stat("receiving", "receiving_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_drop_stats(season: int = 2025) -> pd.DataFrame:
+    """Get WR/TE drop stats from PFF.
+
+    Includes: drops, drop rate, contested catches
+    """
+    df = _load_pff_stat("receiving", "drop_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_defense_stats(season: int = 2025) -> pd.DataFrame:
+    """Get overall defensive stats from PFF.
+
+    Includes: tackles, sacks, INTs, PBUs, defensive grade
+    """
+    df = _load_pff_stat("defense", "defense_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_coverage_stats(season: int = 2025) -> pd.DataFrame:
+    """Get defensive coverage stats from PFF.
+
+    Includes: targets allowed, completions allowed, passer rating allowed
+    """
+    df = _load_pff_stat("defense", "defense_coverage_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_run_defense_stats(season: int = 2025) -> pd.DataFrame:
+    """Get run defense stats from PFF.
+
+    Includes: run stops, tackle %, missed tackles
+    """
+    df = _load_pff_stat("defense", "run_defense_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_pass_rush_stats(season: int = 2025) -> pd.DataFrame:
+    """Get pass rush stats from PFF.
+
+    Includes: pressures, sacks, hurries, pass rush grade, win rate
+    """
+    df = _load_pff_stat("pass_rush", "pass_rush_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_pass_rush_productivity(season: int = 2025) -> pd.DataFrame:
+    """Get pass rush productivity (PRP) from PFF.
+
+    PRP = ((sacks * 1.25) + (hits * 1) + (hurries * 0.75)) / pass rushes
+    """
+    df = _load_pff_stat("pass_rush", "pass_rush_productivity", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_blocking_stats(season: int = 2025) -> pd.DataFrame:
+    """Get O-line blocking stats from PFF.
+
+    Includes: pass block grade, run block grade, pressures allowed
+    """
+    df = _load_pff_stat("blocking", "offense_blocking", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_pass_blocking_efficiency(season: int = 2025) -> pd.DataFrame:
+    """Get team pass blocking efficiency from PFF.
+
+    Includes: sacks allowed, pressures allowed, PBE score
+    """
+    df = _load_pff_stat("blocking", "line_pass_blocking_efficiency", season)
+
+    if "team" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"team": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_special_teams_stats(season: int = 2025) -> pd.DataFrame:
+    """Get special teams stats from PFF.
+
+    Includes: kick/punt return grades, coverage grades
+    """
+    df = _load_pff_stat("special", "special_teams_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def get_pff_kicking_stats(season: int = 2025) -> pd.DataFrame:
+    """Get kicker stats from PFF.
+
+    Includes: FG %, kickoff touchback %, punting averages
+    """
+    # Load all kicking-related stats
+    fg_df = _load_pff_stat("special", "field_goal_summary", season)
+    kickoff_df = _load_pff_stat("special", "kickoff_summary", season)
+    punting_df = _load_pff_stat("special", "punting_summary", season)
+
+    # Standardize names
+    for df in [fg_df, kickoff_df, punting_df]:
+        if "player" in df.columns and "name" not in df.columns:
+            df.rename(columns={"player": "name"}, inplace=True)
+
+    return {
+        "field_goal": fg_df,
+        "kickoff": kickoff_df,
+        "punting": punting_df,
+    }
+
+
+@st.cache_data(ttl=3600)
+def get_pff_return_stats(season: int = 2025) -> pd.DataFrame:
+    """Get kick/punt return stats from PFF."""
+    df = _load_pff_stat("special", "return_summary", season)
+
+    if "player" in df.columns and "name" not in df.columns:
+        df = df.rename(columns={"player": "name"})
+
+    return df
+
+
+def get_player_detailed_stats(player_name: str, season: int = 2025) -> Dict[str, Any]:
+    """Get comprehensive PFF stats for a specific player.
+
+    Aggregates stats from multiple categories based on player position.
+
+    Args:
+        player_name: Player name to search for
+        season: Season year
+
+    Returns:
+        Dict with stats by category
+    """
+    stats = {
+        "name": player_name,
+        "season": season,
+        "passing": None,
+        "rushing": None,
+        "receiving": None,
+        "defense": None,
+        "pass_rush": None,
+        "blocking": None,
+        "special_teams": None,
+    }
+
+    # Try each stat category
+    # Passing
+    passing_df = get_pff_passing_stats(season)
+    if not passing_df.empty and "name" in passing_df.columns:
+        match = passing_df[passing_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["passing"] = match.iloc[0].to_dict()
+
+    # Rushing
+    rushing_df = get_pff_rushing_stats(season)
+    if not rushing_df.empty and "name" in rushing_df.columns:
+        match = rushing_df[rushing_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["rushing"] = match.iloc[0].to_dict()
+
+    # Receiving
+    receiving_df = get_pff_receiving_stats(season)
+    if not receiving_df.empty and "name" in receiving_df.columns:
+        match = receiving_df[receiving_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["receiving"] = match.iloc[0].to_dict()
+
+    # Defense
+    defense_df = get_pff_defense_stats(season)
+    if not defense_df.empty and "name" in defense_df.columns:
+        match = defense_df[defense_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["defense"] = match.iloc[0].to_dict()
+
+    # Pass Rush
+    pass_rush_df = get_pff_pass_rush_stats(season)
+    if not pass_rush_df.empty and "name" in pass_rush_df.columns:
+        match = pass_rush_df[pass_rush_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["pass_rush"] = match.iloc[0].to_dict()
+
+    # Blocking
+    blocking_df = get_pff_blocking_stats(season)
+    if not blocking_df.empty and "name" in blocking_df.columns:
+        match = blocking_df[blocking_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["blocking"] = match.iloc[0].to_dict()
+
+    # Special Teams
+    st_df = get_pff_special_teams_stats(season)
+    if not st_df.empty and "name" in st_df.columns:
+        match = st_df[st_df["name"].str.contains(player_name, case=False, na=False)]
+        if not match.empty:
+            stats["special_teams"] = match.iloc[0].to_dict()
+
+    return stats
+
+
+def get_player_stats_trend(player_name: str, seasons: List[int] = None) -> pd.DataFrame:
+    """Get a player's stats trend across multiple seasons.
+
+    Args:
+        player_name: Player name
+        seasons: List of seasons (default: [2023, 2024, 2025])
+
+    Returns:
+        DataFrame with season-by-season stats
+    """
+    if seasons is None:
+        seasons = [2023, 2024, 2025]
+
+    trends = []
+    for season in seasons:
+        stats = get_player_detailed_stats(player_name, season)
+
+        # Find which category has data for this player
+        row = {"season": season, "name": player_name}
+
+        if stats["passing"]:
+            row.update({f"passing_{k}": v for k, v in stats["passing"].items() if k != "name" and k != "season"})
+        if stats["rushing"]:
+            row.update({f"rushing_{k}": v for k, v in stats["rushing"].items() if k != "name" and k != "season"})
+        if stats["receiving"]:
+            row.update({f"receiving_{k}": v for k, v in stats["receiving"].items() if k != "name" and k != "season"})
+        if stats["defense"]:
+            row.update({f"defense_{k}": v for k, v in stats["defense"].items() if k != "name" and k != "season"})
+        if stats["pass_rush"]:
+            row.update({f"pass_rush_{k}": v for k, v in stats["pass_rush"].items() if k != "name" and k != "season"})
+
+        if len(row) > 2:  # Has more than just season and name
+            trends.append(row)
+
+    if trends:
+        return pd.DataFrame(trends)
+    return pd.DataFrame()
