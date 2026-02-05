@@ -6,7 +6,7 @@ import pb from "@/lib/pocketbase/client";
 import { useAuthStore } from "@/stores/auth-store";
 import type { User } from "@/lib/pocketbase/client";
 
-const publicPaths = ["/login", "/register", "/forgot-password", "/"];
+const publicPaths = ["/login", "/register", "/forgot-password", "/", "/pricing", "/terms", "/privacy"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
