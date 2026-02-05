@@ -9,10 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login } from "@/providers/auth-provider";
+import { useAuthStore } from "@/stores/auth-store";
+import type { User } from "@/lib/pocketbase/client";
 import { Loader2, AlertCircle, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const setUser = useAuthStore((state) => state.setUser);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,11 +27,15 @@ export default function LoginPage() {
     setIsLoading(true);
 
     console.log("Attempting login with:", email);
-    console.log("PocketBase URL:", process.env.NEXT_PUBLIC_POCKETBASE_URL || "NOT SET - using localhost:8090");
 
     try {
-      await login(email, password);
-      console.log("Login successful, redirecting...");
+      const authData = await login(email, password);
+      console.log("Login successful, setting user state...");
+
+      // Manually update the auth store before redirecting
+      setUser(authData.record as unknown as User);
+
+      console.log("Redirecting to dashboard...");
       router.push("/dashboard");
     } catch (err: unknown) {
       console.error("Login error:", err);

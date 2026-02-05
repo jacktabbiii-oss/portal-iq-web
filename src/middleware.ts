@@ -29,16 +29,6 @@ const protectedRoutes = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check if the route is protected
-  const isProtectedRoute = protectedRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-
-  // Check if the route is public
-  const isPublicRoute = publicRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-
   // Skip middleware for API routes and static files
   if (
     pathname.startsWith("/api") ||
@@ -48,22 +38,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get PocketBase auth token from cookie
-  // PocketBase stores auth in 'pb_auth' cookie
-  const authCookie = request.cookies.get("pb_auth");
-  const isAuthenticated = !!authCookie?.value;
-
-  // Redirect unauthenticated users from protected routes to login
-  if (isProtectedRoute && !isAuthenticated) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Redirect authenticated users from login/register to dashboard
-  if (isAuthenticated && (pathname === "/login" || pathname === "/register")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
+  // Note: PocketBase stores auth in localStorage (client-side), not cookies
+  // So we can't check auth in middleware. Client-side AuthProvider handles
+  // route protection instead. This middleware just allows all routes through.
 
   return NextResponse.next();
 }
