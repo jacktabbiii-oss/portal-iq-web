@@ -1,10 +1,13 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import pb from "@/lib/pocketbase/client";
 
-// API Base URL
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "dev-key-123";
+// API Base URL - must be configured in environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+
+if (!API_KEY && process.env.NODE_ENV === "production") {
+  console.error("NEXT_PUBLIC_API_KEY is required in production");
+}
 
 // Create axios instance
 const apiClient = axios.create({
@@ -19,7 +22,9 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Add API key for Portal IQ endpoints
-    config.headers["X-API-Key"] = API_KEY;
+    if (API_KEY) {
+      config.headers["X-API-Key"] = API_KEY;
+    }
 
     // Add JWT token if available (for user-specific features)
     const token = pb.authStore.token;

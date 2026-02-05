@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
@@ -15,7 +16,7 @@ const STRIPE_PRICES = {
 const proFeatures = [
   "Unlimited NIL valuations",
   "Transfer portal intelligence",
-  "PFF grades & advanced metrics",
+  "Advanced performance metrics",
   "Win impact calculator",
   "AI assistant (100 queries/mo)",
   "Player comparison tools",
@@ -77,10 +78,16 @@ export default function PricingPage() {
       {/* Header */}
       <header className="border-b border-white/10">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-3">
             <ArrowLeft className="h-4 w-4 text-gray-400" />
-            <span className="text-2xl">🏈</span>
-            <span className="text-xl font-bold text-white">Portal IQ</span>
+            <Image
+              src="/logo.png"
+              alt="Portal IQ"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
+            <span className="text-xl font-bold text-white">PORTAL IQ</span>
           </Link>
           <a href="https://portal-iq.streamlit.app">
             <Button variant="ghost" className="text-white hover:text-white/80">

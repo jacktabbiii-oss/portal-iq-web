@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -152,10 +153,16 @@ export default function LandingPage() {
       {/* Header */}
       <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-[#0f1a2e]/95 backdrop-blur">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🏈</span>
-            <span className="text-xl font-bold text-white">Portal IQ</span>
-          </div>
+          <Link href="/" className="flex items-center gap-3">
+            <Image
+              src="/logo.png"
+              alt="Portal IQ"
+              width={36}
+              height={36}
+              className="object-contain"
+            />
+            <span className="text-xl font-bold text-white">PORTAL IQ</span>
+          </Link>
           <nav className="hidden items-center gap-8 md:flex">
             <a href="#features" className="text-sm text-gray-400 hover:text-white transition">Features</a>
             <a href="#how-it-works" className="text-sm text-gray-400 hover:text-white transition">How It Works</a>
@@ -523,9 +530,15 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 py-12">
           <div className="grid gap-8 md:grid-cols-4 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">🏈</span>
-                <span className="text-xl font-bold text-white">Portal IQ</span>
+              <div className="flex items-center gap-3 mb-4">
+                <Image
+                  src="/logo.png"
+                  alt="Portal IQ"
+                  width={48}
+                  height={48}
+                  className="object-contain"
+                />
+                <span className="text-xl font-bold text-white">PORTAL IQ</span>
               </div>
               <p className="text-sm text-gray-500">
                 AI-powered transfer portal intelligence for college football.
