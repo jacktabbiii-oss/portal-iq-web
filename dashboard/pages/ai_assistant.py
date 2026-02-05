@@ -390,18 +390,38 @@ def main():
 
     # Header - Portal IQ Ultra Modern Style
     st.markdown(f"""
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 2rem;">🤖</span>
-            <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700;">
-                AI Assistant
-            </h1>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; background: {COLORS['primary']}; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(245, 191, 3, 0.2);">
+                <span style="font-size: 1.25rem;">🤖</span>
+            </div>
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;">
+                        AI Intelligence
+                    </h1>
+                    <div style="display: flex; align-items: center; gap: 6px; background: rgba(34, 197, 94, 0.15); padding: 4px 12px; border-radius: 50px; border: 1px solid rgba(34, 197, 94, 0.3);">
+                        <div style="width: 8px; height: 8px; background: {COLORS['status_active']}; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                        <span style="color: {COLORS['status_active']}; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">Live</span>
+                    </div>
+                </div>
+                <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+                    Natural language queries for players, NIL valuations, and portal intelligence
+                </p>
+            </div>
         </div>
-        <span style="background: rgba(34, 197, 94, 0.15); color: {COLORS['status_active']}; padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: 600;">● LIVE</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="background: rgba(245, 191, 3, 0.1); border: 1px solid rgba(245, 191, 3, 0.3); padding: 6px 14px; border-radius: 50px;">
+                <span style="color: {COLORS['primary']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Powered by Claude</span>
+            </div>
+        </div>
     </div>
-    <p style="color: {COLORS['text_muted']}; font-size: 0.95rem; margin-bottom: 24px;">
-        Ask natural language questions about players, NIL valuations, and transfer portal intelligence
-    </p>
+    <style>
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.5; }}
+        }}
+    </style>
     """, unsafe_allow_html=True)
 
     # Check for API key
@@ -443,17 +463,26 @@ def main():
     if "current_chat_title" not in st.session_state:
         st.session_state.current_chat_title = None
 
-    # Quick actions
-    st.markdown("### Quick Questions")
-    col1, col2, col3, col4 = st.columns(4)
+    # Quick actions - Modern chip style
+    st.markdown(f"""
+    <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;">
+        Quick Questions
+    </p>
+    """, unsafe_allow_html=True)
 
     quick_questions = [
-        ("Top NIL Players", "Who are the top 5 highest NIL valued players right now?"),
-        ("Best Portal Classes", "Which teams have the best 2026 transfer portal classes?"),
-        ("Available QBs", "What quarterbacks are currently available in the portal?"),
-        ("NIL Trends", "What are the current NIL market trends for college football?"),
+        ("🏆 Top NIL Players", "Who are the top 5 highest NIL valued players right now?"),
+        ("📊 Best Portal Classes", "Which teams have the best 2026 transfer portal classes?"),
+        ("🎯 Available QBs", "What quarterbacks are currently available in the portal?"),
+        ("📈 NIL Trends", "What are the current NIL market trends for college football?"),
     ]
 
+    # Display as chips/pills
+    st.markdown(f"""
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
     for i, (label, question) in enumerate(quick_questions):
         col = [col1, col2, col3, col4][i]
         with col:
@@ -465,24 +494,37 @@ def main():
     # Chat container
     chat_container = st.container()
 
-    # Display chat history
+    # Display chat history with modern styling
     with chat_container:
         for message in st.session_state.messages:
             role = message["role"]
             content = message["content"]
 
             if role == "user":
+                # User message - right aligned, gold background
                 st.markdown(f"""
-                <div style="background: {COLORS['bg_medium']}; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                    <strong style="color: {COLORS['primary']};">You:</strong>
-                    <p style="color: {COLORS['text_primary']}; margin: 5px 0 0 0;">{content}</p>
+                <div style="display: flex; justify-content: flex-end; margin: 16px 0;">
+                    <div style="max-width: 80%;">
+                        <div style="background: {COLORS['primary']}; color: {COLORS['bg_dark']}; padding: 16px 20px; border-radius: 20px; border-top-right-radius: 4px; box-shadow: 0 4px 12px rgba(245, 191, 3, 0.2);">
+                            <p style="margin: 0; font-weight: 500;">{content}</p>
+                        </div>
+                        <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; text-align: right; margin: 6px 8px 0 0;">You</p>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
             else:
+                # AI message - left aligned with gold accent
                 st.markdown(f"""
-                <div style="background: {COLORS['bg_light']}; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 3px solid {COLORS['primary']};">
-                    <strong style="color: {COLORS['primary']};">🤖 Portal IQ:</strong>
-                    <p style="color: {COLORS['text_secondary']}; margin: 5px 0 0 0;">{content}</p>
+                <div style="display: flex; justify-content: flex-start; gap: 12px; margin: 16px 0;">
+                    <div style="width: 40px; height: 40px; background: {COLORS['primary']}; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(245, 191, 3, 0.2); flex-shrink: 0;">
+                        <span style="font-size: 1.1rem;">🤖</span>
+                    </div>
+                    <div style="max-width: 85%;">
+                        <div style="background: {COLORS['bg_light']}; border: 1px solid {COLORS['border']}; padding: 20px 24px; border-radius: 20px; border-top-left-radius: 4px;">
+                            <p style="margin: 0; color: {COLORS['text_secondary']}; line-height: 1.7;">{content}</p>
+                        </div>
+                        <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 6px 0 0 8px;">Portal IQ</p>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -501,21 +543,25 @@ def main():
 
         st.rerun()
 
-    # Chat input
-    st.markdown("### Ask a Question")
+    # Chat input with modern styling
+    st.markdown(f"""
+    <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">
+        Ask a Question
+    </p>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([5, 1])
 
     with col1:
         user_input = st.text_input(
             "Your question",
-            placeholder="e.g., Tell me about Sam Leavitt's NIL value and portal status...",
+            placeholder="Ask anything about the portal... (e.g., Tell me about Sam Leavitt's NIL value)",
             key="chat_input",
             label_visibility="collapsed"
         )
 
     with col2:
-        send_btn = st.button("Send", type="primary", use_container_width=True)
+        send_btn = st.button("Send →", type="primary", use_container_width=True)
 
     if send_btn and user_input:
         # Add user message
