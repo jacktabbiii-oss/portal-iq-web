@@ -170,11 +170,11 @@ export default function LandingPage() {
             <Link href="/pricing" className="text-sm text-gray-400 hover:text-white transition">Pricing</Link>
           </nav>
           <div className="flex items-center gap-4">
-            <a href="https://portal-iq.streamlit.app">
+            <Link href="/login">
               <Button variant="ghost" className="text-white hover:text-white/80">
                 Sign In
               </Button>
-            </a>
+            </Link>
             <Link href="/pricing">
               <Button className="bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90">
                 Start Free Trial
@@ -220,11 +220,11 @@ export default function LandingPage() {
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <a href="https://portal-iq.streamlit.app">
+              <Link href="/login">
                 <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 text-lg px-8 py-6 h-auto font-semibold">
                   Sign In
                 </Button>
-              </a>
+              </Link>
             </div>
 
             <p className="text-sm text-gray-500">

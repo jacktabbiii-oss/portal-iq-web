@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
       subscription_data: {
         trial_period_days: 14,
       },
-      // Redirect URLs - success goes to Streamlit app
-      success_url: `https://portal-iq.streamlit.app?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      // Redirect URLs - success goes to dashboard
+      success_url: `${origin}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/pricing?checkout=cancelled`,
       // Collect billing address for tax purposes
       billing_address_collection: "required",

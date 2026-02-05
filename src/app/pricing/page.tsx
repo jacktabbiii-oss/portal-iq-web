@@ -62,8 +62,8 @@ export default function PricingPage() {
       window.location.href = url;
     } catch (error) {
       console.error("Checkout error:", error);
-      // Fallback to Streamlit app
-      window.location.href = "https://portal-iq.streamlit.app";
+      // Fallback to login page
+      window.location.href = "/login";
     } finally {
       setLoading(null);
     }
@@ -89,11 +89,11 @@ export default function PricingPage() {
             />
             <span className="text-xl font-bold text-white">PORTAL IQ</span>
           </Link>
-          <a href="https://portal-iq.streamlit.app">
+          <Link href="/login">
             <Button variant="ghost" className="text-white hover:text-white/80">
               Sign In
             </Button>
-          </a>
+          </Link>
         </div>
       </header>
 
