@@ -185,15 +185,17 @@ def create_position_risk_chart(roster_df: pd.DataFrame) -> go.Figure:
         marker_color=colors,
         text=[f"{r*100:.0f}%" for r in pos_risk.values],
         textposition='outside',
+        textfont=dict(color=COLORS["text_secondary"]),
     ))
 
     fig.update_layout(
-        title=dict(text="Average Flight Risk by Position", font=dict(color=COLORS["text_primary"])),
+        title=dict(text="Average Flight Risk by Position", font=dict(color=COLORS["text_primary"], family="Inter, sans-serif")),
         xaxis_title="Flight Risk %",
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=COLORS["text_secondary"]),
-        xaxis=dict(gridcolor=COLORS["bg_light"], range=[0, 100]),
+        plot_bgcolor=COLORS["bg_light"],
+        font=dict(color=COLORS["text_secondary"], family="Inter, sans-serif"),
+        xaxis=dict(gridcolor=COLORS["border"], range=[0, 100], tickfont=dict(color=COLORS["text_muted"])),
+        yaxis=dict(tickfont=dict(color=COLORS["text_secondary"])),
         margin=dict(l=20, r=80, t=50, b=50),
         height=400,
     )
@@ -216,7 +218,7 @@ def create_fit_breakdown_chart(breakdown: dict) -> go.Figure:
         r=values,
         theta=categories,
         fill='toself',
-        fillcolor=f"rgba(0, 200, 83, 0.3)",
+        fillcolor="rgba(245, 191, 3, 0.2)",  # Gold fill
         line=dict(color=COLORS["primary"], width=2),
         marker=dict(size=8, color=COLORS["primary"]),
     ))
@@ -226,17 +228,17 @@ def create_fit_breakdown_chart(breakdown: dict) -> go.Figure:
             radialaxis=dict(
                 visible=True,
                 range=[0, 1],
-                gridcolor=COLORS["bg_light"],
+                gridcolor=COLORS["border"],
                 tickfont=dict(color=COLORS["text_muted"]),
             ),
             angularaxis=dict(
-                gridcolor=COLORS["bg_light"],
+                gridcolor=COLORS["border"],
                 tickfont=dict(color=COLORS["text_secondary"]),
             ),
-            bgcolor="rgba(0,0,0,0)",
+            bgcolor=COLORS["bg_light"],
         ),
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=COLORS["text_secondary"]),
+        font=dict(color=COLORS["text_secondary"], family="Inter, sans-serif"),
         showlegend=False,
         height=350,
         margin=dict(l=80, r=80, t=50, b=50),
@@ -254,6 +256,229 @@ def style_risk_cell(val):
 
 
 # =============================================================================
+# Overview Dashboard - Ultra Modern Design
+# =============================================================================
+
+def render_overview_dashboard():
+    """Render the portal intelligence overview dashboard with modern design."""
+    # Get current portal data
+    selected_season = get_selected_season()
+    portal_year = selected_season + 1
+    portal_df = get_portal_data(year=portal_year, enrich_nil=True)
+
+    if portal_df.empty:
+        st.info("Loading portal data...")
+        return
+
+    # Calculate metrics
+    total_athletes = len(portal_df)
+    committed_count = len(portal_df[portal_df["status"] == "Committed"])
+    entered_count = len(portal_df[portal_df["status"] == "Entered"])
+    five_stars = len(portal_df[(portal_df["stars"] >= 5) & (portal_df["status"] == "Entered")])
+    avg_nil = portal_df["portaliq_value"].mean() if "portaliq_value" in portal_df.columns else 0
+
+    # Metric Cards Row - Glass Card Style
+    st.markdown(f"""
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+        <!-- Total Athletes Card -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 24px; border-radius: 16px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; right: 0; padding: 16px; opacity: 0.1;">
+                <span style="font-size: 3rem;">👥</span>
+            </div>
+            <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Total Athletes</p>
+            <div style="display: flex; align-items: baseline; gap: 12px;">
+                <span style="color: {COLORS['text_primary']}; font-size: 2.5rem; font-weight: 800; line-height: 1;">{total_athletes:,}</span>
+                <span style="color: {COLORS['status_active']}; font-size: 0.8rem; font-weight: 600;">+{entered_count} entered</span>
+            </div>
+            <div style="margin-top: 16px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                <div style="height: 100%; width: 75%; background: {COLORS['primary']};"></div>
+            </div>
+        </div>
+
+        <!-- Committed Card -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 24px; border-radius: 16px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; right: 0; padding: 16px; opacity: 0.1;">
+                <span style="font-size: 3rem;">🤝</span>
+            </div>
+            <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Committed</p>
+            <div style="display: flex; align-items: baseline; gap: 12px;">
+                <span style="color: {COLORS['text_primary']}; font-size: 2.5rem; font-weight: 800; line-height: 1;">{committed_count}</span>
+                <span style="color: {COLORS['text_muted']}; font-size: 0.8rem; font-weight: 500;">this cycle</span>
+            </div>
+            <div style="margin-top: 16px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                <div style="height: 100%; width: {min(committed_count / max(total_athletes, 1) * 100, 100):.0f}%; background: {COLORS['primary']};"></div>
+            </div>
+        </div>
+
+        <!-- 5-Star Available Card - Highlighted -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.4); padding: 24px; border-radius: 16px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; right: 0; padding: 16px; opacity: 0.2;">
+                <span style="font-size: 3rem; color: {COLORS['primary']};">⭐</span>
+            </div>
+            <p style="color: {COLORS['primary']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Available 5-Stars</p>
+            <div style="display: flex; align-items: baseline; gap: 12px;">
+                <span style="color: {COLORS['primary']}; font-size: 2.5rem; font-weight: 800; line-height: 1;">{five_stars}</span>
+                <span style="color: rgba(245, 191, 3, 0.6); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; font-style: italic;">Elite Status</span>
+            </div>
+            <div style="margin-top: 16px; height: 4px; background: rgba(245, 191, 3, 0.2); border-radius: 4px; overflow: hidden; box-shadow: 0 0 10px rgba(245, 191, 3, 0.3);">
+                <div style="height: 100%; width: 100%; background: {COLORS['primary']};"></div>
+            </div>
+        </div>
+
+        <!-- Avg NIL Value Card -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 24px; border-radius: 16px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; right: 0; padding: 16px; opacity: 0.1;">
+                <span style="font-size: 3rem;">💰</span>
+            </div>
+            <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Avg NIL Value</p>
+            <div style="display: flex; align-items: baseline; gap: 12px;">
+                <span style="color: {COLORS['text_primary']}; font-size: 2.5rem; font-weight: 800; line-height: 1;">{format_currency(avg_nil)}</span>
+                <span style="color: {COLORS['status_active']}; font-size: 0.8rem; font-weight: 600;">+12.4%</span>
+            </div>
+            <div style="margin-top: 16px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                <div style="height: 100%; width: 62%; background: {COLORS['primary']};"></div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Two-column layout: Trending Players & Recent Commitments
+    col1, col2 = st.columns([3, 2])
+
+    with col1:
+        render_trending_players(portal_df)
+
+    with col2:
+        render_recent_commitments(portal_df)
+
+
+def render_trending_players(portal_df: pd.DataFrame):
+    """Render the most viewed/trending players section."""
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.1rem; font-weight: 700; margin: 0; text-transform: uppercase; font-style: italic; letter-spacing: -0.01em;">
+            Top Portal Players
+        </h3>
+        <span style="color: {COLORS['primary']}; font-size: 0.75rem; font-weight: 600; cursor: pointer;">VIEW ALL →</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Get top players by NIL value
+    top_players = portal_df[portal_df["status"] == "Entered"].nlargest(6, "portaliq_value")
+
+    # Display in 2x3 grid
+    player_cards_html = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">'
+
+    for _, player in top_players.iterrows():
+        name = player.get("name", "Unknown")
+        position = player.get("position", "")
+        stars = int(player.get("stars", 0)) if pd.notna(player.get("stars")) else 0
+        school = player.get("origin_school", "")
+        nil_value = player.get("portaliq_value", 0)
+        headshot = player.get("headshot_url", "")
+
+        # Generate initials if no headshot
+        initials = "".join([n[0] for n in name.split()[:2]]).upper() if name else "?"
+
+        # Star rating display
+        star_display = "⭐" * stars if stars > 0 else ""
+        star_label = f"{stars}-STAR" if stars > 0 else ""
+
+        # Border color based on star rating
+        border_color = COLORS['primary'] if stars >= 5 else f"rgba(245, 191, 3, {0.2 + stars * 0.15})"
+
+        # Avatar HTML (headshot or initials)
+        if headshot and str(headshot).startswith("http"):
+            avatar_html = f'<img src="{headshot}" style="width: 48px; height: 48px; border-radius: 50%; border: 2px solid {border_color}; object-fit: cover;" />'
+        else:
+            avatar_html = f'''
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: {COLORS['bg_card']}; border: 2px solid {border_color}; display: flex; align-items: center; justify-content: center; color: {COLORS['primary']}; font-weight: 600; font-size: 0.9rem;">
+                {initials}
+            </div>
+            '''
+
+        player_cards_html += f'''
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(8px); border: 1px solid {COLORS['border']}; border-left: 3px solid {border_color}; padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px; transition: all 0.2s;">
+            {avatar_html}
+            <div style="flex: 1; min-width: 0;">
+                <h4 style="color: {COLORS['text_primary']}; font-size: 0.9rem; font-weight: 600; margin: 0; text-transform: uppercase; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{name}</h4>
+                <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; margin: 2px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">{position} • {star_label} • {school[:15]}...</p>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                    <span style="background: rgba(245, 191, 3, 0.1); color: {COLORS['primary']}; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">{format_currency(nil_value)} NIL</span>
+                </div>
+            </div>
+        </div>
+        '''
+
+    player_cards_html += '</div>'
+    st.markdown(player_cards_html, unsafe_allow_html=True)
+
+
+def render_recent_commitments(portal_df: pd.DataFrame):
+    """Render the recent commitments feed."""
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.1rem; font-weight: 700; margin: 0; text-transform: uppercase; font-style: italic; letter-spacing: -0.01em;">
+            Recent Commitments
+        </h3>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: {COLORS['text_muted']}; font-size: 0.65rem; font-weight: 600; text-transform: uppercase;">Filter: Elite</span>
+            <span style="color: {COLORS['primary']}; font-size: 0.9rem;">▼</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Get recent commitments (top by stars)
+    committed = portal_df[portal_df["status"] == "Committed"].nlargest(5, "stars")
+
+    commitments_html = f'<div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid {COLORS["border"]}; border-radius: 12px; overflow: hidden;">'
+
+    for i, (_, player) in enumerate(committed.iterrows()):
+        name = player.get("name", "Unknown")
+        position = player.get("position", "")
+        origin = player.get("origin_school", "Unknown")
+        destination = player.get("destination_school", "TBD")
+
+        # Get conference abbreviations (simplified)
+        origin_conf = "P4"  # Would need conference mapping
+        dest_conf = "P4"
+
+        border_style = f"border-bottom: 1px solid {COLORS['border']};" if i < len(committed) - 1 else ""
+
+        commitments_html += f'''
+        <div style="padding: 14px 16px; {border_style} transition: background 0.2s;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="width: 32px; height: 32px; background: {COLORS['bg_card']}; border-radius: 50%; border: 2px solid {COLORS['border']}; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; color: {COLORS['text_muted']};">{origin_conf}</div>
+                        <div style="width: 32px; height: 32px; background: {COLORS['primary']}; border-radius: 50%; border: 2px solid {COLORS['bg_card']}; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; color: {COLORS['bg_dark']}; margin-left: -8px;">{dest_conf}</div>
+                    </div>
+                    <div>
+                        <p style="color: {COLORS['text_primary']}; font-size: 0.85rem; font-weight: 600; margin: 0; text-transform: uppercase; font-style: italic;">{name}</p>
+                        <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; margin: 2px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">{position} • {origin[:12]} <span style="color: {COLORS['primary']};">→</span> {destination[:12]}</p>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <p style="color: {COLORS['primary']}; font-size: 0.7rem; font-weight: 700; margin: 0;">COMMIT</p>
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.6rem; margin: 2px 0 0 0; text-transform: uppercase;">Recent</p>
+                </div>
+            </div>
+        </div>
+        '''
+
+    commitments_html += '</div>'
+
+    # Add "View all" link
+    commitments_html += f'''
+    <div style="background: rgba(26, 39, 68, 0.4); border: 1px dashed {COLORS['border']}; border-radius: 8px; padding: 12px; text-align: center; margin-top: 12px; cursor: pointer;">
+        <span style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">View Historical Commitments</span>
+    </div>
+    '''
+
+    st.markdown(commitments_html, unsafe_allow_html=True)
+
+
+# =============================================================================
 # Main Page
 # =============================================================================
 
@@ -263,19 +488,42 @@ def main():
 
     # Header - Portal IQ Ultra Modern Style
     st.markdown(f"""
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <span style="font-size: 2rem;">🔄</span>
-        <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700;">
-            Portal Intelligence
-        </h1>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; background: {COLORS['primary']}; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 1.25rem;">🔄</span>
+            </div>
+            <div>
+                <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;">
+                    Portal Intelligence
+                </h1>
+                <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+                    Real-time transfer portal trends & geographic analysis
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(34, 197, 94, 0.15); padding: 6px 14px; border-radius: 50px; border: 1px solid rgba(34, 197, 94, 0.3);">
+                <div style="width: 8px; height: 8px; background: {COLORS['status_active']}; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                <span style="color: {COLORS['status_active']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Live Feed</span>
+            </div>
+        </div>
     </div>
-    <p style="color: {COLORS['text_muted']}; font-size: 0.95rem; margin-bottom: 24px;">
-        Real-time scouting & geographic analysis of transfer portal activity
-    </p>
+    <style>
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.5; }}
+        }}
+    </style>
     """, unsafe_allow_html=True)
 
     # Initialize watchlist
     init_watchlist()
+
+    # Render the overview dashboard
+    render_overview_dashboard()
+
+    st.divider()
 
     # Watchlist badge count
     watchlist_count = len(get_watchlist())
@@ -283,10 +531,10 @@ def main():
 
     # Tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📊 Roster Flight Risk",
-        "🔍 Portal Player Search",
-        "🎯 Portal Fit Analyzer",
-        "📋 Team Needs Analysis",
+        "📊 School Analysis",
+        "🔍 Player Search",
+        "🎯 Fit Analyzer",
+        "📋 Team Needs",
         watchlist_label
     ])
 
@@ -312,8 +560,16 @@ def main():
 
 def render_flight_risk_tab():
     """Render the portal activity analysis tab for a school."""
-    st.markdown("### School Portal Activity Analysis")
-    st.markdown("_Analyze incoming and outgoing transfer portal activity for any school_")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            School Portal Activity Analysis
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Analyze incoming and outgoing transfer portal activity for any school
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Get selected season
     selected_season = get_selected_season()
@@ -615,7 +871,16 @@ def render_portal_activity_results(school: str, year: int):
 
 def render_portal_search_tab():
     """Render the portal player search tab."""
-    st.markdown("### Search & Filter Portal Players")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            Advanced Player Search
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Filter and discover portal players by position, rating, measurables, and more
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Get selected season for context
     selected_season = get_selected_season()
@@ -1301,8 +1566,16 @@ def get_potential_destinations(player: pd.Series) -> list:
 
 def render_fit_analyzer_tab():
     """Render the portal fit analyzer tab."""
-    st.markdown("### Analyze Portal Fit")
-    st.markdown("_Select a portal player and target school to see detailed fit analysis_")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            AI Fit Analyzer
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Select a portal player and target school to see detailed fit analysis
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Get selected season for context
     selected_season = get_selected_season()
@@ -1700,8 +1973,16 @@ def get_factor_explanation(factor: str, score: float, player: pd.Series, target_
 
 def render_team_needs_tab():
     """Render the team needs analysis tab."""
-    st.markdown("### 📋 Team Needs Analysis")
-    st.markdown("_Analyze roster gaps and identify positions of need for any school_")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            Team Needs Analysis
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Analyze roster gaps and identify positions of need for any school
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Get selected season
     selected_season = get_selected_season()
@@ -1986,8 +2267,16 @@ def render_team_needs_results(school: str, year: int):
 
 def render_watchlist_tab():
     """Render the player watchlist tab."""
-    st.markdown("### ⭐ Player Watchlist")
-    st.markdown("_Track your favorite portal players and add notes_")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            Player Watchlist
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Track your favorite portal players and add notes
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     watchlist = get_watchlist()
 
