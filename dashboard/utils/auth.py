@@ -20,6 +20,9 @@ from datetime import datetime
 # Get PocketBase client
 from utils.pocketbase_client import get_pocketbase_client
 
+# Pricing page URL - configure via environment or use default
+PRICING_URL = os.getenv("PRICING_URL", "https://portaliq.ai/pricing")
+
 
 def init_auth_state():
     """Initialize session state for auth."""
@@ -104,16 +107,16 @@ def require_subscription() -> bool:
     **What you get:**
     - 🎯 AI-powered NIL valuations
     - 📊 Transfer portal intelligence
-    - 🏈 PFF grades & advanced metrics
+    - 🏈 Advanced performance metrics
     - 🤖 AI assistant for player analysis
 
     ---
     """)
 
-    # Link to pricing page (update URL when homepage is live)
+    # Link to pricing page
     st.link_button(
         "🚀 Subscribe Now",
-        "https://portaliq.ai/pricing",  # Update this URL
+        PRICING_URL,
         use_container_width=True
     )
 
@@ -255,7 +258,7 @@ def require_auth() -> Optional[Dict]:
     st.markdown("**Don't have an account?**")
     st.link_button(
         "🚀 Subscribe to Portal IQ",
-        "https://portaliq.ai/pricing",  # Update when live
+        PRICING_URL,
         use_container_width=True
     )
 
