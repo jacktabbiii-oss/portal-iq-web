@@ -1,0 +1,22 @@
+{
+  "name": "Portal IQ",
+  "short_name": "Portal IQ",
+  "description": "AI-powered NIL valuation, transfer portal analytics, and roster optimization for college football.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1a2e",
+  "theme_color": "#D4AF37",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
