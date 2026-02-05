@@ -388,15 +388,21 @@ def main():
     # Render shared navigation sidebar
     render_sidebar()
 
-    # Header - Navy/Gold branding
+    # Header - Portal IQ Ultra Modern Style
     st.markdown(f"""
-    <h1 style="color: {COLORS['primary']};">🤖 AI Assistant</h1>
-    <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem;">
-        Ask questions about players, NIL valuations, and the transfer portal
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 2rem;">🤖</span>
+            <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700;">
+                AI Assistant
+            </h1>
+        </div>
+        <span style="background: rgba(34, 197, 94, 0.15); color: {COLORS['status_active']}; padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: 600;">● LIVE</span>
+    </div>
+    <p style="color: {COLORS['text_muted']}; font-size: 0.95rem; margin-bottom: 24px;">
+        Ask natural language questions about players, NIL valuations, and transfer portal intelligence
     </p>
     """, unsafe_allow_html=True)
-
-    st.divider()
 
     # Check for API key
     client = get_anthropic_client()

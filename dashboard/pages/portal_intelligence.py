@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.styling import (
     apply_custom_css, COLORS, get_risk_color, get_risk_color_by_value,
-    format_currency, render_risk_badge
+    format_currency, render_risk_badge, render_status_badge,
+    render_stat_card, get_plotly_layout, get_chart_colors
 )
 from utils.data_loader import (
     load_sample_data, get_school_list, get_positions, get_conferences,
@@ -260,15 +261,18 @@ def main():
     # Render shared navigation sidebar
     render_sidebar()
 
-    # Header - Navy/Gold branding
+    # Header - Portal IQ Ultra Modern Style
     st.markdown(f"""
-    <h1 style="color: {COLORS['primary']};">🔄 Portal Intelligence</h1>
-    <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem;">
-        Transfer portal analytics and flight risk monitoring
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+        <span style="font-size: 2rem;">🔄</span>
+        <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700;">
+            Portal Intelligence
+        </h1>
+    </div>
+    <p style="color: {COLORS['text_muted']}; font-size: 0.95rem; margin-bottom: 24px;">
+        Real-time scouting & geographic analysis of transfer portal activity
     </p>
     """, unsafe_allow_html=True)
-
-    st.divider()
 
     # Initialize watchlist
     init_watchlist()

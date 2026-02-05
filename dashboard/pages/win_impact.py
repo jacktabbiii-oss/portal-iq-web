@@ -19,7 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.styling import (
-    apply_custom_css, COLORS, format_currency, get_tier_color
+    apply_custom_css, COLORS, format_currency, get_tier_color,
+    get_plotly_layout, get_chart_colors
 )
 from utils.data_loader import (
     get_nil_players, get_portal_players, get_team_rankings, get_school_list,
@@ -228,16 +229,21 @@ def main():
     # Render shared navigation sidebar
     render_sidebar()
 
-    # Header - Navy/Gold branding
+    # Header - Portal IQ Ultra Modern Style
     st.markdown(f"""
-    <h1 style="color: {COLORS['primary']};">📈 Win Impact</h1>
-    <p style="color: {COLORS['text_secondary']}; font-size: 1.1rem;">
-        Portal IQ's proprietary player impact analysis powered by advanced WAR algorithms
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+        <span style="font-size: 2rem;">📈</span>
+        <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700;">
+            Win Impact
+        </h1>
+    </div>
+    <p style="color: {COLORS['text_muted']}; font-size: 0.95rem; margin-bottom: 24px;">
+        Portal IQ's proprietary WAR calculator & win projection analysis
     </p>
     """, unsafe_allow_html=True)
 
     # Algorithm info expander
-    with st.expander("ℹ️ About Portal IQ's WAR Algorithm"):
+    with st.expander("ℹ️ About Portal IQ's WAR Algorithm", expanded=False):
         st.markdown(f"""
         <div style="color: {COLORS['text_secondary']};">
         <p><strong>Portal IQ WAR (Wins Above Replacement)</strong> is our proprietary algorithm that considers:</p>
