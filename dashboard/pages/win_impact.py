@@ -46,6 +46,128 @@ apply_custom_css()
 # Helper Functions
 # =============================================================================
 
+def render_war_gauge_html(war_value: float, percentile: int = 50, label: str = "WAR") -> str:
+    """Render HTML for a circular WAR gauge visualization."""
+    # Calculate stroke dashoffset for the arc (282.7 is circumference for r=45)
+    # We want to show the war_value on a scale of 0-5
+    progress = min(war_value / 5.0, 1.0)  # Normalize to 0-1
+    circumference = 282.7
+    dashoffset = circumference * (1 - progress)
+
+    # Determine tier color and label based on WAR value
+    if war_value >= 3.0:
+        tier_label = "Elite Impact"
+        tier_class = "elite"
+    elif war_value >= 2.0:
+        tier_label = "High Impact"
+        tier_class = "high"
+    elif war_value >= 1.0:
+        tier_label = "Solid Impact"
+        tier_class = "solid"
+    else:
+        tier_label = "Developing"
+        tier_class = "developing"
+
+    return f'''
+    <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 32px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 16px; right: 16px;">
+            <span style="background: rgba(245, 191, 3, 0.1); color: {COLORS['primary']}; border: 1px solid rgba(245, 191, 3, 0.3); padding: 4px 12px; border-radius: 50px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">{tier_label}</span>
+        </div>
+
+        <div style="position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+            <!-- Gauge SVG -->
+            <svg style="position: absolute; width: 100%; height: 100%; transform: rotate(-90deg);" viewBox="0 0 100 100">
+                <!-- Background circle -->
+                <circle cx="50" cy="50" r="45" fill="transparent" stroke="{COLORS['bg_light']}" stroke-width="8"></circle>
+                <!-- Progress arc -->
+                <circle cx="50" cy="50" r="45" fill="transparent" stroke="{COLORS['primary']}" stroke-width="8"
+                    stroke-dasharray="{circumference}" stroke-dashoffset="{dashoffset}"
+                    stroke-linecap="round" style="filter: drop-shadow(0 0 8px rgba(245, 191, 3, 0.5));"></circle>
+            </svg>
+            <!-- Center text -->
+            <div style="text-align: center; z-index: 1;">
+                <span style="color: {COLORS['text_primary']}; font-size: 3.5rem; font-weight: 800; line-height: 1; text-shadow: 0 0 20px rgba(245, 191, 3, 0.4);">{war_value:.1f}</span>
+                <p style="color: {COLORS['primary']}; font-size: 1rem; font-weight: 700; letter-spacing: 0.2em; margin: 4px 0 0 0;">{label}</p>
+            </div>
+        </div>
+
+        <!-- Percentile bar -->
+        <div style="width: 100%; max-width: 300px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 8px; margin-bottom: 6px;">
+                <span style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em;">Win Impact Gauge</span>
+                <span style="color: {COLORS['text_primary']}; font-size: 0.8rem; font-weight: 700; font-style: italic;">{percentile}th Percentile</span>
+            </div>
+            <div style="height: 8px; width: 100%; background: {COLORS['bg_light']}; border-radius: 50px; overflow: hidden;">
+                <div style="height: 100%; width: {percentile}%; background: {COLORS['primary']}; border-radius: 50px; box-shadow: 0 0 10px rgba(245, 191, 3, 0.6);"></div>
+            </div>
+            <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; text-align: center; margin: 8px 0 0 0;">Calculated on 0.0 - 5.0 Wins Above Replacement Scale</p>
+        </div>
+    </div>
+    '''
+
+
+def render_value_breakdown_html(position_pct: int = 40, performance_pct: int = 30, stars_pct: int = 15, school_pct: int = 15) -> str:
+    """Render HTML for WAR value component breakdown."""
+    return f'''
+    <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 24px; border-radius: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+            <div>
+                <h3 style="color: {COLORS['text_primary']}; font-size: 1.1rem; font-weight: 700; margin: 0;">Value Component Breakdown</h3>
+                <p style="color: {COLORS['text_muted']}; font-size: 0.8rem; margin: 4px 0 0 0;">Factors contributing to total WAR</p>
+            </div>
+        </div>
+
+        <!-- Stacked bar -->
+        <div style="width: 100%; height: 40px; display: flex; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 20px;">
+            <div style="width: {position_pct}%; height: 100%; background: {COLORS['primary']}; display: flex; align-items: center; justify-content: center;">
+                <span style="color: {COLORS['bg_dark']}; font-size: 0.75rem; font-weight: 700;">{position_pct}%</span>
+            </div>
+            <div style="width: {performance_pct}%; height: 100%; background: rgba(245, 191, 3, 0.6); display: flex; align-items: center; justify-content: center;">
+                <span style="color: {COLORS['bg_dark']}; font-size: 0.75rem; font-weight: 700;">{performance_pct}%</span>
+            </div>
+            <div style="width: {stars_pct}%; height: 100%; background: rgba(245, 191, 3, 0.3); display: flex; align-items: center; justify-content: center;">
+                <span style="color: {COLORS['text_primary']}; font-size: 0.75rem; font-weight: 700;">{stars_pct}%</span>
+            </div>
+            <div style="width: {school_pct}%; height: 100%; background: rgba(245, 191, 3, 0.1); display: flex; align-items: center; justify-content: center;">
+                <span style="color: {COLORS['text_primary']}; font-size: 0.75rem; font-weight: 700;">{school_pct}%</span>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <div style="width: 12px; height: 12px; background: {COLORS['primary']}; border-radius: 3px; margin-top: 2px; flex-shrink: 0;"></div>
+                <div>
+                    <p style="color: {COLORS['text_primary']}; font-size: 0.75rem; font-weight: 600; margin: 0;">Position Value</p>
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; margin: 2px 0 0 0;">Positional scarcity index</p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <div style="width: 12px; height: 12px; background: rgba(245, 191, 3, 0.6); border-radius: 3px; margin-top: 2px; flex-shrink: 0;"></div>
+                <div>
+                    <p style="color: {COLORS['text_primary']}; font-size: 0.75rem; font-weight: 600; margin: 0;">Performance</p>
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; margin: 2px 0 0 0;">On-field stat metrics</p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <div style="width: 12px; height: 12px; background: rgba(245, 191, 3, 0.3); border-radius: 3px; margin-top: 2px; flex-shrink: 0;"></div>
+                <div>
+                    <p style="color: {COLORS['text_primary']}; font-size: 0.75rem; font-weight: 600; margin: 0;">Star Rating</p>
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; margin: 2px 0 0 0;">Recruiting historicals</p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <div style="width: 12px; height: 12px; background: rgba(245, 191, 3, 0.1); border-radius: 3px; margin-top: 2px; flex-shrink: 0;"></div>
+                <div>
+                    <p style="color: {COLORS['text_primary']}; font-size: 0.75rem; font-weight: 600; margin: 0;">School Tier</p>
+                    <p style="color: {COLORS['text_muted']}; font-size: 0.65rem; margin: 2px 0 0 0;">Program strength</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    '''
+
+
 def create_position_war_chart(df: pd.DataFrame) -> go.Figure:
     """Create bar chart showing average WAR by position using Portal IQ algorithm."""
     if "portaliq_war" not in df.columns:
@@ -231,15 +353,26 @@ def main():
 
     # Header - Portal IQ Ultra Modern Style
     st.markdown(f"""
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <span style="font-size: 2rem;">📈</span>
-        <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700;">
-            Win Impact
-        </h1>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; background: {COLORS['primary']}; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 1.25rem;">📈</span>
+            </div>
+            <div>
+                <h1 style="color: {COLORS['text_primary']}; margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;">
+                    Win Impact Analytics
+                </h1>
+                <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+                    Proprietary WAR Calculator & Win Projection Analysis
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="background: rgba(245, 191, 3, 0.1); border: 1px solid rgba(245, 191, 3, 0.3); padding: 6px 14px; border-radius: 50px;">
+                <span style="color: {COLORS['primary']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Proprietary Algorithm</span>
+            </div>
+        </div>
     </div>
-    <p style="color: {COLORS['text_muted']}; font-size: 0.95rem; margin-bottom: 24px;">
-        Portal IQ's proprietary WAR calculator & win projection analysis
-    </p>
     """, unsafe_allow_html=True)
 
     # Algorithm info expander
@@ -297,28 +430,50 @@ def render_overview_tab():
         # Enrich with Portal IQ WAR
         nil_df = enrich_with_war(nil_df)
 
-    # Summary metrics
-    st.markdown("### Win Impact Summary")
-
+    # Calculate metrics
     total_players = len(nil_df)
     avg_nil = nil_df["nil_value"].mean() if "nil_value" in nil_df.columns else 0
     avg_war = nil_df["portaliq_war"].mean()
     total_war = nil_df["portaliq_war"].sum()
+    nil_per_war = avg_nil / avg_war if avg_war > 0 else 0
 
-    col1, col2, col3, col4 = st.columns(4)
+    # Calculate percentile (approximate)
+    percentile = int(min(avg_war / 5.0 * 100, 100) * 0.9)  # Roughly map to percentile
+
+    # Modern glass-card metrics row
+    st.markdown(f"""
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+        <!-- Players Analyzed -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 20px; border-radius: 12px;">
+            <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Players Analyzed</p>
+            <span style="color: {COLORS['text_primary']}; font-size: 2rem; font-weight: 800;">{total_players:,}</span>
+        </div>
+        <!-- Avg WAR -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.3); padding: 20px; border-radius: 12px;">
+            <p style="color: {COLORS['primary']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Avg Portal IQ WAR</p>
+            <span style="color: {COLORS['primary']}; font-size: 2rem; font-weight: 800;">{avg_war:.2f}</span>
+        </div>
+        <!-- Total WAR Pool -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 20px; border-radius: 12px;">
+            <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Total WAR Pool</p>
+            <span style="color: {COLORS['text_primary']}; font-size: 2rem; font-weight: 800;">{total_war:.1f}</span>
+        </div>
+        <!-- NIL per WAR -->
+        <div style="background: rgba(26, 39, 68, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(245, 191, 3, 0.1); padding: 20px; border-radius: 12px;">
+            <p style="color: {COLORS['text_muted']}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 4px 0;">Avg NIL per WAR</p>
+            <span style="color: {COLORS['text_primary']}; font-size: 2rem; font-weight: 800;">{format_currency(nil_per_war)}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # WAR Gauge and Value Breakdown side by side
+    col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.metric("Players Analyzed", f"{total_players:,}")
+        st.markdown(render_war_gauge_html(avg_war, percentile, "AVG WAR"), unsafe_allow_html=True)
 
     with col2:
-        st.metric("Avg Portal IQ WAR", f"{avg_war:.2f}")
-
-    with col3:
-        st.metric("Total WAR Pool", f"{total_war:.1f}")
-
-    with col4:
-        nil_per_war = avg_nil / avg_war if avg_war > 0 else 0
-        st.metric("Avg NIL per WAR", format_currency(nil_per_war))
+        st.markdown(render_value_breakdown_html(), unsafe_allow_html=True)
 
     st.divider()
 
@@ -377,7 +532,16 @@ def render_player_tab():
         st.warning("No player data available.")
         return
 
-    st.markdown("### Analyze Player Win Impact")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            Individual Player Analysis
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Detailed WAR breakdown and win impact projection for any player
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Quick search for players
     player_search = st.text_input(
@@ -588,7 +752,16 @@ def render_team_tab():
     selected_season = get_selected_season()
     portal_year = selected_season + 1
 
-    st.markdown(f"### {portal_year} Portal IQ Team Impact Rankings")
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: {COLORS['text_primary']}; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; font-style: italic;">
+            {portal_year} Team Portal Impact Rankings
+        </h3>
+        <p style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin: 0;">
+            Proprietary team impact scores based on portal acquisitions
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.spinner("Calculating team portal impact scores..."):
         # Load portal data
