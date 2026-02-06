@@ -163,6 +163,10 @@ DATA_PATHS = {
         "s3_key": "processed/on3_transfer_portal.csv",
         "local": "processed/on3_transfer_portal.csv",
     },
+    "transfer_portal_current": {
+        "s3_key": "processed/on3_transfer_portal_current.csv",
+        "local": "processed/on3_transfer_portal_current.csv",
+    },
     "team_portal_rankings": {
         "s3_key": "processed/on3_team_portal_rankings.csv",
         "local": "processed/on3_team_portal_rankings.csv",
@@ -269,12 +273,22 @@ def load_nil_data() -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def load_portal_data() -> pd.DataFrame:
+def load_portal_data(current_cycle_only: bool = True) -> pd.DataFrame:
     """Load transfer portal data.
+
+    Args:
+        current_cycle_only: If True, load only current 2025-2026 cycle.
+                           If False, load all historical data.
 
     Returns:
         DataFrame with portal player information
     """
+    if current_cycle_only:
+        df = load_csv_with_fallback("transfer_portal_current")
+        if not df.empty:
+            return df
+        logger.warning("Current portal data not found, falling back to full portal")
+
     return load_csv_with_fallback("transfer_portal")
 
 
