@@ -670,7 +670,7 @@ async def portal_active(
             data={
                 "players": players,
                 "total": len(players),
-                "source": portal_file.name,
+                "source": "r2/on3_transfer_portal.csv",
                 "filters_applied": {
                     "status": status,
                     "position": position,
