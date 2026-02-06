@@ -157,26 +157,26 @@ export async function getWARLeaderboard(
   const response = await apiClient.get(url);
   // The response interceptor extracts data.data, so we cast through unknown
   const data = response as unknown as { players: Array<{
-    rank: number;
-    player_id: string;
-    name: string;
+    rank?: number;
+    player_id?: string;
+    player_name: string;
     position: string;
     school: string;
-    value: number;
+    valuation: number;
     headshot_url?: string;
   }>; total: number };
 
   // Transform NIL data to WAR metrics
   const warPlayers: WARPlayer[] = data.players.map((player, index) => {
-    const nilValue = player.value || 0;
+    const nilValue = player.valuation || 0;
     const war = calculateWAR(nilValue, player.position);
     const winProbAdded = calculateWinProbAdded(war);
     const valuePerWin = war > 0 ? nilValue / war : 0;
 
     return {
       rank: index + 1,
-      player_id: player.player_id,
-      player_name: player.name,
+      player_id: player.player_id || `player_${index}`,
+      player_name: player.player_name,
       position: player.position,
       school: player.school,
       nil_valuation: nilValue,

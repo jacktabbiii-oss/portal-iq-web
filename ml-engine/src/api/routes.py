@@ -390,13 +390,14 @@ async def nil_leaderboard(
         # Limit results
         df = df.head(limit)
 
-        # Map column names to match frontend expectations
+        # Map column names to match frontend NILLeaderboardPlayer interface
         df = df.rename(columns={
-            'player_name': 'name',
-            'custom_nil_value': 'value',
-            'nil_tier': 'tier',
+            'custom_nil_value': 'valuation',
             'valuation_confidence': 'confidence',
         })
+        # Ensure player_name exists (some CSVs may have 'name' instead)
+        if 'name' in df.columns and 'player_name' not in df.columns:
+            df = df.rename(columns={'name': 'player_name'})
 
         # Convert to list of dicts
         players = df.to_dict(orient='records')
@@ -628,25 +629,35 @@ async def portal_active(
         # Limit results
         df = df.head(limit)
 
-        # Map columns to match frontend expectations
+        # Map columns to match frontend PortalPlayer interface expectations
         players = []
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
+            # Determine status - map to frontend expected values
+            raw_status = str(row.get('status', 'Active')).lower() if pd.notna(row.get('status')) else 'active'
+            if 'committed' in raw_status:
+                mapped_status = 'committed'
+            elif 'withdrawn' in raw_status:
+                mapped_status = 'withdrawn'
+            else:
+                mapped_status = 'available'
+
             player = {
-                "name": row.get('name', row.get('player_name', 'Unknown')),
+                "player_id": str(idx),
+                "player_name": row.get('name', row.get('player_name', 'Unknown')),
                 "position": row.get('position', 'Unknown'),
                 "origin_school": row.get('from_school', row.get('school', 'Unknown')),
-                "destination_school": row.get('to_school', None),
-                "status": row.get('status', 'Active'),
-                "nil_valuation": row.get('nil_valuation', row.get('custom_nil_value', 0)),
-                "stars": row.get('stars', 0),
+                "destination_school": row.get('to_school', None) if pd.notna(row.get('to_school')) else None,
+                "status": mapped_status,
+                "nil_valuation": float(row.get('nil_valuation', row.get('custom_nil_value', 0)) or 0),
+                "stars": int(row.get('stars', 0) or 0),
             }
             # Add optional fields
             if 'headshot_url' in row and pd.notna(row.get('headshot_url')):
                 player["headshot_url"] = row['headshot_url']
             if 'class_year' in row and pd.notna(row.get('class_year')):
-                player["class_year"] = row['class_year']
+                player["class_year"] = str(row['class_year'])
             if 'commit_date' in row and pd.notna(row.get('commit_date')):
-                player["commit_date"] = str(row['commit_date'])
+                player["entry_date"] = str(row['commit_date'])
             players.append(player)
 
         return APIResponse(

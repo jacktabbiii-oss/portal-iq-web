@@ -121,7 +121,7 @@ export async function getNILTiers(): Promise<Record<string, { min: number; label
 
 // API Functions
 export async function predictNIL(player: PlayerInput): Promise<NILValuation> {
-  const response = await apiClient.post("/api/nil/valuate", { player });
+  const response = await apiClient.post("/api/nil/predict", { player });
   return response as unknown as NILValuation;
 }
 

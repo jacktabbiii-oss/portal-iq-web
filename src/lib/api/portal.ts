@@ -124,7 +124,9 @@ export async function getActivePortalPlayers(
   const url = queryString ? `/api/portal/active?${queryString}` : "/api/portal/active";
 
   const response = await apiClient.get(url);
-  return response as unknown as PortalPlayer[];
+  // Response interceptor extracts data.data, which contains { players: [...], total: N }
+  const data = response as unknown as { players: PortalPlayer[]; total: number };
+  return data.players || [];
 }
 
 /**

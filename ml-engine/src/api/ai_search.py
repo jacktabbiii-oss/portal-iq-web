@@ -96,12 +96,14 @@ Sample: {json.dumps(sample, default=str)[:500]}
         if not self.client:
             return {
                 "error": "AI search not available - ANTHROPIC_API_KEY not configured",
+                "response": "I'm sorry, but AI search is not currently available. The Anthropic API key hasn't been configured.",
                 "results": []
             }
 
         if not self.data:
             return {
                 "error": "No data loaded - run data collection first",
+                "response": "I don't have any data loaded to search. Please make sure the data collection has been run.",
                 "results": []
             }
 
@@ -157,6 +159,7 @@ Return ONLY the Python code block, no explanations."""
             if not code:
                 return {
                     "error": "Could not generate query code",
+                    "response": f"I couldn't understand your query \"{query}\". Please try rephrasing or be more specific about what you're looking for.",
                     "query": query,
                     "results": []
                 }
@@ -167,6 +170,7 @@ Return ONLY the Python code block, no explanations."""
             if results_df is None or len(results_df) == 0:
                 return {
                     "query": query,
+                    "response": f"I searched for \"{query}\" but couldn't find any matching results. Try broadening your search criteria or using different terms.",
                     "interpretation": "Query executed but returned no results",
                     "code": code,
                     "results": [],
@@ -182,18 +186,34 @@ Return ONLY the Python code block, no explanations."""
                     if pd.isna(value):
                         row[key] = None
 
+            # Build a human-readable response
+            response_text = f"Found {len(results_df)} matching records for your query: \"{query}\".\n\n"
+            if len(results_list) > 0:
+                response_text += "Here are the top results:\n\n"
+                for i, row in enumerate(results_list[:5], 1):
+                    # Try to build a meaningful summary for each result
+                    name = row.get('name') or row.get('player_name') or row.get('athlete_name') or 'Unknown'
+                    pos = row.get('position') or row.get('pos') or ''
+                    school = row.get('school') or row.get('team') or ''
+                    response_text += f"{i}. **{name}** ({pos}) - {school}\n"
+                if len(results_list) > 5:
+                    response_text += f"\n...and {len(results_list) - 5} more results."
+
             return {
                 "query": query,
+                "response": response_text,
                 "interpretation": f"Found {len(results_df)} matching records",
                 "results": results_list,
                 "count": len(results_df),
-                "code": code
+                "code": code,
+                "data_used": list(self.data.keys())
             }
 
         except Exception as e:
             logger.error(f"AI search error: {e}")
             return {
                 "error": str(e),
+                "response": f"I encountered an error while processing your query: {str(e)}. Please try again.",
                 "query": query,
                 "results": []
             }
