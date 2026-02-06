@@ -294,14 +294,121 @@ async def get_team_portal_activity(
 ):
     """
     Get portal activity for a specific team.
+    Shows incoming transfers, outgoing transfers, and net talent change.
     """
-    return {
+    df = load_portal_data()
+
+    if df.empty:
+        return {"status": "success", "data": {
+            "team": team,
+            "season": season,
+            "incoming": [],
+            "outgoing": [],
+            "net_war": 0,
+            "total_nil_invested": 0,
+            "summary": {"incoming_count": 0, "outgoing_count": 0, "net_count": 0}
+        }}
+
+    team_lower = team.lower()
+
+    # Helper to check school match
+    def school_matches(school_val, target):
+        if not school_val or not target:
+            return False
+        return target in str(school_val).lower()
+
+    # Find incoming transfers (destination = this team, committed)
+    dest_col = next((c for c in ["destination_school", "to_school", "dest_school"] if c in df.columns), None)
+    status_col = "status" if "status" in df.columns else None
+
+    incoming_df = df.copy()
+    if dest_col:
+        incoming_df = incoming_df[incoming_df[dest_col].apply(lambda x: school_matches(x, team_lower))]
+    if status_col:
+        incoming_df = incoming_df[incoming_df[status_col].str.lower().str.contains("commit", na=False)]
+
+    # Find outgoing transfers (origin = this team)
+    origin_cols = ["origin_school", "from_school", "school"]
+    origin_col = next((c for c in origin_cols if c in df.columns), None)
+
+    outgoing_df = df.copy()
+    if origin_col:
+        outgoing_df = outgoing_df[outgoing_df[origin_col].apply(lambda x: school_matches(x, team_lower))]
+
+    # Build incoming list with WAR calculations
+    incoming = []
+    total_incoming_war = 0
+    total_nil = 0
+
+    for i, (_, row) in enumerate(incoming_df.iterrows()):
+        name = row.get("name") or row.get("player_name") or ""
+        nil_val = float(row.get("nil_value") or row.get("nil_valuation") or 0)
+        position = row.get("position", "ATH")
+        stars = int(row.get("stars", 3)) if row.get("stars") else 3
+
+        # Calculate WAR (simplified version matching frontend algorithm)
+        position_war = {"QB": 3.0, "WR": 1.2, "RB": 0.9, "EDGE": 1.5, "CB": 1.2, "OT": 1.0, "LB": 1.0, "S": 0.9, "TE": 0.8, "DT": 0.8}.get(position.upper(), 0.8)
+        star_mult = {5: 2.0, 4: 1.5, 3: 1.0, 2: 0.6, 1: 0.3}.get(stars, 1.0)
+        war = round(position_war * star_mult, 2)
+        total_incoming_war += war
+        total_nil += nil_val
+
+        incoming.append({
+            "player_name": name,
+            "position": position,
+            "origin_school": row.get("from_school") or row.get("origin_school") or "",
+            "stars": stars,
+            "nil_valuation": nil_val,
+            "war": war,
+            "status": "committed"
+        })
+
+    # Build outgoing list
+    outgoing = []
+    total_outgoing_war = 0
+
+    for i, (_, row) in enumerate(outgoing_df.iterrows()):
+        name = row.get("name") or row.get("player_name") or ""
+        nil_val = float(row.get("nil_value") or row.get("nil_valuation") or 0)
+        position = row.get("position", "ATH")
+        stars = int(row.get("stars", 3)) if row.get("stars") else 3
+
+        position_war = {"QB": 3.0, "WR": 1.2, "RB": 0.9, "EDGE": 1.5, "CB": 1.2, "OT": 1.0, "LB": 1.0, "S": 0.9, "TE": 0.8, "DT": 0.8}.get(position.upper(), 0.8)
+        star_mult = {5: 2.0, 4: 1.5, 3: 1.0, 2: 0.6, 1: 0.3}.get(stars, 1.0)
+        war = round(position_war * star_mult, 2)
+        total_outgoing_war += war
+
+        raw_status = str(row.get("status", "")).lower()
+        status = "committed" if "commit" in raw_status else "available"
+        dest = row.get("to_school") or row.get("destination_school") or ""
+
+        outgoing.append({
+            "player_name": name,
+            "position": position,
+            "destination_school": dest,
+            "stars": stars,
+            "nil_valuation": nil_val,
+            "war": war,
+            "status": status
+        })
+
+    net_war = round(total_incoming_war - total_outgoing_war, 2)
+
+    return {"status": "success", "data": {
         "team": team,
         "season": season,
-        "incoming": [],
-        "outgoing": [],
-        "net_talent_change": 0,
-    }
+        "incoming": incoming,
+        "outgoing": outgoing,
+        "net_war": net_war,
+        "total_nil_invested": total_nil,
+        "summary": {
+            "incoming_count": len(incoming),
+            "outgoing_count": len(outgoing),
+            "net_count": len(incoming) - len(outgoing),
+            "incoming_war": round(total_incoming_war, 2),
+            "outgoing_war": round(total_outgoing_war, 2)
+        }
+    }}
 
 
 # =============================================================================
@@ -417,14 +524,69 @@ async def get_roster_needs(
     user: dict = Depends(get_current_user),
 ):
     """
-    Get position needs analysis for a team.
+    Get position needs analysis for a team based on portal activity.
     """
-    return {
+    df = load_portal_data()
+
+    if df.empty:
+        return {"status": "success", "data": {
+            "team": team,
+            "needs": {},
+            "priority_positions": [],
+            "analysis": "No portal data available"
+        }}
+
+    team_lower = team.lower()
+
+    def school_matches(school_val, target):
+        if not school_val or not target:
+            return False
+        return target in str(school_val).lower()
+
+    # Find outgoing by position
+    origin_col = next((c for c in ["origin_school", "from_school", "school"] if c in df.columns), None)
+    outgoing_df = df[df[origin_col].apply(lambda x: school_matches(x, team_lower))] if origin_col else df.head(0)
+
+    # Find incoming by position
+    dest_col = next((c for c in ["destination_school", "to_school"] if c in df.columns), None)
+    incoming_df = df[df[dest_col].apply(lambda x: school_matches(x, team_lower))] if dest_col else df.head(0)
+    if "status" in incoming_df.columns:
+        incoming_df = incoming_df[incoming_df["status"].str.lower().str.contains("commit", na=False)]
+
+    # Calculate net by position
+    position_needs = {}
+    all_positions = ["QB", "RB", "WR", "TE", "OT", "OG", "C", "EDGE", "DT", "LB", "CB", "S"]
+
+    for pos in all_positions:
+        out_count = len(outgoing_df[outgoing_df["position"].str.upper() == pos]) if "position" in outgoing_df.columns else 0
+        in_count = len(incoming_df[incoming_df["position"].str.upper() == pos]) if "position" in incoming_df.columns else 0
+        net = in_count - out_count
+
+        need_level = "none"
+        if net < -2:
+            need_level = "critical"
+        elif net < 0:
+            need_level = "moderate"
+        elif net == 0 and out_count > 0:
+            need_level = "low"
+
+        position_needs[pos] = {
+            "incoming": in_count,
+            "outgoing": out_count,
+            "net": net,
+            "need_level": need_level
+        }
+
+    # Identify priority positions
+    priority = [pos for pos, data in position_needs.items() if data["need_level"] in ("critical", "moderate")]
+    priority.sort(key=lambda p: position_needs[p]["net"])
+
+    return {"status": "success", "data": {
         "team": team,
-        "needs": {},
-        "depth_chart_gaps": [],
-        "priority_positions": [],
-    }
+        "needs": position_needs,
+        "priority_positions": priority[:5],
+        "analysis": f"Team has {len(priority)} positions with transfer needs"
+    }}
 
 
 # =============================================================================
