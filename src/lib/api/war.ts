@@ -155,7 +155,8 @@ export async function getWARLeaderboard(
   const url = queryString ? `/api/nil/leaderboard?${queryString}` : "/api/nil/leaderboard";
 
   const response = await apiClient.get(url);
-  const data = response as { players: Array<{
+  // The response interceptor extracts data.data, so we cast through unknown
+  const data = response as unknown as { players: Array<{
     rank: number;
     player_id: string;
     name: string;
