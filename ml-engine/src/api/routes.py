@@ -63,6 +63,76 @@ router = APIRouter()
 
 
 # =============================================================================
+# Helper Functions (must be defined before endpoints that use them)
+# =============================================================================
+
+def get_models(request: Request) -> Dict[str, Any]:
+    """Get loaded models from app state."""
+    return request.app.state.get_models()
+
+
+async def require_api_key(request: Request) -> str:
+    """Require API key authentication."""
+    api_key = request.headers.get("X-API-Key")
+    from fastapi import HTTPException
+
+    valid_keys = {"dev-key-123", "64c60545aa2809c7fc69d4bb6cc9743a8690df00e19c28ad32b022befa9c2ec1"}
+
+    # Also try to get from app state
+    try:
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        keys_env = os.getenv("PORTAL_IQ_API_KEYS", "dev-key-123")
+        valid_keys.update(k.strip() for k in keys_env.split(",") if k.strip())
+    except:
+        pass
+
+    if not api_key:
+        raise HTTPException(status_code=401, detail={"error": "Missing API key", "message": "Include X-API-Key header"})
+    if api_key not in valid_keys:
+        raise HTTPException(status_code=401, detail={"error": "Invalid API key", "message": "The provided API key is not valid"})
+    return api_key
+
+
+def player_to_dataframe(player_data: Dict[str, Any]) -> pd.DataFrame:
+    """Convert player profile dict to DataFrame for model input."""
+    # Flatten nested structures
+    flat_data = {
+        "name": player_data.get("name"),
+        "player_name": player_data.get("name"),
+        "school": player_data.get("school"),
+        "position": player_data.get("position"),
+        "class_year": player_data.get("class_year", "Junior"),
+        "eligibility_remaining": player_data.get("eligibility_remaining", 2),
+        "overall_rating": player_data.get("overall_rating", 0.75),
+        "is_starter": player_data.get("is_starter", True),
+    }
+
+    # Flatten stats
+    if player_data.get("stats"):
+        for key, value in player_data["stats"].items():
+            flat_data[key] = value
+
+    # Flatten social media
+    if player_data.get("social_media"):
+        for key, value in player_data["social_media"].items():
+            flat_data[key] = value
+
+    # Flatten recruiting
+    if player_data.get("recruiting"):
+        for key, value in player_data["recruiting"].items():
+            flat_data[key] = value
+
+    # Flatten measurables
+    if player_data.get("measurables"):
+        for key, value in player_data["measurables"].items():
+            flat_data[key] = value
+
+    return pd.DataFrame([flat_data])
+
+
+# =============================================================================
 # Debug Endpoints
 # =============================================================================
 
@@ -202,76 +272,6 @@ async def get_player_pff(
         data=result,
         message=f"PFF stats for {player_name}"
     )
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-def get_models(request: Request) -> Dict[str, Any]:
-    """Get loaded models from app state."""
-    return request.app.state.get_models()
-
-
-async def require_api_key(request: Request) -> str:
-    """Require API key authentication."""
-    api_key = request.headers.get("X-API-Key")
-    from fastapi import HTTPException
-
-    valid_keys = {"dev-key-123", "64c60545aa2809c7fc69d4bb6cc9743a8690df00e19c28ad32b022befa9c2ec1"}
-
-    # Also try to get from app state
-    try:
-        import os
-        from dotenv import load_dotenv
-        load_dotenv()
-        keys_env = os.getenv("PORTAL_IQ_API_KEYS", "dev-key-123")
-        valid_keys.update(k.strip() for k in keys_env.split(",") if k.strip())
-    except:
-        pass
-
-    if not api_key:
-        raise HTTPException(status_code=401, detail={"error": "Missing API key", "message": "Include X-API-Key header"})
-    if api_key not in valid_keys:
-        raise HTTPException(status_code=401, detail={"error": "Invalid API key", "message": "The provided API key is not valid"})
-    return api_key
-
-
-def player_to_dataframe(player_data: Dict[str, Any]) -> pd.DataFrame:
-    """Convert player profile dict to DataFrame for model input."""
-    # Flatten nested structures
-    flat_data = {
-        "name": player_data.get("name"),
-        "player_name": player_data.get("name"),
-        "school": player_data.get("school"),
-        "position": player_data.get("position"),
-        "class_year": player_data.get("class_year", "Junior"),
-        "eligibility_remaining": player_data.get("eligibility_remaining", 2),
-        "overall_rating": player_data.get("overall_rating", 0.75),
-        "is_starter": player_data.get("is_starter", True),
-    }
-
-    # Flatten stats
-    if player_data.get("stats"):
-        for key, value in player_data["stats"].items():
-            flat_data[key] = value
-
-    # Flatten social media
-    if player_data.get("social_media"):
-        for key, value in player_data["social_media"].items():
-            flat_data[key] = value
-
-    # Flatten recruiting
-    if player_data.get("recruiting"):
-        for key, value in player_data["recruiting"].items():
-            flat_data[key] = value
-
-    # Flatten measurables
-    if player_data.get("measurables"):
-        for key, value in player_data["measurables"].items():
-            flat_data[key] = value
-
-    return pd.DataFrame([flat_data])
 
 
 # =============================================================================
