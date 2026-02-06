@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+# Import S3/R2 data loader for production data
+from ..utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
+
 from .schemas import (
     # Base
     APIResponse,
@@ -356,25 +359,17 @@ async def nil_leaderboard(
     api_key: str = Depends(require_api_key),
 ):
     """Get NIL leaderboard with optional filters."""
-    from pathlib import Path
+    # Load NIL data from R2 (with local fallback)
+    df = load_nil_data()
 
-    # Find the valuations file
-    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
-    valuations_file = data_dir / "nil_valuations_2025.csv"
-
-    if not valuations_file.exists():
-        # Try 2024 as fallback
-        valuations_file = data_dir / "nil_valuations_2024.csv"
-
-    if not valuations_file.exists():
+    if df.empty:
         return APIResponse(
             status="error",
-            message="No valuations data available. Run generate_nil_valuations.py first.",
+            message="No NIL data available. Check R2 connection or local files.",
             data={"players": [], "total": 0}
         )
 
     try:
-        df = pd.read_csv(valuations_file)
 
         # Apply filters
         if position:
@@ -433,17 +428,11 @@ async def market_report(
     api_key: str = Depends(require_api_key),
 ):
     """Generate NIL market report with optional position/conference filters."""
-    from pathlib import Path
+    # Load NIL data from R2 (with local fallback)
+    df = load_nil_data()
 
-    # Try to load real data from CSV first
-    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
-    valuations_file = data_dir / "nil_valuations_2025.csv"
-    if not valuations_file.exists():
-        valuations_file = data_dir / "nil_valuations_2024.csv"
-
-    if valuations_file.exists():
+    if not df.empty:
         try:
-            df = pd.read_csv(valuations_file)
 
             # Apply filters
             filters = {}
@@ -583,34 +572,17 @@ async def portal_active(
     api_key: str = Depends(require_api_key),
 ):
     """Get active portal players with optional filters."""
-    from pathlib import Path
+    # Load portal data from R2 (with local fallback)
+    df = load_portal_data()
 
-    # Find portal tracker data (prefer most recent year)
-    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
-    portal_file = None
-
-    for year in [2026, 2025, 2024]:
-        candidate = data_dir / f"on3_portal_tracker_{year}.csv"
-        if candidate.exists():
-            portal_file = candidate
-            break
-
-    # Fallback to other portal files
-    if not portal_file or not portal_file.exists():
-        portal_file = data_dir / "portal_nil_valuations.csv"
-
-    if not portal_file or not portal_file.exists():
-        portal_file = data_dir / "on3_transfer_portal.csv"
-
-    if not portal_file or not portal_file.exists():
+    if df.empty:
         return APIResponse(
             status="error",
-            message="No portal data available.",
+            message="No portal data available. Check R2 connection or local files.",
             data={"players": [], "total": 0}
         )
 
     try:
-        df = pd.read_csv(portal_file)
 
         # Apply filters
         if status and status.lower() != "all":
@@ -1518,4 +1490,29 @@ async def ai_search_status(
             "datasets_loaded": len(ai.data),
             "datasets": datasets
         }
+    )
+
+
+# =============================================================================
+# Debug Endpoints
+# =============================================================================
+
+@router.get(
+    "/debug/s3",
+    response_model=APIResponse,
+    tags=["Debug"],
+    summary="S3/R2 connection diagnostics",
+    description="Check S3/R2 storage connection and list available data files.",
+)
+async def debug_s3(
+    request: Request,
+    api_key: str = Depends(require_api_key),
+):
+    """Check S3/R2 connection status and available files."""
+    diagnostics = get_s3_diagnostics()
+
+    return APIResponse(
+        status="success",
+        data=diagnostics,
+        message="S3/R2 diagnostics retrieved"
     )
