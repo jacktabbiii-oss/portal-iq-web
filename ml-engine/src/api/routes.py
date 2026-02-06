@@ -356,22 +356,25 @@ async def nil_leaderboard(
     api_key: str = Depends(require_api_key),
 ):
     """Get NIL leaderboard with optional filters."""
-    # Lazy import to avoid import errors crashing the whole app
-    try:
-        from ..utils.s3_loader import load_nil_data
-        df = load_nil_data()
-    except ImportError as e:
-        logger.error(f"Failed to import s3_loader: {e}")
-        df = pd.DataFrame()
+    from pathlib import Path
 
-    if df.empty:
+    # Find the valuations file
+    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
+    valuations_file = data_dir / "nil_valuations_2025.csv"
+
+    if not valuations_file.exists():
+        # Try 2024 as fallback
+        valuations_file = data_dir / "nil_valuations_2024.csv"
+
+    if not valuations_file.exists():
         return APIResponse(
             status="error",
-            message="No NIL data available. Check R2 connection or local files.",
+            message="No valuations data available. Run generate_nil_valuations.py first.",
             data={"players": [], "total": 0}
         )
 
     try:
+        df = pd.read_csv(valuations_file)
 
         # Apply filters
         if position:
@@ -430,16 +433,17 @@ async def market_report(
     api_key: str = Depends(require_api_key),
 ):
     """Generate NIL market report with optional position/conference filters."""
-    # Lazy import to avoid import errors crashing the whole app
-    try:
-        from ..utils.s3_loader import load_nil_data
-        df = load_nil_data()
-    except ImportError as e:
-        logger.error(f"Failed to import s3_loader: {e}")
-        df = pd.DataFrame()
+    from pathlib import Path
 
-    if not df.empty:
+    # Try to load real data from CSV first
+    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
+    valuations_file = data_dir / "nil_valuations_2025.csv"
+    if not valuations_file.exists():
+        valuations_file = data_dir / "nil_valuations_2024.csv"
+
+    if valuations_file.exists():
         try:
+            df = pd.read_csv(valuations_file)
 
             # Apply filters
             filters = {}
@@ -579,22 +583,34 @@ async def portal_active(
     api_key: str = Depends(require_api_key),
 ):
     """Get active portal players with optional filters."""
-    # Lazy import to avoid import errors crashing the whole app
-    try:
-        from ..utils.s3_loader import load_portal_data
-        df = load_portal_data()
-    except ImportError as e:
-        logger.error(f"Failed to import s3_loader: {e}")
-        df = pd.DataFrame()
+    from pathlib import Path
 
-    if df.empty:
+    # Find portal tracker data (prefer most recent year)
+    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
+    portal_file = None
+
+    for year in [2026, 2025, 2024]:
+        candidate = data_dir / f"on3_portal_tracker_{year}.csv"
+        if candidate.exists():
+            portal_file = candidate
+            break
+
+    # Fallback to other portal files
+    if not portal_file or not portal_file.exists():
+        portal_file = data_dir / "portal_nil_valuations.csv"
+
+    if not portal_file or not portal_file.exists():
+        portal_file = data_dir / "on3_transfer_portal.csv"
+
+    if not portal_file or not portal_file.exists():
         return APIResponse(
             status="error",
-            message="No portal data available. Check R2 connection or local files.",
+            message="No portal data available.",
             data={"players": [], "total": 0}
         )
 
     try:
+        df = pd.read_csv(portal_file)
 
         # Apply filters
         if status and status.lower() != "all":
@@ -1502,34 +1518,4 @@ async def ai_search_status(
             "datasets_loaded": len(ai.data),
             "datasets": datasets
         }
-    )
-
-
-# =============================================================================
-# Debug Endpoints
-# =============================================================================
-
-@router.get(
-    "/debug/s3",
-    response_model=APIResponse,
-    tags=["Debug"],
-    summary="S3/R2 connection diagnostics",
-    description="Check S3/R2 storage connection and list available data files.",
-)
-async def debug_s3(
-    request: Request,
-    api_key: str = Depends(require_api_key),
-):
-    """Check S3/R2 connection status and available files."""
-    # Lazy import to avoid import errors crashing the whole app
-    try:
-        from ..utils.s3_loader import get_s3_diagnostics
-        diagnostics = get_s3_diagnostics()
-    except ImportError as e:
-        diagnostics = {"error": f"Failed to import s3_loader: {e}"}
-
-    return APIResponse(
-        status="success",
-        data=diagnostics,
-        message="S3/R2 diagnostics retrieved"
     )
