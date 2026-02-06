@@ -17,6 +17,7 @@ import {
   School,
   Bell,
   FileText,
+  GitCompareArrows,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -58,6 +59,12 @@ const mainNavigation = [
 ];
 
 const secondaryNavigation = [
+  {
+    name: "Player Comparison",
+    href: "/player-comparison",
+    icon: GitCompareArrows,
+    description: "Compare players",
+  },
   {
     name: "Watchlist",
     href: "/watchlist",

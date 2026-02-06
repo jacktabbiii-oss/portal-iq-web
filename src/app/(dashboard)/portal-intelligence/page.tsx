@@ -35,12 +35,18 @@ import {
   Calendar,
   Loader2,
   AlertCircle,
+  Ruler,
+  Weight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActivePortalPlayers, type PortalPlayer } from "@/lib/api/portal";
+import { HEIGHT_PRESETS, WEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
 
-const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
+const positions = ["All", "QB", "RB", "WR", "TE", "OT", "OG", "EDGE", "DT", "LB", "CB", "S"];
 const statuses = ["All", "In Portal", "Committed", "Withdrawn"];
+const starFilters = ["All", "5", "4+", "3+", "2+"];
+const heightFilters = ["All", "6'4\"+", "6'2\"+", "6'0\"+", "5'10\"+"];
+const weightFilters = ["All", "300+", "250+", "220+", "200+", "180+"];
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return "$0";
@@ -73,13 +79,42 @@ function getStatusLabel(status: string): string {
   return labels[status] || status;
 }
 
+// Extend PortalPlayer type with measurables
+interface PortalPlayerWithMeasurables extends PortalPlayer {
+  height?: number;
+  weight?: number;
+  pff_overall?: number;
+}
+
+// Helper to parse height filter string to inches
+function parseHeightFilter(filter: string): number | null {
+  if (filter === "All") return null;
+  const match = filter.match(/(\d+)'(\d+)/);
+  if (match) {
+    return parseInt(match[1]) * 12 + parseInt(match[2]);
+  }
+  return null;
+}
+
+// Helper to parse weight filter string
+function parseWeightFilter(filter: string): number | null {
+  if (filter === "All") return null;
+  const match = filter.match(/(\d+)/);
+  return match ? parseInt(match[1]) : null;
+}
+
 export default function PortalIntelligencePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
+  const [selectedStars, setSelectedStars] = useState("All");
+  const [selectedHeight, setSelectedHeight] = useState("All");
+  const [selectedWeight, setSelectedWeight] = useState("All");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // API state
-  const [players, setPlayers] = useState<PortalPlayer[]>([]);
+  const [players, setPlayers] = useState<PortalPlayerWithMeasurables[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,24 +146,37 @@ export default function PortalIntelligencePage() {
         position?: string;
         status?: "available" | "committed" | "all";
         limit: number;
-      } = { limit: 200, status: apiStatus };
+        min_stars?: number;
+      } = { limit: 500, status: apiStatus };
 
       if (selectedPosition !== "All") {
         params.position = selectedPosition;
       }
 
-      const response = await getActivePortalPlayers(params);
-      setPlayers(response);
+      // API-level star filter
+      if (selectedStars !== "All") {
+        const minStars = parseInt(selectedStars.replace("+", ""));
+        if (!isNaN(minStars)) {
+          params.min_stars = minStars;
+        }
+      }
 
-      // Calculate stats
-      const activeCount = response.filter((p) => p.status === "available").length;
-      const committedCount = response.filter((p) => p.status === "committed").length;
-      const schools = new Set(response.map((p) => p.origin_school)).size;
+      const response = await getActivePortalPlayers(params);
+
+      // Response is { players: [], total: N }
+      const playersList = response.players || [];
+      setPlayers(playersList as PortalPlayerWithMeasurables[]);
+      setTotalCount(response.total || playersList.length);
+
+      // Calculate stats from full dataset
+      const activeCount = playersList.filter((p) => p.status === "available").length;
+      const committedCount = playersList.filter((p) => p.status === "committed").length;
+      const schools = new Set(playersList.map((p) => p.origin_school)).size;
 
       setStats({
         activeInPortal: activeCount,
         committed: committedCount,
-        newToday: Math.floor(activeCount * 0.02), // Approximate
+        newToday: Math.floor(response.total * 0.02), // Approximate based on total
         schools,
       });
     } catch (err) {
@@ -137,22 +185,38 @@ export default function PortalIntelligencePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPosition, selectedStatus]);
+  }, [selectedPosition, selectedStatus, selectedStars]);
 
   // Initial load and refetch on filter changes
   useEffect(() => {
     fetchPlayers();
   }, [fetchPlayers]);
 
-  // Client-side search filtering
+  // Client-side filtering (search + measurables)
   const filteredPlayers = players.filter((player) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      player.player_name.toLowerCase().includes(query) ||
-      player.origin_school.toLowerCase().includes(query) ||
-      (player.destination_school?.toLowerCase().includes(query) ?? false)
-    );
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch =
+        player.player_name.toLowerCase().includes(query) ||
+        player.origin_school.toLowerCase().includes(query) ||
+        (player.destination_school?.toLowerCase().includes(query) ?? false);
+      if (!matchesSearch) return false;
+    }
+
+    // Height filter (client-side)
+    const minHeight = parseHeightFilter(selectedHeight);
+    if (minHeight !== null && player.height) {
+      if (player.height < minHeight) return false;
+    }
+
+    // Weight filter (client-side)
+    const minWeight = parseWeightFilter(selectedWeight);
+    if (minWeight !== null && player.weight) {
+      if (player.weight < minWeight) return false;
+    }
+
+    return true;
   });
 
   return (
@@ -165,7 +229,7 @@ export default function PortalIntelligencePage() {
             Portal Intelligence
           </h1>
           <p className="text-muted-foreground mt-1">
-            Track 14,000+ transfer portal entries in real-time
+            Track {totalCount > 0 ? totalCount.toLocaleString() : "11,000"}+ transfer portal entries in real-time
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -216,7 +280,7 @@ export default function PortalIntelligencePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Total Players</p>
-                <p className="text-2xl font-bold">{players.length.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{totalCount.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -258,7 +322,8 @@ export default function PortalIntelligencePage() {
         <TabsContent value="players" className="space-y-6">
           {/* Filters */}
           <Card className="glass">
-            <CardContent className="p-6">
+            <CardContent className="p-6 space-y-4">
+              {/* Primary Filters Row */}
               <div className="flex flex-col lg:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
@@ -272,7 +337,7 @@ export default function PortalIntelligencePage() {
                   </div>
                 </div>
                 <Select value={selectedPosition} onValueChange={setSelectedPosition}>
-                  <SelectTrigger className="w-full lg:w-40 h-11">
+                  <SelectTrigger className="w-full lg:w-32 h-11">
                     <SelectValue placeholder="Position" />
                   </SelectTrigger>
                   <SelectContent>
@@ -284,7 +349,7 @@ export default function PortalIntelligencePage() {
                   </SelectContent>
                 </Select>
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-full lg:w-40 h-11">
+                  <SelectTrigger className="w-full lg:w-36 h-11">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -295,6 +360,27 @@ export default function PortalIntelligencePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={selectedStars} onValueChange={setSelectedStars}>
+                  <SelectTrigger className="w-full lg:w-28 h-11">
+                    <Star className="h-4 w-4 mr-1 text-yellow-500" />
+                    <SelectValue placeholder="Stars" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {starFilters.map((stars) => (
+                      <SelectItem key={stars} value={stars}>
+                        {stars === "All" ? "All Stars" : `${stars} Stars`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                >
+                  <Ruler className="h-4 w-4 mr-2" />
+                  {showAdvancedFilters ? "Less" : "More"}
+                </Button>
                 <Button
                   className="h-11 bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={fetchPlayers}
@@ -304,6 +390,52 @@ export default function PortalIntelligencePage() {
                   Apply
                 </Button>
               </div>
+
+              {/* Advanced Filters (Height/Weight) */}
+              {showAdvancedFilters && (
+                <div className="flex flex-col lg:flex-row gap-4 pt-2 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <Ruler className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Height:</span>
+                    <Select value={selectedHeight} onValueChange={setSelectedHeight}>
+                      <SelectTrigger className="w-32 h-9">
+                        <SelectValue placeholder="Min Height" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {heightFilters.map((h) => (
+                          <SelectItem key={h} value={h}>
+                            {h}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Weight className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Weight:</span>
+                    <Select value={selectedWeight} onValueChange={setSelectedWeight}>
+                      <SelectTrigger className="w-32 h-9">
+                        <SelectValue placeholder="Min Weight" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weightFilters.map((w) => (
+                          <SelectItem key={w} value={w}>
+                            {w === "All" ? "All" : `${w} lbs`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedPosition !== "All" && HEIGHT_PRESETS[selectedPosition] && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-1 rounded-lg">
+                      <span>Ideal for {selectedPosition}:</span>
+                      <span className="text-foreground">
+                        {HEIGHT_PRESETS[selectedPosition].label}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -350,7 +482,7 @@ export default function PortalIntelligencePage() {
                         Player
                       </TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Position
+                        Pos
                       </TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
                         From
@@ -358,9 +490,19 @@ export default function PortalIntelligencePage() {
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
                         To
                       </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
                         Stars
                       </TableHead>
+                      {showAdvancedFilters && (
+                        <>
+                          <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
+                            Ht/Wt
+                          </TableHead>
+                          <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
+                            PFF
+                          </TableHead>
+                        </>
+                      )}
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
                         Status
                       </TableHead>
@@ -373,12 +515,12 @@ export default function PortalIntelligencePage() {
                   <TableBody>
                     {filteredPlayers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={showAdvancedFilters ? 10 : 8} className="text-center py-8 text-muted-foreground">
                           No players found matching your criteria
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredPlayers.map((player) => (
+                      filteredPlayers.slice(0, 200).map((player) => (
                         <TableRow
                           key={player.player_id}
                           className="cursor-pointer hover:bg-card border-border"
@@ -389,16 +531,16 @@ export default function PortalIntelligencePage() {
                               {player.position}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="text-muted-foreground text-sm">
                             {player.origin_school}
                           </TableCell>
-                          <TableCell className="text-primary font-medium">
+                          <TableCell className="text-primary font-medium text-sm">
                             {player.destination_school || "—"}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-center">
                             {player.stars ? (
-                              <div className="flex text-yellow-500">
-                                {Array.from({ length: player.stars }).map((_, i) => (
+                              <div className="flex justify-center text-yellow-500">
+                                {Array.from({ length: Math.min(player.stars, 5) }).map((_, i) => (
                                   <Star key={i} className="h-3 w-3 fill-yellow-500" />
                                 ))}
                               </div>
@@ -406,6 +548,32 @@ export default function PortalIntelligencePage() {
                               "—"
                             )}
                           </TableCell>
+                          {showAdvancedFilters && (
+                            <>
+                              <TableCell className="text-center text-sm text-muted-foreground">
+                                {player.height && player.weight
+                                  ? `${formatHeight(player.height)} / ${player.weight}`
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {player.pff_overall ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "font-mono text-xs",
+                                      player.pff_overall >= 80 && "border-green-500 text-green-500",
+                                      player.pff_overall >= 70 && player.pff_overall < 80 && "border-yellow-500 text-yellow-500",
+                                      player.pff_overall < 70 && "border-orange-500 text-orange-500"
+                                    )}
+                                  >
+                                    {player.pff_overall.toFixed(1)}
+                                  </Badge>
+                                ) : (
+                                  "—"
+                                )}
+                              </TableCell>
+                            </>
+                          )}
                           <TableCell>
                             <Badge className={cn("text-xs", getStatusBadge(player.status))}>
                               {getStatusLabel(player.status)}

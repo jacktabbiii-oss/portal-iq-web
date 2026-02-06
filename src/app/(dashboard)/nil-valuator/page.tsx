@@ -37,12 +37,45 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
+  Ruler,
+  Weight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNILLeaderboard, type NILLeaderboardPlayer } from "@/lib/api/nil";
+import { getNILLeaderboard, predictNIL, type NILLeaderboardPlayer, type PlayerInput } from "@/lib/api/nil";
+import { HEIGHT_PRESETS, WEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
 const conferences = ["All", "SEC", "Big Ten", "Big 12", "ACC", "Pac-12", "AAC", "MWC", "Sun Belt", "C-USA"];
+const starFilters = ["All", "5", "4+", "3+", "2+"];
+const heightFilters = ["All", "6'4\"+", "6'2\"+", "6'0\"+", "5'10\"+"];
+const weightFilters = ["All", "300+", "250+", "220+", "200+", "180+"];
+
+// Extended player type with measurables
+interface NILPlayerWithMeasurables extends NILLeaderboardPlayer {
+  height?: number;
+  weight?: number;
+  pff_overall?: number;
+  pff_offense?: number;
+  pff_defense?: number;
+  stars?: number;
+}
+
+// Helper to parse height filter string to inches
+function parseHeightFilter(filter: string): number | null {
+  if (filter === "All") return null;
+  const match = filter.match(/(\d+)'(\d+)/);
+  if (match) {
+    return parseInt(match[1]) * 12 + parseInt(match[2]);
+  }
+  return null;
+}
+
+// Helper to parse weight filter string
+function parseWeightFilter(filter: string): number | null {
+  if (filter === "All") return null;
+  const match = filter.match(/(\d+)/);
+  return match ? parseInt(match[1]) : null;
+}
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return "$0";
@@ -72,13 +105,18 @@ export default function NILValuatorPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("All");
   const [selectedConference, setSelectedConference] = useState("All");
+  const [selectedStars, setSelectedStars] = useState("All");
+  const [selectedHeight, setSelectedHeight] = useState("All");
+  const [selectedWeight, setSelectedWeight] = useState("All");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [activeTab, setActiveTab] = useState("search");
 
   // API state
-  const [players, setPlayers] = useState<NILLeaderboardPlayer[]>([]);
+  const [players, setPlayers] = useState<NILPlayerWithMeasurables[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalPlayers, setTotalPlayers] = useState(0);
+  const [isCustomLoading, setIsCustomLoading] = useState(false);
 
   // Custom valuation form state
   const [customForm, setCustomForm] = useState({
@@ -131,70 +169,102 @@ export default function NILValuatorPage() {
     fetchPlayers();
   }, [fetchPlayers]);
 
-  // Client-side search filtering (server does position/conference filtering)
+  // Client-side filtering (search + measurables + stars)
   const filteredPlayers = players.filter((player) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      player.player_name.toLowerCase().includes(query) ||
-      player.school.toLowerCase().includes(query)
-    );
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch =
+        player.player_name.toLowerCase().includes(query) ||
+        player.school.toLowerCase().includes(query);
+      if (!matchesSearch) return false;
+    }
+
+    // Stars filter (client-side)
+    if (selectedStars !== "All") {
+      const minStars = parseInt(selectedStars.replace("+", ""));
+      if (!player.stars || player.stars < minStars) return false;
+    }
+
+    // Height filter (client-side)
+    const minHeight = parseHeightFilter(selectedHeight);
+    if (minHeight !== null && player.height) {
+      if (player.height < minHeight) return false;
+    }
+
+    // Weight filter (client-side)
+    const minWeight = parseWeightFilter(selectedWeight);
+    if (minWeight !== null && player.weight) {
+      if (player.weight < minWeight) return false;
+    }
+
+    return true;
   });
 
-  // Handle custom valuation
+  // Handle custom valuation - calls the actual API
   const handleCustomValuation = async () => {
-    // For now, compute a basic estimate client-side
-    // In production, this would call the API
-    const baseValue = 50000;
-    const posMultiplier: Record<string, number> = {
-      QB: 2.5,
-      WR: 1.5,
-      RB: 1.2,
-      TE: 1.0,
-      OL: 0.8,
-      DL: 1.1,
-      LB: 1.0,
-      CB: 1.3,
-      S: 1.1,
-    };
-    const starMultiplier: Record<string, number> = {
-      "5": 4.0,
-      "4": 2.0,
-      "3": 1.0,
-      "2": 0.5,
-      "1": 0.25,
-    };
+    if (!customForm.name || !customForm.school || !customForm.position) {
+      return;
+    }
 
-    const posMult = posMultiplier[customForm.position] || 1.0;
-    const starMult = starMultiplier[customForm.stars] || 1.0;
-    const socialValue =
-      (parseInt(customForm.instagram || "0") + parseInt(customForm.twitter || "0")) * 0.5;
-    const pffBonus = customForm.pffGrade
-      ? (parseFloat(customForm.pffGrade) / 100) * 100000
-      : 0;
+    setIsCustomLoading(true);
 
-    const value = Math.round(baseValue * posMult * starMult + socialValue + pffBonus);
-    const tier =
-      value >= 1000000
-        ? "mega"
-        : value >= 500000
-        ? "premium"
-        : value >= 200000
-        ? "established"
-        : value >= 50000
-        ? "emerging"
-        : "developing";
+    try {
+      const playerInput: PlayerInput = {
+        name: customForm.name,
+        school: customForm.school,
+        position: customForm.position,
+        recruiting: customForm.stars ? { stars: parseInt(customForm.stars) } : undefined,
+        social_media: {
+          instagram_followers: customForm.instagram ? parseInt(customForm.instagram) : undefined,
+          twitter_followers: customForm.twitter ? parseInt(customForm.twitter) : undefined,
+        },
+      };
 
-    setCustomResult({
-      value,
-      tier,
-      breakdown: {
-        base_position_value: Math.round(baseValue * posMult),
-        star_multiplier: starMult,
-        social_media_value: Math.round(socialValue),
-        performance_bonus: Math.round(pffBonus),
-      },
-    });
+      const result = await predictNIL(playerInput);
+
+      setCustomResult({
+        value: result.predicted_value,
+        tier: result.value_tier,
+        breakdown: {
+          base_position_value: result.value_breakdown?.base_value || 0,
+          social_media_value: result.value_breakdown?.social_media_premium || 0,
+          school_brand_factor: result.value_breakdown?.school_brand_factor || 0,
+          performance_bonus: result.value_breakdown?.position_market_factor || 0,
+        },
+      });
+    } catch (err) {
+      console.error("NIL prediction error:", err);
+      // Fallback to client-side calculation
+      const baseValue = 50000;
+      const posMultiplier: Record<string, number> = {
+        QB: 2.5, WR: 1.5, RB: 1.2, TE: 1.0, OL: 0.8, DL: 1.1, LB: 1.0, CB: 1.3, S: 1.1,
+      };
+      const starMultiplier: Record<string, number> = {
+        "5": 4.0, "4": 2.0, "3": 1.0, "2": 0.5, "1": 0.25,
+      };
+
+      const posMult = posMultiplier[customForm.position] || 1.0;
+      const starMult = starMultiplier[customForm.stars] || 1.0;
+      const socialValue = (parseInt(customForm.instagram || "0") + parseInt(customForm.twitter || "0")) * 0.5;
+      const pffBonus = customForm.pffGrade ? (parseFloat(customForm.pffGrade) / 100) * 100000 : 0;
+
+      const value = Math.round(baseValue * posMult * starMult + socialValue + pffBonus);
+      const tier = value >= 1000000 ? "mega" : value >= 500000 ? "premium" : value >= 200000 ? "established" : value >= 50000 ? "emerging" : "developing";
+
+      setCustomResult({
+        value,
+        tier,
+        breakdown: {
+          base_position_value: Math.round(baseValue * posMult),
+          social_media_value: Math.round(socialValue),
+          school_brand_factor: 0,
+          performance_bonus: Math.round(pffBonus),
+        },
+      });
+    } finally {
+      setIsCustomLoading(false);
+    }
   };
 
   return (
@@ -288,15 +358,85 @@ export default function NILValuatorPage() {
                   </SelectContent>
                 </Select>
 
+                {/* Star Filter */}
+                <Select value={selectedStars} onValueChange={setSelectedStars}>
+                  <SelectTrigger className="w-full lg:w-28 h-11">
+                    <Star className="h-4 w-4 mr-1 text-yellow-500" />
+                    <SelectValue placeholder="Stars" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {starFilters.map((stars) => (
+                      <SelectItem key={stars} value={stars}>
+                        {stars === "All" ? "All Stars" : `${stars} Stars`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                >
+                  <Ruler className="h-4 w-4 mr-2" />
+                  {showAdvancedFilters ? "Less" : "More"}
+                </Button>
+
                 <Button
                   className="h-11 bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={fetchPlayers}
                   disabled={isLoading}
                 >
                   <Filter className="h-4 w-4 mr-2" />
-                  Apply Filters
+                  Apply
                 </Button>
               </div>
+
+              {/* Advanced Filters (Height/Weight) */}
+              {showAdvancedFilters && (
+                <div className="flex flex-col lg:flex-row gap-4 pt-4 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <Ruler className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Height:</span>
+                    <Select value={selectedHeight} onValueChange={setSelectedHeight}>
+                      <SelectTrigger className="w-32 h-9">
+                        <SelectValue placeholder="Min Height" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {heightFilters.map((h) => (
+                          <SelectItem key={h} value={h}>
+                            {h}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Weight className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Weight:</span>
+                    <Select value={selectedWeight} onValueChange={setSelectedWeight}>
+                      <SelectTrigger className="w-32 h-9">
+                        <SelectValue placeholder="Min Weight" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weightFilters.map((w) => (
+                          <SelectItem key={w} value={w}>
+                            {w === "All" ? "All" : `${w} lbs`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedPosition !== "All" && HEIGHT_PRESETS[selectedPosition] && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-1 rounded-lg">
+                      <span>Ideal for {selectedPosition}:</span>
+                      <span className="text-foreground">
+                        {HEIGHT_PRESETS[selectedPosition].label}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -351,6 +491,19 @@ export default function NILValuatorPage() {
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
                         School
                       </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
+                        Stars
+                      </TableHead>
+                      {showAdvancedFilters && (
+                        <>
+                          <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
+                            Ht/Wt
+                          </TableHead>
+                          <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
+                            PFF
+                          </TableHead>
+                        </>
+                      )}
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">
                         NIL Value
                       </TableHead>
@@ -363,7 +516,7 @@ export default function NILValuatorPage() {
                   <TableBody>
                     {filteredPlayers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={showAdvancedFilters ? 10 : 8} className="text-center py-8 text-muted-foreground">
                           No players found matching your criteria
                         </TableCell>
                       </TableRow>
@@ -383,6 +536,43 @@ export default function NILValuatorPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{player.school}</TableCell>
+                          <TableCell className="text-center">
+                            {player.stars ? (
+                              <div className="flex justify-center text-yellow-500">
+                                {Array.from({ length: Math.min(player.stars, 5) }).map((_, i) => (
+                                  <Star key={i} className="h-3 w-3 fill-yellow-500" />
+                                ))}
+                              </div>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          {showAdvancedFilters && (
+                            <>
+                              <TableCell className="text-center text-sm text-muted-foreground">
+                                {player.height && player.weight
+                                  ? `${formatHeight(player.height)} / ${player.weight}`
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {player.pff_overall ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "font-mono text-xs",
+                                      player.pff_overall >= 80 && "border-green-500 text-green-500",
+                                      player.pff_overall >= 70 && player.pff_overall < 80 && "border-yellow-500 text-yellow-500",
+                                      player.pff_overall < 70 && "border-orange-500 text-orange-500"
+                                    )}
+                                  >
+                                    {player.pff_overall.toFixed(1)}
+                                  </Badge>
+                                ) : (
+                                  "—"
+                                )}
+                              </TableCell>
+                            </>
+                          )}
                           <TableCell className="text-right font-bold text-primary">
                             {formatCurrency(player.valuation)}
                           </TableCell>
@@ -520,9 +710,14 @@ export default function NILValuatorPage() {
                 <Button
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-4"
                   onClick={handleCustomValuation}
+                  disabled={isCustomLoading || !customForm.name || !customForm.school || !customForm.position}
                 >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Calculate NIL Value
+                  {isCustomLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  {isCustomLoading ? "Calculating..." : "Calculate NIL Value"}
                 </Button>
               </CardContent>
             </Card>

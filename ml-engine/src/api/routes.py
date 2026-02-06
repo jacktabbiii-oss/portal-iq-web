@@ -1796,3 +1796,465 @@ async def ai_search_status(
             "datasets": datasets
         }
     )
+
+
+# =============================================================================
+# Player Search & Details Endpoints (Steps 2-5)
+# =============================================================================
+
+@router.get(
+    "/players/search",
+    response_model=APIResponse,
+    tags=["Players"],
+    summary="Search for players",
+    description="Search for players by name across NIL and portal data.",
+)
+async def search_players(
+    request: Request,
+    query: str,
+    data_type: str = "all",  # "nil", "portal", or "all"
+    limit: int = 25,
+    api_key: str = Depends(require_api_key),
+):
+    """Search for players by name.
+
+    Args:
+        query: Search query (player name)
+        data_type: "nil" for NIL data only, "portal" for portal only, "all" for both
+        limit: Maximum results to return
+    """
+    results = []
+
+    query_lower = query.lower().strip()
+
+    if data_type in ("nil", "all"):
+        df = load_nil_data_enriched()
+        if not df.empty:
+            name_col = "name" if "name" in df.columns else "player_name"
+            if name_col in df.columns:
+                matches = df[df[name_col].str.lower().str.contains(query_lower, na=False)]
+                for _, row in matches.head(limit).iterrows():
+                    results.append({
+                        "name": row.get(name_col, "Unknown"),
+                        "position": row.get("position", "Unknown"),
+                        "school": row.get("school", "Unknown"),
+                        "nil_value": row.get("nil_value", row.get("nil_valuation", 0)),
+                        "stars": row.get("stars", row.get("recruiting_stars")),
+                        "headshot_url": row.get("headshot_url"),
+                        "pff_overall": row.get("pff_overall"),
+                        "data_source": "nil",
+                    })
+
+    if data_type in ("portal", "all"):
+        df = load_portal_data_enriched()
+        if not df.empty:
+            name_col = "name" if "name" in df.columns else "player_name"
+            if name_col in df.columns:
+                matches = df[df[name_col].str.lower().str.contains(query_lower, na=False)]
+                for _, row in matches.head(limit).iterrows():
+                    # Skip if already in results (from NIL data)
+                    name = row.get(name_col, "Unknown")
+                    if any(r["name"] == name for r in results):
+                        continue
+                    results.append({
+                        "name": name,
+                        "position": row.get("position", "Unknown"),
+                        "school": row.get("origin_school", row.get("school", "Unknown")),
+                        "nil_value": row.get("nil_value", row.get("nil_valuation", 0)),
+                        "stars": row.get("stars"),
+                        "headshot_url": row.get("headshot_url"),
+                        "pff_overall": row.get("pff_overall"),
+                        "status": row.get("status"),
+                        "destination_school": row.get("destination_school"),
+                        "data_source": "portal",
+                    })
+
+    # Sort by NIL value descending
+    results.sort(key=lambda x: x.get("nil_value") or 0, reverse=True)
+
+    return APIResponse(
+        status="success",
+        data={
+            "players": results[:limit],
+            "total": len(results),
+            "query": query,
+        },
+        message=f"Found {len(results)} players matching '{query}'"
+    )
+
+
+@router.get(
+    "/players/{player_name}/stats",
+    response_model=APIResponse,
+    tags=["Players"],
+    summary="Get player stats",
+    description="Get comprehensive stats for a specific player including PFF grades.",
+)
+async def get_player_stats(
+    request: Request,
+    player_name: str,
+    season: int = 2025,
+    api_key: str = Depends(require_api_key),
+):
+    """Get all available stats for a player.
+
+    Args:
+        player_name: Player name (URL encoded)
+        season: Season year (default: 2025)
+    """
+    player_name_lower = player_name.lower().strip()
+
+    # Try NIL data first (has the most enrichment)
+    df = load_nil_data_enriched()
+    player_row = None
+
+    if not df.empty:
+        name_col = "name" if "name" in df.columns else "player_name"
+        if name_col in df.columns:
+            matches = df[df[name_col].str.lower() == player_name_lower]
+            if matches.empty:
+                # Try partial match
+                matches = df[df[name_col].str.lower().str.contains(player_name_lower, na=False)]
+            if not matches.empty:
+                player_row = matches.iloc[0]
+
+    # If not found in NIL data, try portal data
+    if player_row is None:
+        df = load_portal_data_enriched()
+        if not df.empty:
+            name_col = "name" if "name" in df.columns else "player_name"
+            if name_col in df.columns:
+                matches = df[df[name_col].str.lower() == player_name_lower]
+                if matches.empty:
+                    matches = df[df[name_col].str.lower().str.contains(player_name_lower, na=False)]
+                if not matches.empty:
+                    player_row = matches.iloc[0]
+
+    if player_row is None:
+        return APIResponse(
+            status="error",
+            message=f"Player '{player_name}' not found",
+            data=None
+        )
+
+    # Build comprehensive player data
+    name_col = "name" if "name" in player_row.index else "player_name"
+
+    player_data = {
+        "name": player_row.get(name_col, player_name),
+        "position": player_row.get("position"),
+        "school": player_row.get("school", player_row.get("origin_school")),
+        "headshot_url": player_row.get("headshot_url"),
+        "season": season,
+
+        # Core info
+        "nil_value": player_row.get("nil_value", player_row.get("nil_valuation")),
+        "nil_tier": player_row.get("nil_tier"),
+        "stars": player_row.get("stars", player_row.get("recruiting_stars")),
+        "height": safe_float(player_row.get("height")),
+        "weight": safe_float(player_row.get("weight")),
+
+        # PFF Grades
+        "pff": {
+            "overall": player_row.get("pff_overall"),
+            "offense": player_row.get("pff_offense"),
+            "defense": player_row.get("pff_defense"),
+            "passing": player_row.get("pff_passing"),
+            "rushing": player_row.get("pff_rushing"),
+            "receiving": player_row.get("pff_receiving"),
+            "pass_block": player_row.get("pff_pass_block"),
+            "run_block": player_row.get("pff_run_block"),
+            "pass_rush": player_row.get("pff_pass_rush"),
+            "run_defense": player_row.get("pff_run_defense"),
+            "tackling": player_row.get("pff_tackling"),
+            "coverage": player_row.get("pff_coverage"),
+        },
+
+        # QB Stats
+        "passing": {
+            "passer_rating": player_row.get("passer_rating"),
+            "completion_pct": player_row.get("completion_pct", player_row.get("adjusted_completion_pct")),
+            "big_time_throws": player_row.get("big_time_throws"),
+            "big_time_throw_pct": player_row.get("big_time_throw_pct"),
+            "turnover_worthy_plays": player_row.get("turnover_worthy_plays"),
+            "pressure_completion_pct": player_row.get("pressure_completion_percent"),
+            "pressure_qb_rating": player_row.get("pressure_qb_rating"),
+            "yards": player_row.get("yards", player_row.get("passing_yards")),
+            "touchdowns": player_row.get("touchdowns", player_row.get("passing_tds")),
+        } if player_row.get("position", "").upper() == "QB" else None,
+
+        # RB Stats
+        "rushing": {
+            "elusive_rating": player_row.get("elusive_rating"),
+            "yards_after_contact": player_row.get("yards_after_contact"),
+            "yaco_per_attempt": player_row.get("yaco_per_attempt"),
+            "breakaway_pct": player_row.get("breakaway_pct"),
+            "missed_tackles_forced": player_row.get("missed_tackles_forced"),
+            "yards": player_row.get("rushing_yards"),
+            "touchdowns": player_row.get("rushing_tds"),
+            "yards_per_carry": player_row.get("yards_per_carry", player_row.get("ypa")),
+        } if player_row.get("position", "").upper() == "RB" else None,
+
+        # WR/TE Stats
+        "receiving": {
+            "yards_per_route_run": player_row.get("yards_per_route_run"),
+            "drop_rate": player_row.get("drop_rate"),
+            "contested_catch_rate": player_row.get("contested_catch_rate"),
+            "yards_after_catch": player_row.get("yards_after_catch"),
+            "targets": player_row.get("targets"),
+            "receptions": player_row.get("receptions"),
+            "yards": player_row.get("receiving_yards", player_row.get("rec_yards")),
+            "touchdowns": player_row.get("receiving_tds"),
+        } if player_row.get("position", "").upper() in ("WR", "TE") else None,
+
+        # Pass Rush Stats (EDGE/DL)
+        "pass_rush": {
+            "pass_rushing_productivity": player_row.get("pass_rushing_productivity"),
+            "pass_rush_win_rate": player_row.get("pass_rush_win_rate"),
+            "pressures": player_row.get("pressures"),
+            "sacks": player_row.get("sacks"),
+            "hurries": player_row.get("hurries"),
+            "hits": player_row.get("hits"),
+        } if player_row.get("position", "").upper() in ("EDGE", "DL", "DT", "DE") else None,
+
+        # Coverage Stats (DB/LB)
+        "coverage": {
+            "passer_rating_allowed": player_row.get("passer_rating_allowed"),
+            "yards_per_coverage_snap": player_row.get("yards_per_coverage_snap"),
+            "forced_incompletes": player_row.get("forced_incompletes"),
+            "interceptions": player_row.get("ints", player_row.get("interceptions_def")),
+            "pass_breakups": player_row.get("pbus"),
+            "missed_tackle_rate": player_row.get("missed_tackle_rate"),
+        } if player_row.get("position", "").upper() in ("CB", "S", "DB", "LB") else None,
+
+        # O-Line Stats
+        "blocking": {
+            "pass_blocking_efficiency": player_row.get("pass_blocking_efficiency"),
+            "pressures_allowed": player_row.get("pressures_allowed"),
+            "sacks_allowed": player_row.get("sacks_allowed"),
+            "run_block_percent": player_row.get("run_block_percent"),
+        } if player_row.get("position", "").upper() in ("OT", "OG", "C", "OL", "IOL") else None,
+    }
+
+    # Remove None position-specific stats
+    player_data = {k: v for k, v in player_data.items() if v is not None}
+
+    return APIResponse(
+        status="success",
+        data=player_data,
+        message=f"Stats for {player_data.get('name', player_name)}"
+    )
+
+
+@router.get(
+    "/pff/{category}",
+    response_model=APIResponse,
+    tags=["PFF Stats"],
+    summary="Get PFF stats by category",
+    description="Get PFF stats for a specific category (passing, rushing, receiving, defense, pass_rush, blocking, special).",
+)
+async def get_pff_category_stats(
+    request: Request,
+    category: str,
+    season: int = 2025,
+    limit: int = 100,
+    api_key: str = Depends(require_api_key),
+):
+    """Get PFF stats for a category.
+
+    Categories:
+    - passing: QB passing stats
+    - rushing: RB rushing stats
+    - receiving: WR/TE receiving stats
+    - defense: Overall defensive stats
+    - pass_rush: Pass rush stats
+    - blocking: O-line blocking stats
+    - special: Special teams stats
+    """
+    # Map category to stat type
+    category_map = {
+        "passing": "passing_summary",
+        "rushing": "rushing_summary",
+        "receiving": "receiving_summary",
+        "defense": "defense_summary",
+        "pass_rush": "pass_rush_summary",
+        "blocking": "offense_blocking",
+        "special": "special_teams_summary",
+    }
+
+    stat_type = category_map.get(category.lower())
+    if not stat_type:
+        return APIResponse(
+            status="error",
+            message=f"Unknown category '{category}'. Valid: {list(category_map.keys())}",
+            data=None
+        )
+
+    df = load_pff_stat(category.lower(), stat_type, season)
+
+    if df.empty:
+        return APIResponse(
+            status="success",
+            data={"players": [], "total": 0, "category": category, "season": season},
+            message=f"No {category} stats available for {season}"
+        )
+
+    # Standardize name column
+    name_col = "player" if "player" in df.columns else "name" if "name" in df.columns else None
+
+    players = []
+    for _, row in df.head(limit).iterrows():
+        player = {"season": season}
+        for col in df.columns:
+            val = row[col]
+            if pd.notna(val):
+                if isinstance(val, (int, float)):
+                    player[col] = float(val) if isinstance(val, float) else int(val)
+                else:
+                    player[col] = str(val)
+        players.append(player)
+
+    return APIResponse(
+        status="success",
+        data={
+            "players": players,
+            "total": len(df),
+            "category": category,
+            "season": season,
+        },
+        message=f"{len(players)} players with {category} stats"
+    )
+
+
+# =============================================================================
+# Reference Data Endpoints (Step 5)
+# =============================================================================
+
+@router.get(
+    "/reference/positions",
+    response_model=APIResponse,
+    tags=["Reference"],
+    summary="Get position list",
+)
+async def get_positions(
+    api_key: str = Depends(require_api_key),
+):
+    """Get list of all valid positions."""
+    positions = [
+        "QB", "RB", "WR", "TE", "OT", "OG", "C", "IOL",
+        "EDGE", "DT", "DL", "LB", "CB", "S", "K", "P", "ATH"
+    ]
+    return APIResponse(
+        status="success",
+        data={"positions": positions},
+        message=f"{len(positions)} positions"
+    )
+
+
+@router.get(
+    "/reference/conferences",
+    response_model=APIResponse,
+    tags=["Reference"],
+    summary="Get conference list",
+)
+async def get_conferences(
+    api_key: str = Depends(require_api_key),
+):
+    """Get list of all conferences."""
+    conferences = [
+        "SEC", "Big Ten", "Big 12", "ACC", "Pac-12",
+        "Mountain West", "AAC", "Sun Belt", "MAC", "C-USA"
+    ]
+    return APIResponse(
+        status="success",
+        data={"conferences": conferences},
+        message=f"{len(conferences)} conferences"
+    )
+
+
+@router.get(
+    "/reference/schools",
+    response_model=APIResponse,
+    tags=["Reference"],
+    summary="Get school list",
+)
+async def get_schools(
+    api_key: str = Depends(require_api_key),
+):
+    """Get list of all schools from data."""
+    schools = set()
+
+    # Get from NIL data
+    df = load_nil_data()
+    if not df.empty and "school" in df.columns:
+        schools.update(df["school"].dropna().unique())
+
+    # Get from portal data
+    df = load_portal_data()
+    if not df.empty:
+        if "origin_school" in df.columns:
+            schools.update(df["origin_school"].dropna().unique())
+        if "destination_school" in df.columns:
+            schools.update(df["destination_school"].dropna().unique())
+        if "school" in df.columns:
+            schools.update(df["school"].dropna().unique())
+
+    # Clean and sort
+    schools = sorted([s for s in schools if s and str(s) != 'nan' and len(str(s)) > 1])
+
+    return APIResponse(
+        status="success",
+        data={"schools": schools},
+        message=f"{len(schools)} schools"
+    )
+
+
+@router.get(
+    "/reference/presets",
+    response_model=APIResponse,
+    tags=["Reference"],
+    summary="Get position presets",
+    description="Get height/weight presets for each position.",
+)
+async def get_position_presets(
+    api_key: str = Depends(require_api_key),
+):
+    """Get height and weight presets by position."""
+    height_presets = {
+        "QB": {"min": 72, "ideal_min": 74, "label": "6'0\"+ (ideal 6'2\"+)"},
+        "WR": {"min": 69, "tall": 75, "label": "5'9\"+ (tall: 6'3\"+)"},
+        "RB": {"min": 66, "max": 74, "label": "5'6\" - 6'2\""},
+        "TE": {"min": 75, "ideal_min": 77, "label": "6'3\"+ (ideal 6'5\"+)"},
+        "OT": {"min": 76, "ideal_min": 78, "label": "6'4\"+ (ideal 6'6\"+)"},
+        "OG": {"min": 74, "ideal_min": 76, "label": "6'2\"+ (ideal 6'4\"+)"},
+        "C": {"min": 73, "ideal_min": 75, "label": "6'1\"+ (ideal 6'3\"+)"},
+        "EDGE": {"min": 74, "ideal_min": 76, "label": "6'2\"+ (ideal 6'4\"+)"},
+        "DT": {"min": 74, "ideal_min": 76, "label": "6'2\"+ (ideal 6'4\"+)"},
+        "LB": {"min": 72, "ideal_min": 74, "label": "6'0\"+ (ideal 6'2\"+)"},
+        "CB": {"min": 69, "max": 75, "label": "5'9\" - 6'3\""},
+        "S": {"min": 70, "ideal_min": 73, "label": "5'10\"+ (ideal 6'1\"+)"},
+    }
+
+    weight_presets = {
+        "QB": {"min": 200, "ideal_min": 215, "label": "200+ lbs (ideal 215+)"},
+        "WR": {"min": 170, "max": 220, "label": "170-220 lbs"},
+        "RB": {"min": 190, "max": 230, "label": "190-230 lbs"},
+        "TE": {"min": 240, "ideal_min": 250, "label": "240+ lbs (ideal 250+)"},
+        "OT": {"min": 300, "ideal_min": 315, "label": "300+ lbs (ideal 315+)"},
+        "OG": {"min": 300, "ideal_min": 315, "label": "300+ lbs (ideal 315+)"},
+        "C": {"min": 290, "ideal_min": 305, "label": "290+ lbs (ideal 305+)"},
+        "EDGE": {"min": 240, "ideal_min": 260, "label": "240+ lbs (ideal 260+)"},
+        "DT": {"min": 280, "ideal_min": 300, "label": "280+ lbs (ideal 300+)"},
+        "LB": {"min": 220, "ideal_min": 235, "label": "220+ lbs (ideal 235+)"},
+        "CB": {"min": 175, "max": 210, "label": "175-210 lbs"},
+        "S": {"min": 190, "ideal_min": 205, "label": "190+ lbs (ideal 205+)"},
+    }
+
+    return APIResponse(
+        status="success",
+        data={
+            "height": height_presets,
+            "weight": weight_presets,
+        },
+        message="Position presets for height and weight"
+    )
