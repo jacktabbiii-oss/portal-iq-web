@@ -178,8 +178,14 @@ export default function NILValuatorPage() {
     breakdown: Record<string, number>;
   } | null>(null);
 
-  // Fetch NIL leaderboard data
-  const fetchPlayers = useCallback(async () => {
+  // State for pagination
+  const [totalInDatabase, setTotalInDatabase] = useState<number>(0);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(0);
+  const pageSize = 1000; // Load 1000 players per page for good performance
+
+  // Fetch NIL leaderboard data - now with pagination support
+  const fetchPlayers = useCallback(async (loadMore = false) => {
     setIsLoading(true);
     setError(null);
 
@@ -187,8 +193,13 @@ export default function NILValuatorPage() {
       const params: {
         position?: string;
         conference?: string;
+        search?: string;
         limit: number;
-      } = { limit: 500 };
+        offset: number;
+      } = {
+        limit: pageSize,
+        offset: loadMore ? (currentPage + 1) * pageSize : 0,
+      };
 
       if (selectedPosition !== "All") {
         params.position = selectedPosition;
@@ -196,22 +207,50 @@ export default function NILValuatorPage() {
       if (selectedConference !== "All") {
         params.conference = selectedConference;
       }
+      // Use server-side search for better performance
+      if (searchQuery && searchQuery.length >= 2) {
+        params.search = searchQuery;
+      }
 
       const response = await getNILLeaderboard(params);
-      setPlayers(response.players);
+
+      if (loadMore) {
+        // Append to existing players
+        setPlayers(prev => [...prev, ...response.players]);
+        setCurrentPage(prev => prev + 1);
+      } else {
+        // Replace players (new search/filter)
+        setPlayers(response.players);
+        setCurrentPage(0);
+      }
+
       setTotalPlayers(response.total);
+      setTotalInDatabase(response.total_count || response.total);
+      setHasMore(response.has_more || false);
     } catch (err) {
       console.error("Failed to fetch NIL leaderboard:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPosition, selectedConference]);
+  }, [selectedPosition, selectedConference, searchQuery, currentPage, pageSize]);
 
   // Initial load and refetch on filter changes
   useEffect(() => {
-    fetchPlayers();
-  }, [fetchPlayers]);
+    fetchPlayers(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPosition, selectedConference]);
+
+  // Debounced search - waits 300ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 2 || searchQuery.length === 0) {
+        fetchPlayers(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   // Client-side filtering (search + measurables + stars)
   const filteredPlayers = players.filter((player) => {
@@ -329,7 +368,7 @@ export default function NILValuatorPage() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchPlayers} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchPlayers(false)} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
             Refresh
           </Button>
@@ -442,7 +481,7 @@ export default function NILValuatorPage() {
 
                 <Button
                   className="h-11 bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={fetchPlayers}
+                  onClick={() => fetchPlayers(false)}
                   disabled={isLoading}
                 >
                   <Filter className="h-4 w-4 mr-2" />
@@ -507,7 +546,7 @@ export default function NILValuatorPage() {
                   <p className="font-semibold">Failed to load data</p>
                   <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchPlayers} className="ml-auto">
+                <Button variant="outline" size="sm" onClick={() => fetchPlayers(false)} className="ml-auto">
                   Retry
                 </Button>
               </CardContent>
@@ -676,6 +715,29 @@ export default function NILValuatorPage() {
                     )}
                   </TableBody>
                 </Table>
+
+                {/* Load More / Pagination Info */}
+                <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {filteredPlayers.length.toLocaleString()} of {totalInDatabase.toLocaleString()} players
+                    {searchQuery && ` matching "${searchQuery}"`}
+                  </div>
+                  {hasMore && (
+                    <Button
+                      variant="outline"
+                      onClick={() => fetchPlayers(true)}
+                      disabled={isLoading}
+                      className="gap-2"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Load More
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

@@ -28,12 +28,47 @@ export interface NILLeaderboardPlayer {
 export interface NILLeaderboardResponse {
   players: NILLeaderboardPlayer[];
   total: number;
+  total_count: number;  // Total matching players in database
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  filters_applied: Record<string, string | null>;
 }
 
 export interface NILLeaderboardParams {
   position?: string;
   school?: string;
   conference?: string;
+  search?: string;  // Search player names
+  limit?: number;
+  offset?: number;  // For pagination
+}
+
+// Player search types
+export interface PlayerSearchResult {
+  player_id: string;
+  player_name: string;
+  position: string;
+  school: string;
+  valuation?: number;
+  nil_tier?: string;
+  headshot_url?: string;
+  source: "nil" | "portal";
+  destination_school?: string;
+  status?: string;
+  stars?: number;
+}
+
+export interface PlayerSearchResponse {
+  players: PlayerSearchResult[];
+  total: number;
+  query: string;
+  data_type: string;
+}
+
+export interface PlayerSearchParams {
+  query: string;
+  data_type?: "nil" | "portal" | "all";
   limit?: number;
 }
 
@@ -90,6 +125,7 @@ export interface MarketReport {
 /**
  * Get NIL leaderboard with real data from the API.
  * This fetches actual player valuations from On3 and proprietary models.
+ * Supports pagination with offset/limit and full-text search.
  */
 export async function getNILLeaderboard(
   params?: NILLeaderboardParams
@@ -98,13 +134,62 @@ export async function getNILLeaderboard(
   if (params?.position) searchParams.set("position", params.position);
   if (params?.school) searchParams.set("school", params.school);
   if (params?.conference) searchParams.set("conference", params.conference);
+  if (params?.search) searchParams.set("search", params.search);
   if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset) searchParams.set("offset", params.offset.toString());
 
   const queryString = searchParams.toString();
   const url = queryString ? `/api/nil/leaderboard?${queryString}` : "/api/nil/leaderboard";
 
   const response = await apiClient.get(url);
   return response as unknown as NILLeaderboardResponse;
+}
+
+/**
+ * Search players across all data (NIL and portal).
+ * Returns quick results for autocomplete and search functionality.
+ */
+export async function searchPlayers(
+  params: PlayerSearchParams
+): Promise<PlayerSearchResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("query", params.query);
+  if (params.data_type) searchParams.set("data_type", params.data_type);
+  if (params.limit) searchParams.set("limit", params.limit.toString());
+
+  const response = await apiClient.get(`/api/players/search?${searchParams.toString()}`);
+  return response as unknown as PlayerSearchResponse;
+}
+
+/**
+ * Get detailed stats for a specific player.
+ */
+export async function getPlayerStats(playerName: string): Promise<{
+  profile?: {
+    name: string;
+    position: string;
+    school: string;
+    conference?: string;
+    headshot_url?: string;
+    height?: number;
+    weight?: number;
+    stars?: number;
+  };
+  nil?: {
+    valuation: number;
+    tier: string;
+    valuation_source?: string;
+  };
+  pff?: Record<string, number | null>;
+  portal?: {
+    status: string;
+    origin_school: string;
+    destination_school?: string;
+    entry_date?: string;
+  };
+}> {
+  const response = await apiClient.get(`/api/players/${encodeURIComponent(playerName)}/stats`);
+  return response as unknown as ReturnType<typeof getPlayerStats>;
 }
 
 /**

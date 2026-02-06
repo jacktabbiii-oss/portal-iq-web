@@ -208,8 +208,14 @@ export default function PortalIntelligencePage() {
     return calculateTeamPortalScores(warPlayers).slice(0, 20);
   }, [players]);
 
-  // Fetch portal players
-  const fetchPlayers = useCallback(async () => {
+  // Pagination state
+  const [totalInDatabase, setTotalInDatabase] = useState<number>(0);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(0);
+  const pageSize = 1000;
+
+  // Fetch portal players with pagination support
+  const fetchPlayers = useCallback(async (loadMore = false) => {
     setIsLoading(true);
     setError(null);
 
@@ -228,8 +234,14 @@ export default function PortalIntelligencePage() {
         position?: string;
         status?: "available" | "committed" | "all";
         limit: number;
+        offset: number;
         min_stars?: number;
-      } = { limit: 500, status: apiStatus };
+        search?: string;
+      } = {
+        limit: pageSize,
+        offset: loadMore ? (currentPage + 1) * pageSize : 0,
+        status: apiStatus,
+      };
 
       if (selectedPosition !== "All") {
         params.position = selectedPosition;
@@ -243,14 +255,29 @@ export default function PortalIntelligencePage() {
         }
       }
 
+      // Server-side search
+      if (searchQuery && searchQuery.length >= 2) {
+        params.search = searchQuery;
+      }
+
       const response = await getActivePortalPlayers(params);
 
-      // Response is { players: [], total: N }
+      // Response includes pagination info
       const playersList = response.players || [];
-      setPlayers(playersList as PortalPlayerWithMeasurables[]);
-      setTotalCount(response.total || playersList.length);
 
-      // Calculate stats from full dataset
+      if (loadMore) {
+        setPlayers(prev => [...prev, ...playersList] as PortalPlayerWithMeasurables[]);
+        setCurrentPage(prev => prev + 1);
+      } else {
+        setPlayers(playersList as PortalPlayerWithMeasurables[]);
+        setCurrentPage(0);
+      }
+
+      setTotalCount(response.total || playersList.length);
+      setTotalInDatabase(response.total_count || response.total || 0);
+      setHasMore(response.has_more || false);
+
+      // Calculate stats from dataset
       const activeCount = playersList.filter((p) => p.status === "available").length;
       const committedCount = playersList.filter((p) => p.status === "committed").length;
       const schools = new Set(playersList.map((p) => p.origin_school)).size;
@@ -258,7 +285,7 @@ export default function PortalIntelligencePage() {
       setStats({
         activeInPortal: activeCount,
         committed: committedCount,
-        newToday: Math.floor(response.total * 0.02), // Approximate based on total
+        newToday: Math.floor((response.total_count || response.total) * 0.02),
         schools,
       });
     } catch (err) {
@@ -267,12 +294,24 @@ export default function PortalIntelligencePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPosition, selectedStatus, selectedStars]);
+  }, [selectedPosition, selectedStatus, selectedStars, searchQuery, currentPage, pageSize]);
 
   // Initial load and refetch on filter changes
   useEffect(() => {
-    fetchPlayers();
-  }, [fetchPlayers]);
+    fetchPlayers(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPosition, selectedStatus, selectedStars]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 2 || searchQuery.length === 0) {
+        fetchPlayers(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   // Client-side filtering (search + measurables)
   const filteredPlayers = players.filter((player) => {
@@ -319,7 +358,7 @@ export default function PortalIntelligencePage() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchPlayers} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchPlayers(false)} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
             Refresh
           </Button>
@@ -465,7 +504,7 @@ export default function PortalIntelligencePage() {
                 </Button>
                 <Button
                   className="h-11 bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={fetchPlayers}
+                  onClick={() => fetchPlayers(false)}
                   disabled={isLoading}
                 >
                   <Filter className="h-4 w-4 mr-2" />
@@ -530,7 +569,7 @@ export default function PortalIntelligencePage() {
                   <p className="font-semibold">Failed to load data</p>
                   <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchPlayers} className="ml-auto">
+                <Button variant="outline" size="sm" onClick={() => fetchPlayers(false)} className="ml-auto">
                   Retry
                 </Button>
               </CardContent>
@@ -696,6 +735,29 @@ export default function PortalIntelligencePage() {
                     )}
                   </TableBody>
                 </Table>
+
+                {/* Load More / Pagination Info */}
+                <div className="flex items-center justify-between p-4 border-t border-border">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {filteredPlayers.length.toLocaleString()} of {totalInDatabase.toLocaleString()} portal players
+                    {searchQuery && ` matching "${searchQuery}"`}
+                  </div>
+                  {hasMore && (
+                    <Button
+                      variant="outline"
+                      onClick={() => fetchPlayers(true)}
+                      disabled={isLoading}
+                      className="gap-2"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Load More
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

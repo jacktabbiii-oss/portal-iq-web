@@ -27,7 +27,9 @@ export interface PortalPlayersParams {
   origin_conference?: string;
   min_stars?: number;
   status?: "available" | "committed" | "all";
+  search?: string;  // Search player names
   limit?: number;
+  offset?: number;  // For pagination
 }
 
 // Request types
@@ -108,11 +110,17 @@ export interface PortalRecommendations {
 export interface PortalPlayersResponse {
   players: PortalPlayer[];
   total: number;
+  total_count: number;  // Total matching players in database
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  filters_applied: Record<string, string | null>;
 }
 
 /**
  * Get active transfer portal players with real data from the API.
  * This fetches actual player data from On3 transfer portal.
+ * Supports pagination with offset/limit and full-text search.
  */
 export async function getActivePortalPlayers(
   params?: PortalPlayersParams
@@ -123,15 +131,25 @@ export async function getActivePortalPlayers(
   if (params?.origin_conference) searchParams.set("origin_conference", params.origin_conference);
   if (params?.min_stars) searchParams.set("min_stars", params.min_stars.toString());
   if (params?.status) searchParams.set("status", params.status);
+  if (params?.search) searchParams.set("search", params.search);
   if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset) searchParams.set("offset", params.offset.toString());
 
   const queryString = searchParams.toString();
   const url = queryString ? `/api/portal/active?${queryString}` : "/api/portal/active";
 
   const response = await apiClient.get(url);
-  // Response interceptor extracts data.data, which contains { players: [...], total: N }
-  const data = response as unknown as { players: PortalPlayer[]; total: number };
-  return { players: data.players || [], total: data.total || 0 };
+  // Response interceptor extracts data.data, which contains { players: [...], total: N, total_count: N, ... }
+  const data = response as unknown as PortalPlayersResponse;
+  return {
+    players: data.players || [],
+    total: data.total || 0,
+    total_count: data.total_count || data.total || 0,
+    offset: data.offset || 0,
+    limit: data.limit || 200,
+    has_more: data.has_more || false,
+    filters_applied: data.filters_applied || {},
+  };
 }
 
 /**
