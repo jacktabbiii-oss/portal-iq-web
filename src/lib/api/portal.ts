@@ -2,6 +2,34 @@ import apiClient from "./client";
 import type { PlayerInput } from "./nil";
 import type { FlightRisk, PortalFit, RiskLevel } from "@/types";
 
+// =============================================================================
+// Portal Players Types (Real Data)
+// =============================================================================
+
+export interface PortalPlayer {
+  player_id: string;
+  player_name: string;
+  position: string;
+  origin_school: string;
+  origin_conference?: string;
+  destination_school?: string;
+  stars?: number;
+  entry_date?: string;
+  status: "available" | "committed" | "withdrawn";
+  nil_valuation?: number;
+  days_in_portal?: number;
+  headshot_url?: string;
+}
+
+export interface PortalPlayersParams {
+  position?: string;
+  origin_school?: string;
+  origin_conference?: string;
+  min_stars?: number;
+  status?: "available" | "committed" | "all";
+  limit?: number;
+}
+
 // Request types
 export interface FlightRiskRequest {
   player: PlayerInput;
@@ -73,12 +101,65 @@ export interface PortalRecommendations {
   acquisition_strategy: string;
 }
 
+// =============================================================================
+// Portal Players API (Real Data)
+// =============================================================================
+
+/**
+ * Get active transfer portal players with real data from the API.
+ * This fetches actual player data from On3 transfer portal.
+ */
+export async function getActivePortalPlayers(
+  params?: PortalPlayersParams
+): Promise<PortalPlayer[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.position) searchParams.set("position", params.position);
+  if (params?.origin_school) searchParams.set("origin_school", params.origin_school);
+  if (params?.origin_conference) searchParams.set("origin_conference", params.origin_conference);
+  if (params?.min_stars) searchParams.set("min_stars", params.min_stars.toString());
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const queryString = searchParams.toString();
+  const url = queryString ? `/api/portal-iq/portal/active?${queryString}` : "/api/portal-iq/portal/active";
+
+  const response = await apiClient.get(url);
+  return response as unknown as PortalPlayer[];
+}
+
+/**
+ * Get team portal activity (incoming/outgoing transfers).
+ */
+export async function getTeamPortalActivity(
+  team: string,
+  season: number = 2026
+): Promise<{
+  team: string;
+  season: number;
+  incoming: PortalPlayer[];
+  outgoing: PortalPlayer[];
+  net_talent_change: number;
+}> {
+  const response = await apiClient.get(`/api/portal-iq/portal/team/${encodeURIComponent(team)}?season=${season}`);
+  return response as unknown as {
+    team: string;
+    season: number;
+    incoming: PortalPlayer[];
+    outgoing: PortalPlayer[];
+    net_talent_change: number;
+  };
+}
+
+// =============================================================================
+// Portal Analysis API
+// =============================================================================
+
 // API Functions
 export async function getFlightRisk(
   player: PlayerInput,
   teamContext?: FlightRiskRequest["team_context"]
 ): Promise<FlightRisk> {
-  const response = await apiClient.post("/api/portal/flight-risk", {
+  const response = await apiClient.post("/api/portal-iq/portal/at-risk", {
     player,
     team_context: teamContext,
   });

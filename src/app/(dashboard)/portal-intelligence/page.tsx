@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,76 +33,11 @@ import {
   Users,
   School,
   Calendar,
-  MapPin,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Mock portal data
-const portalPlayers = [
-  {
-    id: 1,
-    name: "Marcus Johnson",
-    position: "QB",
-    originSchool: "USC",
-    destinationSchool: "Alabama",
-    stars: 4,
-    status: "Committed",
-    entryDate: "2026-01-15",
-    nilProjection: 1200000,
-  },
-  {
-    id: 2,
-    name: "Tyler Williams",
-    position: "WR",
-    originSchool: "Oregon",
-    destinationSchool: null,
-    stars: 5,
-    status: "In Portal",
-    entryDate: "2026-01-28",
-    nilProjection: 850000,
-  },
-  {
-    id: 3,
-    name: "David Brown",
-    position: "RB",
-    originSchool: "Michigan",
-    destinationSchool: "Texas",
-    stars: 4,
-    status: "Committed",
-    entryDate: "2026-01-10",
-    nilProjection: 650000,
-  },
-  {
-    id: 4,
-    name: "Chris Anderson",
-    position: "DL",
-    originSchool: "Georgia",
-    destinationSchool: null,
-    stars: 4,
-    status: "In Portal",
-    entryDate: "2026-02-01",
-    nilProjection: 720000,
-  },
-  {
-    id: 5,
-    name: "James Wilson",
-    position: "LB",
-    originSchool: "Ohio State",
-    destinationSchool: "Miami",
-    stars: 3,
-    status: "Committed",
-    entryDate: "2026-01-20",
-    nilProjection: 450000,
-  },
-];
-
-const topPortalClasses = [
-  { rank: 1, school: "Indiana", score: 56, incoming: 18, outgoing: 12 },
-  { rank: 2, school: "LSU", score: 51, incoming: 15, outgoing: 8 },
-  { rank: 3, school: "Texas Tech", score: 50, incoming: 22, outgoing: 14 },
-  { rank: 4, school: "Texas", score: 48, incoming: 12, outgoing: 6 },
-  { rank: 5, school: "Alabama", score: 45, incoming: 14, outgoing: 10 },
-];
+import { getActivePortalPlayers, type PortalPlayer } from "@/lib/api/portal";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
 const statuses = ["All", "In Portal", "Committed", "Withdrawn"];
@@ -118,11 +53,23 @@ function formatCurrency(value: number): string {
 
 function getStatusBadge(status: string) {
   const styles: Record<string, string> = {
+    available: "status-active",
+    committed: "status-committed",
+    withdrawn: "status-withdrawn",
     "In Portal": "status-active",
-    "Committed": "status-committed",
-    "Withdrawn": "status-withdrawn",
+    Committed: "status-committed",
+    Withdrawn: "status-withdrawn",
   };
   return styles[status] || "status-active";
+}
+
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    available: "In Portal",
+    committed: "Committed",
+    withdrawn: "Withdrawn",
+  };
+  return labels[status] || status;
 }
 
 export default function PortalIntelligencePage() {
@@ -130,14 +77,81 @@ export default function PortalIntelligencePage() {
   const [selectedPosition, setSelectedPosition] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
 
-  const filteredPlayers = portalPlayers.filter((player) => {
-    const matchesSearch =
-      player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      player.originSchool.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPosition =
-      selectedPosition === "All" || player.position === selectedPosition;
-    const matchesStatus = selectedStatus === "All" || player.status === selectedStatus;
-    return matchesSearch && matchesPosition && matchesStatus;
+  // API state
+  const [players, setPlayers] = useState<PortalPlayer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Stats computed from data
+  const [stats, setStats] = useState({
+    activeInPortal: 0,
+    committed: 0,
+    newToday: 0,
+    schools: 0,
+  });
+
+  // Fetch portal players
+  const fetchPlayers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Map UI status to API status
+      let apiStatus: "available" | "committed" | "all" | undefined = "all";
+      if (selectedStatus === "In Portal") {
+        apiStatus = "available";
+      } else if (selectedStatus === "Committed") {
+        apiStatus = "committed";
+      } else if (selectedStatus === "All") {
+        apiStatus = "all";
+      }
+
+      const params: {
+        position?: string;
+        status?: "available" | "committed" | "all";
+        limit: number;
+      } = { limit: 200, status: apiStatus };
+
+      if (selectedPosition !== "All") {
+        params.position = selectedPosition;
+      }
+
+      const response = await getActivePortalPlayers(params);
+      setPlayers(response);
+
+      // Calculate stats
+      const activeCount = response.filter((p) => p.status === "available").length;
+      const committedCount = response.filter((p) => p.status === "committed").length;
+      const schools = new Set(response.map((p) => p.origin_school)).size;
+
+      setStats({
+        activeInPortal: activeCount,
+        committed: committedCount,
+        newToday: Math.floor(activeCount * 0.02), // Approximate
+        schools,
+      });
+    } catch (err) {
+      console.error("Failed to fetch portal players:", err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedPosition, selectedStatus]);
+
+  // Initial load and refetch on filter changes
+  useEffect(() => {
+    fetchPlayers();
+  }, [fetchPlayers]);
+
+  // Client-side search filtering
+  const filteredPlayers = players.filter((player) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      player.player_name.toLowerCase().includes(query) ||
+      player.origin_school.toLowerCase().includes(query) ||
+      (player.destination_school?.toLowerCase().includes(query) ?? false)
+    );
   });
 
   return (
@@ -158,8 +172,8 @@ export default function PortalIntelligencePage() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={fetchPlayers} disabled={isLoading}>
+            <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
             Refresh
           </Button>
         </div>
@@ -175,7 +189,7 @@ export default function PortalIntelligencePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Active in Portal</p>
-                <p className="text-2xl font-bold">2,847</p>
+                <p className="text-2xl font-bold">{stats.activeInPortal.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -187,8 +201,8 @@ export default function PortalIntelligencePage() {
                 <Users className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase">Committed Today</p>
-                <p className="text-2xl font-bold">42</p>
+                <p className="text-xs text-muted-foreground uppercase">Committed</p>
+                <p className="text-2xl font-bold">{stats.committed.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -200,8 +214,8 @@ export default function PortalIntelligencePage() {
                 <Calendar className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase">New Entries Today</p>
-                <p className="text-2xl font-bold">+18</p>
+                <p className="text-xs text-muted-foreground uppercase">Total Players</p>
+                <p className="text-2xl font-bold">{players.length.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -214,7 +228,7 @@ export default function PortalIntelligencePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Schools Active</p>
-                <p className="text-2xl font-bold">134</p>
+                <p className="text-2xl font-bold">{stats.schools}</p>
               </div>
             </div>
           </CardContent>
@@ -223,11 +237,17 @@ export default function PortalIntelligencePage() {
 
       <Tabs defaultValue="players" className="space-y-6">
         <TabsList className="bg-card border border-border">
-          <TabsTrigger value="players" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger
+            value="players"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          >
             <Users className="h-4 w-4 mr-2" />
             Players
           </TabsTrigger>
-          <TabsTrigger value="rankings" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger
+            value="rankings"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          >
             <School className="h-4 w-4 mr-2" />
             Team Rankings
           </TabsTrigger>
@@ -274,7 +294,11 @@ export default function PortalIntelligencePage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button className="h-11 bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button
+                  className="h-11 bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={fetchPlayers}
+                  disabled={isLoading}
+                >
                   <Filter className="h-4 w-4 mr-2" />
                   Apply
                 </Button>
@@ -282,67 +306,126 @@ export default function PortalIntelligencePage() {
             </CardContent>
           </Card>
 
+          {/* Error State */}
+          {error && (
+            <Card className="glass border-red-500/50">
+              <CardContent className="p-6 flex items-center gap-4 text-red-500">
+                <AlertCircle className="h-6 w-6" />
+                <div>
+                  <p className="font-semibold">Failed to load data</p>
+                  <p className="text-sm text-muted-foreground">{error}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchPlayers} className="ml-auto">
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <Card className="glass">
+              <CardContent className="p-12 flex flex-col items-center justify-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-muted-foreground">Loading portal entries...</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Players Table */}
-          <Card className="glass overflow-hidden">
-            <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center justify-between">
-                <span>Transfer Portal Entries</span>
-                <Badge variant="secondary">{filteredPlayers.length} players</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-border">
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Player</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Position</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">From</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">To</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Stars</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">NIL Projection</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPlayers.map((player) => (
-                    <TableRow key={player.id} className="cursor-pointer hover:bg-card border-border">
-                      <TableCell className="font-semibold">{player.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {player.position}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{player.originSchool}</TableCell>
-                      <TableCell className="text-primary font-medium">
-                        {player.destinationSchool || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex text-yellow-500">
-                          {Array.from({ length: player.stars }).map((_, i) => (
-                            <Star key={i} className="h-3 w-3 fill-yellow-500" />
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={cn("text-xs", getStatusBadge(player.status))}>
-                          {player.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-primary">
-                        {formatCurrency(player.nilProjection)}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+          {!isLoading && !error && (
+            <Card className="glass overflow-hidden">
+              <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center justify-between">
+                  <span>Transfer Portal Entries</span>
+                  <Badge variant="secondary">{filteredPlayers.length} players</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-border">
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                        Player
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                        Position
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                        From
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                        To
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                        Stars
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">
+                        NIL Value
+                      </TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPlayers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No players found matching your criteria
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredPlayers.map((player) => (
+                        <TableRow
+                          key={player.player_id}
+                          className="cursor-pointer hover:bg-card border-border"
+                        >
+                          <TableCell className="font-semibold">{player.player_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {player.position}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {player.origin_school}
+                          </TableCell>
+                          <TableCell className="text-primary font-medium">
+                            {player.destination_school || "—"}
+                          </TableCell>
+                          <TableCell>
+                            {player.stars ? (
+                              <div className="flex text-yellow-500">
+                                {Array.from({ length: player.stars }).map((_, i) => (
+                                  <Star key={i} className="h-3 w-3 fill-yellow-500" />
+                                ))}
+                              </div>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={cn("text-xs", getStatusBadge(player.status))}>
+                              {getStatusLabel(player.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-primary">
+                            {player.nil_valuation ? formatCurrency(player.nil_valuation) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Team Rankings Tab */}
@@ -353,59 +436,11 @@ export default function PortalIntelligencePage() {
                 Top Portal Classes (2026)
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-border">
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-16">Rank</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">School</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Incoming</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Outgoing</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Net</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">Score</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topPortalClasses.map((team) => (
-                    <TableRow key={team.rank} className="cursor-pointer hover:bg-card border-border">
-                      <TableCell>
-                        <Badge
-                          variant={team.rank <= 3 ? "default" : "secondary"}
-                          className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center font-bold",
-                            team.rank === 1 && "bg-primary text-primary-foreground"
-                          )}
-                        >
-                          {team.rank}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-semibold text-lg">{team.school}</TableCell>
-                      <TableCell className="text-center text-green-500 font-semibold">
-                        +{team.incoming}
-                      </TableCell>
-                      <TableCell className="text-center text-red-500 font-semibold">
-                        -{team.outgoing}
-                      </TableCell>
-                      <TableCell className="text-center font-bold">
-                        <span className={team.incoming - team.outgoing >= 0 ? "text-green-500" : "text-red-500"}>
-                          {team.incoming - team.outgoing >= 0 ? "+" : ""}{team.incoming - team.outgoing}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="secondary" className="font-bold text-lg">
-                          {team.score}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              <p>Team rankings data coming soon.</p>
+              <p className="text-sm mt-2">
+                This will show incoming/outgoing transfer counts and net talent change per school.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
