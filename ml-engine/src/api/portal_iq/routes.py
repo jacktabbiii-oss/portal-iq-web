@@ -10,6 +10,7 @@ from typing import List, Optional
 import logging
 
 from ..auth import get_current_user, require_tier
+from ...utils.s3_loader import load_nil_data, load_portal_data
 from .schemas import (
     # NIL
     NILValuationRequest,
@@ -103,19 +104,58 @@ async def bulk_valuate_players(
     )
 
 
-@router.get("/nil/leaderboard", response_model=NILLeaderboardResponse)
+@router.get("/nil/leaderboard")
 async def get_nil_leaderboard(
     position: Optional[str] = Query(None, description="Filter by position"),
     school: Optional[str] = Query(None, description="Filter by school"),
     conference: Optional[str] = Query(None, description="Filter by conference"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=500),
     user: dict = Depends(get_current_user),
 ):
     """
     Get top players by NIL valuation.
     """
-    # TODO: Query leaderboard data
-    return NILLeaderboardResponse(players=[], total=0)
+    df = load_nil_data()
+
+    if df.empty:
+        return {"status": "success", "data": {"players": [], "total": 0}}
+
+    # Apply filters
+    if position:
+        pos_col = "position" if "position" in df.columns else None
+        if pos_col:
+            df = df[df[pos_col].str.upper() == position.upper()]
+
+    if school:
+        school_col = next((c for c in df.columns if c in ["school", "team"]), None)
+        if school_col:
+            df = df[df[school_col].str.lower().str.contains(school.lower(), na=False)]
+
+    # Sort by NIL value
+    nil_col = next((c for c in df.columns if c in ["nil_value", "valuation", "nil_valuation"]), None)
+    if nil_col:
+        df = df.sort_values(nil_col, ascending=False)
+
+    total = len(df)
+    df = df.head(limit)
+
+    # Build response
+    players = []
+    for i, (_, row) in enumerate(df.iterrows()):
+        nil_val = row.get("nil_value") or row.get("valuation") or row.get("nil_valuation") or 0
+        name = row.get("name") or row.get("player_name") or row.get("player") or ""
+
+        players.append({
+            "rank": i + 1,
+            "player_id": str(row.get("player_id", f"player_{i}")),
+            "player_name": name,
+            "position": row.get("position", ""),
+            "school": row.get("school") or row.get("team", ""),
+            "valuation": float(nil_val) if nil_val else 0,
+            "headshot_url": row.get("headshot_url"),
+        })
+
+    return {"status": "success", "data": {"players": players, "total": total}}
 
 
 @router.get("/nil/tiers")
@@ -134,21 +174,77 @@ async def get_nil_tiers(user: dict = Depends(get_current_user)):
 # TRANSFER PORTAL ENDPOINTS
 # =============================================================================
 
-@router.get("/portal/active", response_model=List[PortalPlayerResponse])
+@router.get("/portal/active")
 async def get_active_portal_players(
     position: Optional[str] = Query(None),
     origin_school: Optional[str] = Query(None),
     origin_conference: Optional[str] = Query(None),
     min_stars: Optional[int] = Query(None, ge=1, le=5),
-    status: Optional[str] = Query("available", regex="^(available|committed|all)$"),
+    status: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     user: dict = Depends(get_current_user),
 ):
     """
     Get currently active transfer portal players.
     """
-    # TODO: Query portal data
-    return []
+    df = load_portal_data()
+
+    if df.empty:
+        return {"status": "success", "data": {"players": [], "total": 0}}
+
+    # Apply filters
+    if position:
+        pos_col = "position" if "position" in df.columns else None
+        if pos_col:
+            df = df[df[pos_col].str.upper() == position.upper()]
+
+    if origin_school:
+        school_cols = ["from_school", "origin_school", "school"]
+        school_col = next((c for c in school_cols if c in df.columns), None)
+        if school_col:
+            df = df[df[school_col].str.lower().str.contains(origin_school.lower(), na=False)]
+
+    if min_stars:
+        if "stars" in df.columns:
+            df = df[df["stars"] >= min_stars]
+
+    if status and status != "all":
+        if "status" in df.columns:
+            df = df[df["status"].str.lower().str.contains(status.lower(), na=False)]
+
+    total = len(df)
+    df = df.head(limit)
+
+    # Build response
+    players = []
+    for i, (_, row) in enumerate(df.iterrows()):
+        name = row.get("name") or row.get("player_name") or row.get("player") or ""
+        nil_val = row.get("nil_value") or row.get("nil_valuation") or row.get("valuation") or 0
+        origin = row.get("from_school") or row.get("origin_school") or row.get("school") or ""
+
+        # Normalize status
+        raw_status = str(row.get("status", "available")).lower()
+        if "commit" in raw_status:
+            normalized_status = "committed"
+        elif "withdraw" in raw_status:
+            normalized_status = "withdrawn"
+        else:
+            normalized_status = "available"
+
+        players.append({
+            "player_id": str(row.get("player_id", f"portal_{i}")),
+            "player_name": name,
+            "position": row.get("position", ""),
+            "origin_school": origin,
+            "destination_school": row.get("to_school") or row.get("destination_school"),
+            "stars": int(row.get("stars", 3)) if row.get("stars") else None,
+            "status": normalized_status,
+            "nil_valuation": float(nil_val) if nil_val else 0,
+            "entry_date": str(row.get("entry_date", "")) if row.get("entry_date") else None,
+            "headshot_url": row.get("headshot_url"),
+        })
+
+    return {"status": "success", "data": {"players": players, "total": total}}
 
 
 @router.post("/portal/predict", response_model=PortalPredictionResponse)
