@@ -217,3 +217,58 @@ def load_rosters() -> pd.DataFrame:
     """
     loader = get_s3_loader()
     return loader.read_csv(DATA_PATHS["cfbd_rosters"])
+
+
+def get_s3_diagnostics() -> dict:
+    """Get S3 connection diagnostics for debugging."""
+    config = get_s3_config()
+
+    result = {
+        "boto3_available": BOTO3_AVAILABLE,
+        "s3_configured": is_s3_configured(),
+        "config": {
+            "endpoint_url": config["endpoint_url"][:50] + "..." if config["endpoint_url"] else None,
+            "bucket_name": config["bucket_name"],
+            "access_key_set": bool(config["access_key_id"]),
+            "secret_key_set": bool(config["secret_access_key"]),
+        },
+        "files_found": [],
+        "error": None,
+    }
+
+    if not BOTO3_AVAILABLE:
+        result["error"] = "boto3 not installed"
+        return result
+
+    if not is_s3_configured():
+        result["error"] = "S3 not configured - missing required env vars"
+        return result
+
+    loader = get_s3_loader()
+
+    if not loader.client:
+        result["error"] = "Failed to create S3 client"
+        return result
+
+    # Try to list files
+    try:
+        response = loader.client.list_objects_v2(
+            Bucket=loader.bucket,
+            Prefix="processed/",
+            MaxKeys=20
+        )
+        files = [obj["Key"] for obj in response.get("Contents", [])]
+        result["files_found"] = files
+        result["total_files"] = response.get("KeyCount", 0)
+    except Exception as e:
+        result["error"] = f"Failed to list files: {str(e)}"
+
+    # Try to read a specific file
+    for key in DATA_PATHS.values():
+        try:
+            loader.client.head_object(Bucket=loader.bucket, Key=key)
+            result["files_found"].append(f"✓ {key}")
+        except Exception as e:
+            result["files_found"].append(f"✗ {key}: {str(e)[:50]}")
+
+    return result

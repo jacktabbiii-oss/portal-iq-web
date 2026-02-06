@@ -10,7 +10,7 @@ from typing import List, Optional
 import logging
 
 from ..auth import get_current_user, require_tier
-from ...utils.s3_loader import load_nil_data, load_portal_data
+from ...utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
 from .schemas import (
     # NIL
     NILValuationRequest,
@@ -168,6 +168,13 @@ async def get_nil_tiers(user: dict = Depends(get_current_user)):
         "moderate": {"min": 25000, "label": "Moderate ($25K+)"},
         "entry": {"min": 0, "label": "Entry Level"},
     }
+
+
+@router.get("/debug/s3")
+async def debug_s3_connection():
+    """Debug endpoint to check S3/R2 connection status."""
+    diagnostics = get_s3_diagnostics()
+    return {"status": "success", "data": diagnostics}
 
 
 # =============================================================================
