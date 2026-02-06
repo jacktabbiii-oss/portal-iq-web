@@ -8,3 +8,6 @@ requests>=2.31.0
 pocketbase>=0.8.0
 python-dotenv>=1.0.0
 boto3>=1.28.0  # For S3/R2 storage
+fastapi>=0.104.0  # For API endpoints
+uvicorn>=0.24.0  # For serving FastAPI
+pyjwt>=2.8.0  # For JWT token validation

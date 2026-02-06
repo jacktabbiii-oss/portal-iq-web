@@ -699,7 +699,7 @@ async def get_active_portal_players(
             "headshot_url": row.get("headshot_url"),
         })
 
-    return {"status": "success", "data": players}
+    return {"status": "success", "data": {"players": players, "total": len(players)}}
 
 
 def _normalize_status(status: str) -> str:
