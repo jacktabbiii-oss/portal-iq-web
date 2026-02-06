@@ -42,7 +42,8 @@ import { getActivePortalPlayers, type PortalPlayer } from "@/lib/api/portal";
 const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
 const statuses = ["All", "In Portal", "Committed", "Withdrawn"];
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | undefined | null): string {
+  if (value == null || isNaN(value)) return "$0";
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
@@ -189,7 +190,7 @@ export default function PortalIntelligencePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Active in Portal</p>
-                <p className="text-2xl font-bold">{stats.activeInPortal.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{(stats.activeInPortal || 0).toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -202,7 +203,7 @@ export default function PortalIntelligencePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Committed</p>
-                <p className="text-2xl font-bold">{stats.committed.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{(stats.committed || 0).toLocaleString()}</p>
               </div>
             </div>
           </CardContent>

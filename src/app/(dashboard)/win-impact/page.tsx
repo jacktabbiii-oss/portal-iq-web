@@ -70,7 +70,8 @@ const positions = ["All", "QB", "RB", "WR", "TE", "OT", "OG", "C", "DL", "EDGE",
 
 const CHART_COLORS = ["#D4AF37", "#22C55E", "#3B82F6", "#A855F7", "#F59E0B", "#EF4444"];
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | undefined | null): string {
+  if (value == null || isNaN(value)) return "$0";
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
@@ -659,7 +660,7 @@ export default function WinImpactPage() {
             <Card className="glass">
               <CardContent className="p-4">
                 <p className="text-xs text-muted-foreground uppercase mb-1">Players Analyzed</p>
-                <p className="text-2xl font-bold">{stats.totalPlayers.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{(stats.totalPlayers || 0).toLocaleString()}</p>
               </CardContent>
             </Card>
             <Card className="glass border-primary/50">

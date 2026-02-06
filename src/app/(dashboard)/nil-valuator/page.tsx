@@ -44,7 +44,8 @@ import { getNILLeaderboard, type NILLeaderboardPlayer } from "@/lib/api/nil";
 const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
 const conferences = ["All", "SEC", "Big Ten", "Big 12", "ACC", "Pac-12", "AAC", "MWC", "Sun Belt", "C-USA"];
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | undefined | null): string {
+  if (value == null || isNaN(value)) return "$0";
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
@@ -592,7 +593,7 @@ export default function NILValuatorPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Players</p>
-              <p className="text-lg font-bold">{totalPlayers.toLocaleString()}</p>
+              <p className="text-lg font-bold">{(totalPlayers || 0).toLocaleString()}</p>
             </div>
           </div>
         </Card>

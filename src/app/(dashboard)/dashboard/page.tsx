@@ -61,7 +61,8 @@ const features = [
   },
 ];
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | undefined | null): string {
+  if (value == null || isNaN(value)) return "$0";
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
@@ -149,21 +150,21 @@ export default function DashboardPage() {
   const statsData = [
     {
       label: "Total Players",
-      value: isLoading ? "..." : stats.totalPlayers.toLocaleString(),
+      value: isLoading ? "..." : (stats.totalPlayers || 0).toLocaleString(),
       change: "Updated daily",
       changeType: "positive" as const,
       icon: Users,
     },
     {
       label: "Portal Entries",
-      value: isLoading ? "..." : stats.portalEntries.toLocaleString(),
-      change: `+${stats.newToday} today`,
+      value: isLoading ? "..." : (stats.portalEntries || 0).toLocaleString(),
+      change: `+${stats.newToday || 0} today`,
       changeType: "positive" as const,
       icon: ArrowRightLeft,
     },
     {
       label: "NIL Valuations",
-      value: isLoading ? "..." : stats.nilValuations.toLocaleString(),
+      value: isLoading ? "..." : (stats.nilValuations || 0).toLocaleString(),
       change: "Real-time",
       changeType: "neutral" as const,
       icon: DollarSign,
