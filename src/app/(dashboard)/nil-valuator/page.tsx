@@ -188,7 +188,7 @@ export default function NILValuatorPage() {
         position?: string;
         conference?: string;
         limit: number;
-      } = { limit: 100 };
+      } = { limit: 500 };
 
       if (selectedPosition !== "All") {
         params.position = selectedPosition;

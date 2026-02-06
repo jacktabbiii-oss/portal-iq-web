@@ -294,7 +294,7 @@ export default function WinImpactPage() {
     setError(null);
 
     try {
-      const params: { position?: string; limit: number } = { limit: 200 };
+      const params: { position?: string; limit: number } = { limit: 500 };
       if (selectedPosition !== "All") {
         params.position = selectedPosition;
       }

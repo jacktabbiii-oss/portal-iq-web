@@ -89,7 +89,7 @@ export default function DashboardPage() {
       // Fetch data in parallel
       const [nilResponse, portalResponse] = await Promise.all([
         getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0 })),
-        getActivePortalPlayers({ limit: 100, status: "all" }).catch(() => ({ players: [], total: 0 })),
+        getActivePortalPlayers({ limit: 500, status: "all" }).catch(() => ({ players: [], total: 0 })),
       ]);
 
       // Set top NIL players
