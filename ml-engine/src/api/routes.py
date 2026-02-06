@@ -12,7 +12,12 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 # Import S3/R2 data loader for production data
-from ..utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
+# Use absolute import since PYTHONPATH=/app/src in Docker
+try:
+    from utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
+except ImportError:
+    # Fallback for local development with relative imports
+    from ..utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
 
 from .schemas import (
     # Base
