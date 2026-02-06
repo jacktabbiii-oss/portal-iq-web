@@ -571,7 +571,7 @@ export default function LandingPage() {
           </div>
           <div className="border-t border-white/10 pt-8 flex flex-col items-center justify-between gap-4 md:flex-row">
             <p className="text-sm text-gray-500">
-              © 2026 Portal IQ by Playmaker VC. All rights reserved.
+              © 2026 Portal IQ by Elite Sports Solutions. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-gray-500">
               <a href="https://twitter.com/portaliq" className="hover:text-white transition">Twitter</a>

@@ -187,7 +187,7 @@ export default function LoginPage() {
       {/* Footer */}
       <footer className="p-6 text-center">
         <p className="text-xs text-muted-foreground">
-          © 2026 Portal IQ by Playmaker VC. All rights reserved.
+          © 2026 Portal IQ by Elite Sports Solutions. All rights reserved.
         </p>
       </footer>
     </div>
