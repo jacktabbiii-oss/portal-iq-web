@@ -364,15 +364,6 @@ const SCHOOL_TIERS: Record<string, { schools: string[]; multiplier: number }> = 
   }
 };
 
-// Star rating multipliers
-const STAR_MULTIPLIERS: Record<number, number> = {
-  5: 2.0,
-  4: 1.5,
-  3: 1.0,
-  2: 0.6,
-  1: 0.3,
-};
-
 /**
  * Get school tier and multiplier
  */
