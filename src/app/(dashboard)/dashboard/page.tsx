@@ -38,7 +38,7 @@ const features = [
   {
     title: "Portal Intelligence",
     description:
-      "14,000+ transfer portal entries across 3 years. Track commitments, analyze team rankings, and find the best portal targets.",
+      "11,000+ current transfer portal entries. Track commitments, analyze team rankings, and find the best portal targets in real-time.",
     icon: ArrowRightLeft,
     href: "/portal-intelligence",
     cta: "Transfer portal analytics",
@@ -89,29 +89,29 @@ export default function DashboardPage() {
       // Fetch data in parallel
       const [nilResponse, portalResponse] = await Promise.all([
         getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0 })),
-        getActivePortalPlayers({ limit: 100, status: "all" }).catch(() => []),
+        getActivePortalPlayers({ limit: 100, status: "all" }).catch(() => ({ players: [], total: 0 })),
       ]);
 
       // Set top NIL players
       setTopNilPlayers(nilResponse.players.slice(0, 3));
 
-      // Set stats
+      // Set stats - use total from API, not array length
       setStats({
         totalPlayers: nilResponse.total || nilResponse.players.length,
-        portalEntries: portalResponse.length,
+        portalEntries: portalResponse.total || portalResponse.players.length,
         nilValuations: nilResponse.total || nilResponse.players.length,
-        newToday: Math.floor(portalResponse.length * 0.02), // Approximate
+        newToday: Math.floor((portalResponse.total || portalResponse.players.length) * 0.02), // Approximate
       });
 
       // Set recent portal activity (most recent committed players)
-      const recentCommits = portalResponse
+      const recentCommits = portalResponse.players
         .filter((p: PortalPlayer) => p.status === "committed" && p.destination_school)
         .slice(0, 3);
       setRecentPortalActivity(recentCommits);
 
       // Calculate team portal scores for top classes
       // Transform portal players to have the right shape for WAR calculation
-      const warPlayers = portalResponse
+      const warPlayers = portalResponse.players
         .filter((p: PortalPlayer) => p.status === "committed" && p.destination_school)
         .map((p: PortalPlayer) => ({
           rank: 0,

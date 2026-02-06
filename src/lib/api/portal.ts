@@ -105,13 +105,18 @@ export interface PortalRecommendations {
 // Portal Players API (Real Data)
 // =============================================================================
 
+export interface PortalPlayersResponse {
+  players: PortalPlayer[];
+  total: number;
+}
+
 /**
  * Get active transfer portal players with real data from the API.
  * This fetches actual player data from On3 transfer portal.
  */
 export async function getActivePortalPlayers(
   params?: PortalPlayersParams
-): Promise<PortalPlayer[]> {
+): Promise<PortalPlayersResponse> {
   const searchParams = new URLSearchParams();
   if (params?.position) searchParams.set("position", params.position);
   if (params?.origin_school) searchParams.set("origin_school", params.origin_school);
@@ -126,7 +131,7 @@ export async function getActivePortalPlayers(
   const response = await apiClient.get(url);
   // Response interceptor extracts data.data, which contains { players: [...], total: N }
   const data = response as unknown as { players: PortalPlayer[]; total: number };
-  return data.players || [];
+  return { players: data.players || [], total: data.total || 0 };
 }
 
 /**
