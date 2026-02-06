@@ -88,19 +88,22 @@ export default function DashboardPage() {
     try {
       // Fetch data in parallel
       const [nilResponse, portalResponse] = await Promise.all([
-        getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0 })),
-        getActivePortalPlayers({ limit: 500, status: "all" }).catch(() => ({ players: [], total: 0 })),
+        getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0, total_count: 0 })),
+        getActivePortalPlayers({ limit: 100, status: "all" }).catch(() => ({ players: [], total: 0, total_count: 0 })),
       ]);
 
       // Set top NIL players
       setTopNilPlayers(nilResponse.players.slice(0, 3));
 
-      // Set stats - use total from API, not array length
+      // Set stats - use total_count (full database count) not total (items returned)
+      const nilTotal = (nilResponse as { total_count?: number }).total_count || nilResponse.total || 0;
+      const portalTotal = (portalResponse as { total_count?: number }).total_count || portalResponse.total || 0;
+
       setStats({
-        totalPlayers: nilResponse.total || nilResponse.players.length,
-        portalEntries: portalResponse.total || portalResponse.players.length,
-        nilValuations: nilResponse.total || nilResponse.players.length,
-        newToday: Math.floor((portalResponse.total || portalResponse.players.length) * 0.02), // Approximate
+        totalPlayers: nilTotal,
+        portalEntries: portalTotal,
+        nilValuations: nilTotal,
+        newToday: Math.floor(portalTotal * 0.02), // Approximate
       });
 
       // Set recent portal activity (most recent committed players)

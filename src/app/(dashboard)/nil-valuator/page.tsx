@@ -182,7 +182,7 @@ export default function NILValuatorPage() {
   const [totalInDatabase, setTotalInDatabase] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(0);
-  const pageSize = 1000; // Load 1000 players per page for good performance
+  const pageSize = 50; // Show 50 players per page for readability
 
   // Fetch NIL leaderboard data - now with pagination support
   const fetchPlayers = useCallback(async (loadMore = false) => {

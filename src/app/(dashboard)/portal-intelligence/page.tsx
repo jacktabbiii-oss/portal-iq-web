@@ -212,7 +212,7 @@ export default function PortalIntelligencePage() {
   const [totalInDatabase, setTotalInDatabase] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(0);
-  const pageSize = 1000;
+  const pageSize = 50; // Show 50 players per page for readability
 
   // Fetch portal players with pagination support
   const fetchPlayers = useCallback(async (loadMore = false) => {
