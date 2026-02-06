@@ -6,10 +6,35 @@ and roster optimization.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
+
+
+def safe_float(value, default: float = 0.0) -> Optional[float]:
+    """Safely convert a value to float, handling string heights like '6' 4"'."""
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        value = value.strip()
+        # Handle ESPN height format like "6' 4\""
+        if "'" in value:
+            try:
+                parts = value.replace('"', '').split("'")
+                feet = int(parts[0].strip())
+                inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
+                return float(feet * 12 + inches)
+            except (ValueError, IndexError):
+                return None
+        # Try direct float conversion
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return default
 
 # Import S3/R2 data loader for production data
 from ..utils.s3_loader import (
@@ -585,11 +610,13 @@ async def nil_leaderboard(
             if 'conference' in row and pd.notna(row.get('conference')):
                 player["conference"] = row['conference']
 
-            # Add measurables (from enrichment)
-            if 'height' in row and pd.notna(row.get('height')):
-                player["height"] = float(row['height'])
-            if 'weight' in row and pd.notna(row.get('weight')):
-                player["weight"] = float(row['weight'])
+            # Add measurables (from enrichment) - safe conversion for string heights
+            height_val = safe_float(row.get('height'))
+            if height_val is not None:
+                player["height"] = height_val
+            weight_val = safe_float(row.get('weight'))
+            if weight_val is not None:
+                player["weight"] = weight_val
 
             # Add PFF grades (from enrichment)
             if 'pff_overall' in row and pd.notna(row.get('pff_overall')):
@@ -865,11 +892,13 @@ async def portal_active(
             if 'commit_date' in row and pd.notna(row.get('commit_date')):
                 player["entry_date"] = str(row['commit_date'])
 
-            # Add measurables (from enrichment)
-            if 'height' in row and pd.notna(row.get('height')):
-                player["height"] = float(row['height'])
-            if 'weight' in row and pd.notna(row.get('weight')):
-                player["weight"] = float(row['weight'])
+            # Add measurables (from enrichment) - safe conversion for string heights
+            height_val = safe_float(row.get('height'))
+            if height_val is not None:
+                player["height"] = height_val
+            weight_val = safe_float(row.get('weight'))
+            if weight_val is not None:
+                player["weight"] = weight_val
 
             # Add PFF grades (from enrichment)
             if 'pff_overall' in row and pd.notna(row.get('pff_overall')):
