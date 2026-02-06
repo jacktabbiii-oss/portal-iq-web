@@ -121,7 +121,7 @@ export async function getActivePortalPlayers(
   if (params?.limit) searchParams.set("limit", params.limit.toString());
 
   const queryString = searchParams.toString();
-  const url = queryString ? `/api/portal-iq/portal/active?${queryString}` : "/api/portal-iq/portal/active";
+  const url = queryString ? `/api/portal/active?${queryString}` : "/api/portal/active";
 
   const response = await apiClient.get(url);
   return response as unknown as PortalPlayer[];
@@ -140,7 +140,7 @@ export async function getTeamPortalActivity(
   outgoing: PortalPlayer[];
   net_talent_change: number;
 }> {
-  const response = await apiClient.get(`/api/portal-iq/portal/team/${encodeURIComponent(team)}?season=${season}`);
+  const response = await apiClient.get(`/api/portal/team/${encodeURIComponent(team)}?season=${season}`);
   return response as unknown as {
     team: string;
     season: number;
@@ -159,7 +159,7 @@ export async function getFlightRisk(
   player: PlayerInput,
   teamContext?: FlightRiskRequest["team_context"]
 ): Promise<FlightRisk> {
-  const response = await apiClient.post("/api/portal-iq/portal/at-risk", {
+  const response = await apiClient.post("/api/portal/at-risk", {
     player,
     team_context: teamContext,
   });

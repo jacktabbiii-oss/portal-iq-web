@@ -101,7 +101,7 @@ export async function getNILLeaderboard(
   if (params?.limit) searchParams.set("limit", params.limit.toString());
 
   const queryString = searchParams.toString();
-  const url = queryString ? `/api/portal-iq/nil/leaderboard?${queryString}` : "/api/portal-iq/nil/leaderboard";
+  const url = queryString ? `/api/nil/leaderboard?${queryString}` : "/api/nil/leaderboard";
 
   const response = await apiClient.get(url);
   return response as unknown as NILLeaderboardResponse;
@@ -111,7 +111,7 @@ export async function getNILLeaderboard(
  * Get NIL tier definitions and thresholds.
  */
 export async function getNILTiers(): Promise<Record<string, { min: number; label: string }>> {
-  const response = await apiClient.get("/api/portal-iq/nil/tiers");
+  const response = await apiClient.get("/api/nil/tiers");
   return response as unknown as Record<string, { min: number; label: string }>;
 }
 
@@ -121,7 +121,7 @@ export async function getNILTiers(): Promise<Record<string, { min: number; label
 
 // API Functions
 export async function predictNIL(player: PlayerInput): Promise<NILValuation> {
-  const response = await apiClient.post("/api/portal-iq/nil/valuate", { player });
+  const response = await apiClient.post("/api/nil/valuate", { player });
   return response as unknown as NILValuation;
 }
 
