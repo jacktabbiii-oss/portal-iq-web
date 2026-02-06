@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+# Import S3/R2 data loader for production data
+from ..utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
+
 from .schemas import (
     # Base
     APIResponse,
@@ -47,6 +50,21 @@ from .schemas import (
 logger = logging.getLogger("portal_iq_api")
 
 router = APIRouter()
+
+
+# =============================================================================
+# Debug Endpoints
+# =============================================================================
+
+@router.get(
+    "/debug/s3",
+    tags=["Debug"],
+    summary="S3/R2 diagnostics",
+    description="Check S3/R2 connection status and available files.",
+)
+async def debug_s3():
+    """Debug endpoint to verify R2/S3 connection and data availability."""
+    return get_s3_diagnostics()
 
 
 # =============================================================================
@@ -356,45 +374,47 @@ async def nil_leaderboard(
     api_key: str = Depends(require_api_key),
 ):
     """Get NIL leaderboard with optional filters."""
-    from pathlib import Path
+    # Load from R2/S3 with local fallback
+    df = load_nil_data()
 
-    # Find the valuations file
-    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
-    valuations_file = data_dir / "nil_valuations_2025.csv"
-
-    if not valuations_file.exists():
-        # Try 2024 as fallback
-        valuations_file = data_dir / "nil_valuations_2024.csv"
-
-    if not valuations_file.exists():
+    if df.empty:
         return APIResponse(
             status="error",
-            message="No valuations data available. Run generate_nil_valuations.py first.",
+            message="No NIL data available. Check R2 connection or run sync_to_r2.py.",
             data={"players": [], "total": 0}
         )
 
     try:
-        df = pd.read_csv(valuations_file)
+        # Normalize column names - handle different CSV formats
+        value_col = None
+        for col in ['custom_nil_value', 'nil_value', 'nil_valuation', 'valuation']:
+            if col in df.columns:
+                value_col = col
+                break
+        if not value_col:
+            value_col = 'custom_nil_value'  # default
 
         # Apply filters
-        if position:
+        if position and 'position' in df.columns:
             df = df[df['position'].str.upper() == position.upper()]
-        if conference:
+        if conference and 'conference' in df.columns:
             df = df[df['conference'].str.lower() == conference.lower()]
-        if tier:
+        if tier and 'nil_tier' in df.columns:
             df = df[df['nil_tier'] == tier.lower()]
 
         # Sort by value descending
-        df = df.sort_values('custom_nil_value', ascending=False)
+        if value_col in df.columns:
+            df = df.sort_values(value_col, ascending=False)
 
         # Limit results
         df = df.head(limit)
 
         # Map column names to match frontend NILLeaderboardPlayer interface
-        df = df.rename(columns={
-            'custom_nil_value': 'valuation',
-            'valuation_confidence': 'confidence',
-        })
+        rename_map = {'valuation_confidence': 'confidence'}
+        if value_col and value_col != 'valuation':
+            rename_map[value_col] = 'valuation'
+        df = df.rename(columns=rename_map)
+
         # Ensure player_name exists (some CSVs may have 'name' instead)
         if 'name' in df.columns and 'player_name' not in df.columns:
             df = df.rename(columns={'name': 'player_name'})
@@ -433,52 +453,54 @@ async def market_report(
     api_key: str = Depends(require_api_key),
 ):
     """Generate NIL market report with optional position/conference filters."""
-    from pathlib import Path
+    # Load from R2/S3 with local fallback
+    df = load_nil_data()
 
-    # Try to load real data from CSV first
-    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
-    valuations_file = data_dir / "nil_valuations_2025.csv"
-    if not valuations_file.exists():
-        valuations_file = data_dir / "nil_valuations_2024.csv"
-
-    if valuations_file.exists():
+    if not df.empty:
         try:
-            df = pd.read_csv(valuations_file)
+            # Normalize value column name
+            value_col = None
+            for col in ['custom_nil_value', 'nil_value', 'nil_valuation', 'valuation']:
+                if col in df.columns:
+                    value_col = col
+                    break
+            if not value_col:
+                value_col = 'custom_nil_value'
 
             # Apply filters
             filters = {}
-            if body.position:
+            if body.position and 'position' in df.columns:
                 df = df[df['position'].str.upper() == body.position.upper()]
                 filters["position"] = body.position
-            if body.conference:
+            if body.conference and 'conference' in df.columns:
                 df = df[df['conference'].str.lower() == body.conference.lower()]
                 filters["conference"] = body.conference
 
             # Calculate stats
             total_players = len(df)
-            average_value = df['custom_nil_value'].mean() if total_players > 0 else 0
-            median_value = df['custom_nil_value'].median() if total_players > 0 else 0
-            total_market_value = df['custom_nil_value'].sum()
+            average_value = df[value_col].mean() if total_players > 0 and value_col in df.columns else 0
+            median_value = df[value_col].median() if total_players > 0 and value_col in df.columns else 0
+            total_market_value = df[value_col].sum() if value_col in df.columns else 0
 
             # Value by tier
             value_by_tier = {}
-            if 'nil_tier' in df.columns:
+            if 'nil_tier' in df.columns and value_col in df.columns:
                 for tier in df['nil_tier'].unique():
                     tier_df = df[df['nil_tier'] == tier]
                     value_by_tier[tier] = {
                         "count": len(tier_df),
-                        "avg_value": tier_df['custom_nil_value'].mean()
+                        "avg_value": tier_df[value_col].mean()
                     }
 
             # Top players (map to frontend expected fields)
-            top_df = df.nlargest(25, 'custom_nil_value')
+            top_df = df.nlargest(25, value_col) if value_col in df.columns else df.head(25)
             top_players = []
             for _, row in top_df.iterrows():
                 player = {
-                    "name": row.get('player_name', 'Unknown'),
+                    "name": row.get('player_name', row.get('name', 'Unknown')),
                     "school": row.get('school', 'Unknown'),
                     "position": row.get('position', 'Unknown'),
-                    "value": row.get('custom_nil_value', 0),
+                    "value": row.get(value_col, 0) if value_col else 0,
                 }
                 # Add optional fields if they exist
                 if 'espn_headshot_url' in row and pd.notna(row['espn_headshot_url']):
@@ -583,34 +605,17 @@ async def portal_active(
     api_key: str = Depends(require_api_key),
 ):
     """Get active portal players with optional filters."""
-    from pathlib import Path
+    # Load from R2/S3 with local fallback
+    df = load_portal_data()
 
-    # Find portal tracker data (prefer most recent year)
-    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
-    portal_file = None
-
-    for year in [2026, 2025, 2024]:
-        candidate = data_dir / f"on3_portal_tracker_{year}.csv"
-        if candidate.exists():
-            portal_file = candidate
-            break
-
-    # Fallback to other portal files
-    if not portal_file or not portal_file.exists():
-        portal_file = data_dir / "portal_nil_valuations.csv"
-
-    if not portal_file or not portal_file.exists():
-        portal_file = data_dir / "on3_transfer_portal.csv"
-
-    if not portal_file or not portal_file.exists():
+    if df.empty:
         return APIResponse(
             status="error",
-            message="No portal data available.",
+            message="No portal data available. Check R2 connection.",
             data={"players": [], "total": 0}
         )
 
     try:
-        df = pd.read_csv(portal_file)
 
         # Apply filters
         if status and status.lower() != "all":
