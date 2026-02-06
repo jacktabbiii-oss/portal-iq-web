@@ -150,6 +150,7 @@ LOCAL_DATA_BASE = Path(__file__).parent.parent.parent / "data"
 
 # Data path mappings - S3 key and local fallback
 DATA_PATHS = {
+    # Core data files
     "nil_valuations": {
         "s3_key": "processed/portal_nil_valuations.csv",
         "local": "processed/portal_nil_valuations.csv",
@@ -174,10 +175,33 @@ DATA_PATHS = {
         "s3_key": "processed/cfbd_player_stats.csv",
         "local": "processed/cfbd_player_stats.csv",
     },
+    "cfbd_sp_ratings": {
+        "s3_key": "processed/cfbd_sp_ratings.csv",
+        "local": "processed/cfbd_sp_ratings.csv",
+    },
+    "cfbd_team_talent": {
+        "s3_key": "processed/cfbd_team_talent.csv",
+        "local": "processed/cfbd_team_talent.csv",
+    },
+    "espn_rosters": {
+        "s3_key": "processed/espn_rosters.csv",
+        "local": "processed/espn_rosters.csv",
+    },
     "pff_grades": {
         "s3_key": "processed/pff_player_grades.csv",
         "local": "processed/pff_player_grades.csv",
     },
+}
+
+# PFF detailed stat categories (82 files in pff/ folder)
+PFF_STAT_CATEGORIES = {
+    "passing": ["passing_summary", "passing_pressure_blitz", "passing_pressure"],
+    "rushing": ["rushing_summary", "elusive_summary", "breakaway_summary"],
+    "receiving": ["receiving_summary", "receiving_scheme", "drop_summary", "slot_coverage"],
+    "defense": ["defense_summary", "defense_coverage_summary", "defense_coverage_scheme", "run_defense_summary", "run_defense_percentage"],
+    "pass_rush": ["pass_rush_summary", "pass_rush_productivity"],
+    "blocking": ["offense_blocking", "offense_pass_blocking", "offense_run_blockng", "offense_blocking_efficiancy", "line_pass_blocking_efficiency"],
+    "special": ["special_teams_summary", "field_goal_summary", "kickoff_summary", "punting_summary", "return_summary"],
 }
 
 
@@ -270,6 +294,381 @@ def load_rosters() -> pd.DataFrame:
         DataFrame with roster information
     """
     return load_csv_with_fallback("cfbd_rosters")
+
+
+def load_pff_stat(category: str, stat_type: str, season: int = 2025) -> pd.DataFrame:
+    """Load a specific PFF stat file from S3.
+
+    Args:
+        category: Category folder (passing, rushing, receiving, defense, pass_rush, blocking, special)
+        stat_type: Stat file name without year prefix (e.g., "passing_summary")
+        season: Year to load (2023, 2024, or 2025)
+
+    Returns:
+        DataFrame with the stats
+    """
+    s3_key = f"pff/{category}/{season}_{stat_type}.csv"
+
+    if is_s3_configured():
+        loader = get_s3_loader()
+        df = loader.read_csv(s3_key)
+        if not df.empty:
+            df["season"] = season
+            logger.info(f"Loaded PFF {category}/{stat_type} ({season}): {len(df)} rows")
+            return df
+
+    logger.warning(f"PFF stat not found: {s3_key}")
+    return pd.DataFrame()
+
+
+def load_espn_rosters() -> pd.DataFrame:
+    """Load ESPN roster data with headshots."""
+    return load_csv_with_fallback("espn_rosters")
+
+
+def load_cfbd_stats() -> pd.DataFrame:
+    """Load CFBD player stats."""
+    df = load_csv_with_fallback("cfbd_player_stats")
+    if df.empty:
+        return df
+
+    # Rename columns to standard format
+    column_renames = {
+        "passing_YDS": "passing_yards",
+        "passing_TD": "passing_tds",
+        "passing_INT": "interceptions",
+        "passing_ATT": "passing_attempts",
+        "passing_COMPLETIONS": "completions",
+        "passing_PCT": "completion_pct",
+        "rushing_YDS": "rushing_yards",
+        "rushing_TD": "rushing_tds",
+        "rushing_CAR": "rushing_attempts",
+        "rushing_YPC": "yards_per_carry",
+        "receiving_YDS": "receiving_yards",
+        "receiving_TD": "receiving_tds",
+        "receiving_REC": "receptions",
+        "receiving_YPR": "yards_per_reception",
+        "defensive_TOT": "tackles",
+        "defensive_SOLO": "solo_tackles",
+        "defensive_TFL": "tackles_for_loss",
+        "defensive_SACKS": "sacks",
+        "defensive_QB HUR": "qb_hurries",
+        "defensive_PD": "passes_defended",
+        "interceptions_INT": "interceptions_def",
+    }
+    df = df.rename(columns=column_renames)
+    return df
+
+
+def merge_headshots(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge headshot_url from multiple sources.
+
+    Priority:
+        1. on3_transfer_portal.csv (94%+ coverage for portal players)
+        2. on3_all_nil_rankings.csv (backup On3 data)
+        3. espn_rosters.csv (fills remaining gaps)
+    """
+    if "name" not in df.columns and "player_name" not in df.columns:
+        return df
+
+    name_col = "player_name" if "player_name" in df.columns else "name"
+
+    # Skip if already has headshots
+    if "headshot_url" in df.columns and df["headshot_url"].notna().any():
+        return df
+
+    # Remove existing empty headshot_url column
+    if "headshot_url" in df.columns:
+        df = df.drop(columns=["headshot_url"])
+
+    # Collect headshots from multiple sources
+    all_headshots = {}
+
+    # Source 1: On3 Transfer Portal
+    try:
+        portal_df = load_csv_with_fallback("transfer_portal")
+        if not portal_df.empty and "headshot_url" in portal_df.columns and "name" in portal_df.columns:
+            for _, row in portal_df.iterrows():
+                name = row.get("name")
+                url = row.get("headshot_url")
+                if name and pd.notna(url) and str(url).startswith("http"):
+                    all_headshots[name] = url
+        logger.info(f"Headshots from portal: {len(all_headshots)}")
+    except Exception as e:
+        logger.warning(f"Failed to load portal headshots: {e}")
+
+    # Source 2: On3 NIL Rankings
+    try:
+        nil_df = load_csv_with_fallback("nil_rankings")
+        if not nil_df.empty and "headshot_url" in nil_df.columns and "name" in nil_df.columns:
+            for _, row in nil_df.iterrows():
+                name = row.get("name")
+                url = row.get("headshot_url")
+                if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
+                    all_headshots[name] = url
+        logger.info(f"Headshots after NIL: {len(all_headshots)}")
+    except Exception as e:
+        logger.warning(f"Failed to load NIL headshots: {e}")
+
+    # Source 3: ESPN Rosters
+    try:
+        espn_df = load_csv_with_fallback("espn_rosters")
+        if not espn_df.empty and "headshot_url" in espn_df.columns and "name" in espn_df.columns:
+            for _, row in espn_df.iterrows():
+                name = row.get("name")
+                url = row.get("headshot_url")
+                if name and name not in all_headshots and pd.notna(url) and str(url).startswith("http"):
+                    all_headshots[name] = url
+        logger.info(f"Headshots after ESPN: {len(all_headshots)}")
+    except Exception as e:
+        logger.warning(f"Failed to load ESPN headshots: {e}")
+
+    # Create headshot lookup DataFrame and merge
+    if all_headshots:
+        headshot_df = pd.DataFrame([
+            {"_name": name, "headshot_url": url}
+            for name, url in all_headshots.items()
+        ])
+        df = df.merge(headshot_df, left_on=name_col, right_on="_name", how="left")
+        if "_name" in df.columns:
+            df = df.drop(columns=["_name"])
+
+    return df
+
+
+def merge_measurables(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge height/weight from CFBD rosters and ESPN rosters."""
+    if "name" not in df.columns and "player_name" not in df.columns:
+        return df
+
+    name_col = "player_name" if "player_name" in df.columns else "name"
+
+    # Skip if already has measurables
+    if "height" in df.columns and "weight" in df.columns:
+        if df["height"].notna().any() and df["weight"].notna().any():
+            return df
+
+    all_measurables = {}
+
+    # Source 1: CFBD Rosters
+    try:
+        cfbd_df = load_csv_with_fallback("cfbd_rosters")
+        if not cfbd_df.empty:
+            cfbd_name_col = "player_name" if "player_name" in cfbd_df.columns else "name" if "name" in cfbd_df.columns else None
+            if cfbd_name_col and "height" in cfbd_df.columns and "weight" in cfbd_df.columns:
+                cfbd_df = cfbd_df.drop_duplicates(subset=[cfbd_name_col], keep="first")
+                for _, row in cfbd_df.iterrows():
+                    name = row.get(cfbd_name_col)
+                    height = row.get("height")
+                    weight = row.get("weight")
+                    if name and pd.notna(height) and pd.notna(weight):
+                        try:
+                            all_measurables[name] = {"height": float(height), "weight": float(weight)}
+                        except (ValueError, TypeError):
+                            pass
+        logger.info(f"Measurables from CFBD: {len(all_measurables)}")
+    except Exception as e:
+        logger.warning(f"Failed to load CFBD measurables: {e}")
+
+    # Source 2: ESPN Rosters
+    try:
+        espn_df = load_csv_with_fallback("espn_rosters")
+        if not espn_df.empty and "name" in espn_df.columns:
+            for _, row in espn_df.iterrows():
+                name = row.get("name")
+                if name and name not in all_measurables:
+                    height = row.get("height")
+                    weight = row.get("weight")
+                    # ESPN height is like "6' 2\"" - convert to inches
+                    if pd.notna(height) and isinstance(height, str) and "'" in height:
+                        try:
+                            parts = height.replace('"', '').split("'")
+                            feet = int(parts[0].strip())
+                            inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
+                            height = feet * 12 + inches
+                        except (ValueError, IndexError):
+                            height = None
+                    if pd.notna(height) and pd.notna(weight):
+                        all_measurables[name] = {"height": height, "weight": weight}
+        logger.info(f"Measurables after ESPN: {len(all_measurables)}")
+    except Exception as e:
+        logger.warning(f"Failed to load ESPN measurables: {e}")
+
+    # Merge measurables
+    if all_measurables:
+        measurables_df = pd.DataFrame([
+            {"_name": name, "height": data["height"], "weight": data["weight"]}
+            for name, data in all_measurables.items()
+        ])
+        df = df.merge(measurables_df, left_on=name_col, right_on="_name", how="left", suffixes=("", "_meas"))
+        if "_name" in df.columns:
+            df = df.drop(columns=["_name"])
+        # Use merged values if original was empty
+        if "height_meas" in df.columns:
+            if "height" not in df.columns:
+                df["height"] = df["height_meas"]
+            else:
+                df["height"] = df["height"].fillna(df["height_meas"])
+            df = df.drop(columns=["height_meas"])
+        if "weight_meas" in df.columns:
+            if "weight" not in df.columns:
+                df["weight"] = df["weight_meas"]
+            else:
+                df["weight"] = df["weight"].fillna(df["weight_meas"])
+            df = df.drop(columns=["weight_meas"])
+
+    return df
+
+
+def merge_pff_grades(df: pd.DataFrame, season: int = 2025) -> pd.DataFrame:
+    """Merge PFF grades into player DataFrame."""
+    if "name" not in df.columns and "player_name" not in df.columns:
+        return df
+
+    name_col = "player_name" if "player_name" in df.columns else "name"
+
+    pff_df = load_pff_grades()
+    if pff_df.empty:
+        return df
+
+    # Standardize name column in PFF data
+    if "player_name" in pff_df.columns and "name" not in pff_df.columns:
+        pff_df = pff_df.rename(columns={"player_name": "name"})
+
+    pff_name_col = "name" if "name" in pff_df.columns else None
+    if not pff_name_col:
+        return df
+
+    # Select key PFF columns
+    pff_cols = [
+        pff_name_col, "pff_id", "team", "position", "season", "games_played",
+        "pff_overall", "pff_offense", "pff_defense",
+        "pff_passing", "pff_rushing", "pff_receiving",
+        "pff_pass_block", "pff_run_block", "pff_pass_rush", "pff_run_defense",
+        "pff_tackling", "pff_coverage",
+        "elusive_rating", "yards_after_contact",
+        "pass_rushing_productivity", "pressures", "sacks",
+        "yards_per_route_run", "drop_rate",
+    ]
+
+    # Only keep columns that exist
+    available_cols = [c for c in pff_cols if c in pff_df.columns]
+    pff_subset = pff_df[available_cols].copy()
+
+    # Drop duplicates by name (keep highest overall grade)
+    if "pff_overall" in pff_subset.columns:
+        pff_subset = pff_subset.sort_values("pff_overall", ascending=False)
+    pff_subset = pff_subset.drop_duplicates(subset=[pff_name_col], keep="first")
+
+    # Merge on player name
+    df = df.merge(pff_subset, left_on=name_col, right_on=pff_name_col, how="left", suffixes=("", "_pff"))
+
+    # Clean up duplicate name column
+    if f"{pff_name_col}_pff" in df.columns:
+        df = df.drop(columns=[f"{pff_name_col}_pff"])
+
+    return df
+
+
+def merge_cfbd_stats(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge CFBD player stats into DataFrame."""
+    if "name" not in df.columns and "player_name" not in df.columns:
+        return df
+
+    name_col = "player_name" if "player_name" in df.columns else "name"
+
+    stats_df = load_cfbd_stats()
+    if stats_df.empty:
+        return df
+
+    stats_name_col = "player_name" if "player_name" in stats_df.columns else "name" if "name" in stats_df.columns else None
+    if not stats_name_col:
+        return df
+
+    # Get most recent season for each player
+    if "season" in stats_df.columns:
+        stats_df = stats_df.sort_values("season", ascending=False)
+        stats_df = stats_df.drop_duplicates(subset=[stats_name_col], keep="first")
+
+    # Select key stat columns
+    stat_cols = [
+        stats_name_col,
+        "passing_yards", "passing_tds", "interceptions", "completion_pct",
+        "rushing_yards", "rushing_tds", "yards_per_carry",
+        "receiving_yards", "receiving_tds", "receptions",
+        "tackles", "solo_tackles", "tackles_for_loss", "sacks", "passes_defended",
+    ]
+
+    available_cols = [c for c in stat_cols if c in stats_df.columns]
+    if len(available_cols) <= 1:
+        return df
+
+    stats_subset = stats_df[available_cols].copy()
+
+    # Merge
+    df = df.merge(stats_subset, left_on=name_col, right_on=stats_name_col, how="left", suffixes=("", "_stats"))
+
+    # Clean up
+    if f"{stats_name_col}_stats" in df.columns:
+        df = df.drop(columns=[f"{stats_name_col}_stats"])
+
+    return df
+
+
+def load_nil_data_enriched() -> pd.DataFrame:
+    """Load NIL data with headshots, measurables, PFF grades, and CFBD stats merged.
+
+    This is the full-featured version matching Streamlit's data loading.
+    """
+    df = load_nil_data()
+    if df.empty:
+        return df
+
+    logger.info(f"Enriching NIL data: {len(df)} rows")
+
+    # Standardize column names
+    if "nil_value_predicted" in df.columns:
+        df = df.rename(columns={"nil_value_predicted": "nil_value"})
+    if "recruiting_stars" in df.columns and "stars" not in df.columns:
+        df = df.rename(columns={"recruiting_stars": "stars"})
+
+    # Merge all enrichments
+    df = merge_headshots(df)
+    df = merge_measurables(df)
+    df = merge_pff_grades(df)
+    df = merge_cfbd_stats(df)
+
+    logger.info(f"NIL data enriched: {len(df)} rows, {len(df.columns)} columns")
+    return df
+
+
+def load_portal_data_enriched() -> pd.DataFrame:
+    """Load portal data with headshots, measurables, PFF grades, and CFBD stats merged.
+
+    This is the full-featured version matching Streamlit's data loading.
+    """
+    df = load_portal_data()
+    if df.empty:
+        return df
+
+    logger.info(f"Enriching portal data: {len(df)} rows")
+
+    # Standardize column names
+    df = df.rename(columns={
+        "nil_valuation": "nil_value",
+        "from_school": "origin_school",
+        "to_school": "destination_school",
+        "rating": "overall_rating",
+    })
+
+    # Merge all enrichments
+    df = merge_headshots(df)
+    df = merge_measurables(df)
+    df = merge_pff_grades(df)
+    df = merge_cfbd_stats(df)
+
+    logger.info(f"Portal data enriched: {len(df)} rows, {len(df.columns)} columns")
+    return df
 
 
 def get_s3_diagnostics() -> dict:

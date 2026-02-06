@@ -12,7 +12,17 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 # Import S3/R2 data loader for production data
-from ..utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
+from ..utils.s3_loader import (
+    load_nil_data,
+    load_nil_data_enriched,
+    load_portal_data,
+    load_portal_data_enriched,
+    load_pff_grades,
+    load_rosters,
+    load_cfbd_stats,
+    load_pff_stat,
+    get_s3_diagnostics,
+)
 
 from .schemas import (
     # Base
@@ -65,6 +75,133 @@ router = APIRouter()
 async def debug_s3():
     """Debug endpoint to verify R2/S3 connection and data availability."""
     return get_s3_diagnostics()
+
+
+@router.get(
+    "/stats/database",
+    response_model=APIResponse,
+    tags=["Stats"],
+    summary="Database statistics",
+    description="Get summary statistics about all data in the system.",
+)
+async def database_stats(
+    request: Request,
+    api_key: str = Depends(require_api_key),
+):
+    """Get database-wide statistics like total players, portal entries, etc."""
+    from datetime import datetime
+
+    stats = {
+        "total_players": 0,
+        "portal_players": 0,
+        "new_portal_today": 0,
+        "nil_valuations": 0,
+        "schools": 0,
+        "pff_records": 0,
+        "models_updated": "Feb 3, 2026",
+        "last_updated": datetime.now().strftime("%b %d, %Y %H:%M"),
+        "data_version": "3.1.0",
+    }
+
+    # Load NIL valuations
+    nil_df = load_nil_data()
+    if not nil_df.empty:
+        stats["nil_valuations"] = len(nil_df)
+        name_col = 'name' if 'name' in nil_df.columns else 'player_name'
+        if name_col in nil_df.columns:
+            stats["total_players"] = len(nil_df[name_col].unique())
+        # Count actual vs predicted
+        if "is_predicted" in nil_df.columns:
+            actual_count = (~nil_df["is_predicted"]).sum()
+            stats["actual_nil_values"] = int(actual_count)
+            stats["predicted_nil_values"] = len(nil_df) - int(actual_count)
+
+    # Load portal data
+    portal_df = load_portal_data()
+    if not portal_df.empty:
+        stats["portal_players"] = len(portal_df)
+        # Count schools
+        school_cols = ['from_school', 'to_school', 'origin_school', 'destination_school']
+        schools = set()
+        for col in school_cols:
+            if col in portal_df.columns:
+                schools.update(portal_df[col].dropna().unique())
+        stats["schools"] = len(schools)
+        # Count entries in last 24 hours
+        if "commit_date" in portal_df.columns:
+            today = datetime.now().strftime("%Y-%m-%d")
+            stats["new_portal_today"] = len(portal_df[portal_df["commit_date"].astype(str).str.startswith(today)])
+
+    # Load PFF grades
+    pff_df = load_pff_grades()
+    if not pff_df.empty:
+        stats["pff_records"] = len(pff_df)
+
+    return APIResponse(
+        status="success",
+        data=stats,
+        message="Database statistics retrieved successfully"
+    )
+
+
+@router.get(
+    "/pff/{player_name}",
+    response_model=APIResponse,
+    tags=["PFF"],
+    summary="Get PFF stats for a player",
+    description="Get detailed PFF statistics for a specific player.",
+)
+async def get_player_pff(
+    request: Request,
+    player_name: str,
+    season: int = 2025,
+    api_key: str = Depends(require_api_key),
+):
+    """Get comprehensive PFF stats for a specific player."""
+    result = {
+        "name": player_name,
+        "season": season,
+        "grades": None,
+        "passing": None,
+        "rushing": None,
+        "receiving": None,
+        "defense": None,
+        "pass_rush": None,
+    }
+
+    # Load main PFF grades
+    pff_df = load_pff_grades()
+    if not pff_df.empty:
+        name_col = 'name' if 'name' in pff_df.columns else 'player_name'
+        if name_col in pff_df.columns:
+            match = pff_df[pff_df[name_col].str.contains(player_name, case=False, na=False)]
+            if not match.empty:
+                result["grades"] = match.iloc[0].to_dict()
+
+    # Load detailed PFF stats for each category
+    for category, stat_type in [
+        ("passing", "passing_summary"),
+        ("rushing", "rushing_summary"),
+        ("receiving", "receiving_summary"),
+        ("defense", "defense_summary"),
+        ("pass_rush", "pass_rush_summary"),
+    ]:
+        try:
+            df = load_pff_stat(category, stat_type, season)
+            if not df.empty:
+                name_col = 'name' if 'name' in df.columns else 'player' if 'player' in df.columns else None
+                if name_col:
+                    match = df[df[name_col].str.contains(player_name, case=False, na=False)]
+                    if not match.empty:
+                        result[category] = match.iloc[0].to_dict()
+        except Exception as e:
+            logger.warning(f"Failed to load PFF {category} for {player_name}: {e}")
+
+    return APIResponse(
+        status="success",
+        data=result,
+        message=f"PFF stats for {player_name}"
+    )
 
 
 # =============================================================================
@@ -371,11 +508,16 @@ async def nil_leaderboard(
     position: Optional[str] = None,
     conference: Optional[str] = None,
     tier: Optional[str] = None,
+    enriched: bool = True,
     api_key: str = Depends(require_api_key),
 ):
-    """Get NIL leaderboard with optional filters."""
-    # Load from R2/S3 with local fallback
-    df = load_nil_data()
+    """Get NIL leaderboard with optional filters.
+
+    Args:
+        enriched: If True, includes PFF grades, CFBD stats, headshots, and measurables
+    """
+    # Load from R2/S3 with full enrichment (headshots, PFF, CFBD stats)
+    df = load_nil_data_enriched() if enriched else load_nil_data()
 
     if df.empty:
         return APIResponse(
@@ -419,8 +561,56 @@ async def nil_leaderboard(
         if 'name' in df.columns and 'player_name' not in df.columns:
             df = df.rename(columns={'name': 'player_name'})
 
-        # Convert to list of dicts
-        players = df.to_dict(orient='records')
+        # Build player list with all enriched data
+        players = []
+        for idx, row in df.iterrows():
+            player = {
+                "rank": idx + 1,
+                "player_id": str(row.get('player_id', idx)),
+                "player_name": row.get('player_name', 'Unknown'),
+                "position": row.get('position', 'Unknown'),
+                "school": row.get('school', 'Unknown'),
+                "valuation": float(row.get('valuation', 0) or 0),
+                "nil_tier": row.get('nil_tier', 'unknown'),
+            }
+
+            # Add optional fields
+            if 'stars' in row and pd.notna(row.get('stars')):
+                player["stars"] = int(row['stars'])
+            if 'headshot_url' in row and pd.notna(row.get('headshot_url')):
+                player["headshot_url"] = row['headshot_url']
+            if 'conference' in row and pd.notna(row.get('conference')):
+                player["conference"] = row['conference']
+
+            # Add measurables (from enrichment)
+            if 'height' in row and pd.notna(row.get('height')):
+                player["height"] = float(row['height'])
+            if 'weight' in row and pd.notna(row.get('weight')):
+                player["weight"] = float(row['weight'])
+
+            # Add PFF grades (from enrichment)
+            if 'pff_overall' in row and pd.notna(row.get('pff_overall')):
+                player["pff_overall"] = float(row['pff_overall'])
+            if 'pff_offense' in row and pd.notna(row.get('pff_offense')):
+                player["pff_offense"] = float(row['pff_offense'])
+            if 'pff_defense' in row and pd.notna(row.get('pff_defense')):
+                player["pff_defense"] = float(row['pff_defense'])
+
+            # Add CFBD stats (from enrichment)
+            for stat in ['passing_yards', 'passing_tds', 'rushing_yards', 'rushing_tds',
+                         'receiving_yards', 'receiving_tds', 'tackles', 'sacks']:
+                if stat in row and pd.notna(row.get(stat)):
+                    player[stat] = float(row[stat])
+
+            # Add valuation breakdown if available
+            if 'performance_value' in row and pd.notna(row.get('performance_value')):
+                player["performance_value"] = float(row['performance_value'])
+            if 'market_value' in row and pd.notna(row.get('market_value')):
+                player["market_value"] = float(row['market_value'])
+            if 'social_value' in row and pd.notna(row.get('social_value')):
+                player["social_value"] = float(row['social_value'])
+
+            players.append(player)
 
         return APIResponse(
             status="success",
@@ -602,11 +792,16 @@ async def portal_active(
     status: Optional[str] = None,
     position: Optional[str] = None,
     limit: int = 100,
+    enriched: bool = True,
     api_key: str = Depends(require_api_key),
 ):
-    """Get active portal players with optional filters."""
-    # Load from R2/S3 with local fallback
-    df = load_portal_data()
+    """Get active portal players with optional filters.
+
+    Args:
+        enriched: If True, includes PFF grades, CFBD stats, headshots, and measurables
+    """
+    # Load from R2/S3 with full enrichment (headshots, PFF, CFBD stats)
+    df = load_portal_data_enriched() if enriched else load_portal_data()
 
     if df.empty:
         return APIResponse(
@@ -650,19 +845,44 @@ async def portal_active(
                 "player_id": str(idx),
                 "player_name": row.get('name', row.get('player_name', 'Unknown')),
                 "position": row.get('position', 'Unknown'),
-                "origin_school": row.get('from_school', row.get('school', 'Unknown')),
-                "destination_school": row.get('to_school', None) if pd.notna(row.get('to_school')) else None,
+                "origin_school": row.get('origin_school', row.get('from_school', row.get('school', 'Unknown'))),
+                "destination_school": row.get('destination_school', row.get('to_school', None)) if pd.notna(row.get('destination_school', row.get('to_school'))) else None,
                 "status": mapped_status,
-                "nil_valuation": float(row.get('nil_valuation', row.get('custom_nil_value', 0)) or 0),
+                "nil_valuation": float(row.get('nil_value', row.get('nil_valuation', row.get('custom_nil_value', 0))) or 0),
                 "stars": int(row.get('stars', 0) or 0),
             }
-            # Add optional fields
+            # Add optional fields - headshots
             if 'headshot_url' in row and pd.notna(row.get('headshot_url')):
                 player["headshot_url"] = row['headshot_url']
             if 'class_year' in row and pd.notna(row.get('class_year')):
                 player["class_year"] = str(row['class_year'])
             if 'commit_date' in row and pd.notna(row.get('commit_date')):
                 player["entry_date"] = str(row['commit_date'])
+
+            # Add measurables (from enrichment)
+            if 'height' in row and pd.notna(row.get('height')):
+                player["height"] = float(row['height'])
+            if 'weight' in row and pd.notna(row.get('weight')):
+                player["weight"] = float(row['weight'])
+
+            # Add PFF grades (from enrichment)
+            if 'pff_overall' in row and pd.notna(row.get('pff_overall')):
+                player["pff_overall"] = float(row['pff_overall'])
+            if 'pff_offense' in row and pd.notna(row.get('pff_offense')):
+                player["pff_offense"] = float(row['pff_offense'])
+            if 'pff_defense' in row and pd.notna(row.get('pff_defense')):
+                player["pff_defense"] = float(row['pff_defense'])
+
+            # Add CFBD stats (from enrichment) - offense
+            for stat in ['passing_yards', 'passing_tds', 'rushing_yards', 'rushing_tds', 'receiving_yards', 'receiving_tds', 'receptions']:
+                if stat in row and pd.notna(row.get(stat)):
+                    player[stat] = float(row[stat])
+
+            # Add CFBD stats (from enrichment) - defense
+            for stat in ['tackles', 'sacks', 'tackles_for_loss', 'passes_defended']:
+                if stat in row and pd.notna(row.get(stat)):
+                    player[stat] = float(row[stat])
+
             players.append(player)
 
         return APIResponse(
