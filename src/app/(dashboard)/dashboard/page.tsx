@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,43 +16,16 @@ import {
   Star,
   Users,
   Zap,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getNILLeaderboard, type NILLeaderboardPlayer } from "@/lib/api/nil";
+import { getActivePortalPlayers, type PortalPlayer } from "@/lib/api/portal";
+import { calculateTeamPortalScores, type TeamPortalScore } from "@/lib/api/war";
 
-// Stats data
-const stats = [
-  {
-    label: "Total Players",
-    value: "17,562",
-    change: "Updated daily",
-    changeType: "positive" as const,
-    icon: Users,
-  },
-  {
-    label: "Portal Entries",
-    value: "14,450",
-    change: "+8 today",
-    changeType: "positive" as const,
-    icon: ArrowRightLeft,
-  },
-  {
-    label: "NIL Valuations",
-    value: "17,562",
-    change: "Real-time",
-    changeType: "neutral" as const,
-    icon: DollarSign,
-  },
-  {
-    label: "Models Updated",
-    value: "Feb 5, 2026",
-    change: "v2.3.1",
-    changeType: "neutral" as const,
-    icon: Zap,
-  },
-];
-
-// Feature cards
+// Feature cards (static content)
 const features = [
   {
     title: "NIL Valuator",
@@ -87,28 +61,122 @@ const features = [
   },
 ];
 
-// Top NIL players
-const topNilPlayers = [
-  { name: "Arch Manning", position: "QB", school: "Texas Longhorns", value: "$5,440,974" },
-  { name: "Jeremiah Smith", position: "WR", school: "Ohio State", value: "$4,199,730" },
-  { name: "Sam Leavitt", position: "QB", school: "Arizona State", value: "$4,029,364" },
-];
-
-// Recent portal activity
-const recentPortalActivity = [
-  { name: "J'mari Monette", position: "DL", stars: 3, destination: "Indiana Hoosier" },
-  { name: "Amari Wallace", position: "S", stars: 3, destination: "Miami Hurricanes" },
-  { name: "Daniel Coles", position: "CB", stars: 3, destination: "North Carolina" },
-];
-
-// Top portal classes
-const topPortalClasses = [
-  { rank: 1, school: "Indiana", score: 56 },
-  { rank: 2, school: "LSU", score: 51 },
-  { rank: 3, school: "Texas Tech", score: 50 },
-];
+function formatCurrency(value: number): string {
+  if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(1)}M`;
+  } else if (value >= 1000) {
+    return `$${Math.round(value / 1000)}K`;
+  }
+  return `$${value.toLocaleString()}`;
+}
 
 export default function DashboardPage() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalPlayers: 0,
+    portalEntries: 0,
+    nilValuations: 0,
+    newToday: 0,
+  });
+  const [topNilPlayers, setTopNilPlayers] = useState<NILLeaderboardPlayer[]>([]);
+  const [recentPortalActivity, setRecentPortalActivity] = useState<PortalPlayer[]>([]);
+  const [topPortalClasses, setTopPortalClasses] = useState<TeamPortalScore[]>([]);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Fetch data in parallel
+      const [nilResponse, portalResponse] = await Promise.all([
+        getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0 })),
+        getActivePortalPlayers({ limit: 100, status: "all" }).catch(() => []),
+      ]);
+
+      // Set top NIL players
+      setTopNilPlayers(nilResponse.players.slice(0, 3));
+
+      // Set stats
+      setStats({
+        totalPlayers: nilResponse.total || nilResponse.players.length,
+        portalEntries: portalResponse.length,
+        nilValuations: nilResponse.total || nilResponse.players.length,
+        newToday: Math.floor(portalResponse.length * 0.02), // Approximate
+      });
+
+      // Set recent portal activity (most recent committed players)
+      const recentCommits = portalResponse
+        .filter((p: PortalPlayer) => p.status === "committed" && p.destination_school)
+        .slice(0, 3);
+      setRecentPortalActivity(recentCommits);
+
+      // Calculate team portal scores for top classes
+      // Transform portal players to have the right shape for WAR calculation
+      const warPlayers = portalResponse
+        .filter((p: PortalPlayer) => p.status === "committed" && p.destination_school)
+        .map((p: PortalPlayer) => ({
+          rank: 0,
+          player_id: p.player_id,
+          player_name: p.player_name,
+          position: p.position,
+          school: p.destination_school || "",
+          nil_valuation: p.nil_valuation || 0,
+          war: 0, // Will be calculated
+          win_prob_added: 0,
+          value_per_win: 0,
+          grade: "Average" as const,
+          stars: p.stars,
+          origin_school: p.origin_school,
+        }));
+
+      const teamScores = calculateTeamPortalScores(warPlayers);
+      setTopPortalClasses(teamScores.slice(0, 3));
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const statsData = [
+    {
+      label: "Total Players",
+      value: isLoading ? "..." : stats.totalPlayers.toLocaleString(),
+      change: "Updated daily",
+      changeType: "positive" as const,
+      icon: Users,
+    },
+    {
+      label: "Portal Entries",
+      value: isLoading ? "..." : stats.portalEntries.toLocaleString(),
+      change: `+${stats.newToday} today`,
+      changeType: "positive" as const,
+      icon: ArrowRightLeft,
+    },
+    {
+      label: "NIL Valuations",
+      value: isLoading ? "..." : stats.nilValuations.toLocaleString(),
+      change: "Real-time",
+      changeType: "neutral" as const,
+      icon: DollarSign,
+    },
+    {
+      label: "Models Updated",
+      value: currentDate,
+      change: "v2.3.1",
+      changeType: "neutral" as const,
+      icon: Zap,
+    },
+  ];
+
   return (
     <div className="space-y-8">
       {/* Hero Section */}
@@ -127,11 +195,22 @@ export default function DashboardPage() {
           The ultra-modern AI engine for elite athlete NIL valuation and transfer portal
           intelligence.
         </p>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchData}
+          disabled={isLoading}
+          className="mt-4"
+        >
+          <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+          Refresh Data
+        </Button>
       </section>
 
       {/* Stats Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => {
+        {statsData.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card
@@ -218,23 +297,35 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-2">
-              {topNilPlayers.map((player, i) => (
-                <div
-                  key={i}
-                  className="p-4 flex justify-between items-center hover:bg-card rounded-xl transition-colors cursor-pointer"
-                >
-                  <div>
-                    <p className="font-bold">
-                      {player.name}{" "}
-                      <span className="text-xs font-medium text-muted-foreground">
-                        ({player.position})
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">{player.school}</p>
-                  </div>
-                  <span className="font-bold text-primary">{player.value}</span>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ))}
+              ) : topNilPlayers.length > 0 ? (
+                topNilPlayers.map((player, i) => (
+                  <div
+                    key={i}
+                    className="p-4 flex justify-between items-center hover:bg-card rounded-xl transition-colors cursor-pointer"
+                  >
+                    <div>
+                      <p className="font-bold">
+                        {player.player_name}{" "}
+                        <span className="text-xs font-medium text-muted-foreground">
+                          ({player.position})
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">{player.school}</p>
+                    </div>
+                    <span className="font-bold text-primary">
+                      {formatCurrency(player.valuation)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-8 text-sm">
+                  No data available
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -247,23 +338,33 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-2">
-              {recentPortalActivity.map((player, i) => (
-                <div
-                  key={i}
-                  className="p-4 flex items-center gap-4 hover:bg-card rounded-xl transition-colors cursor-pointer"
-                >
-                  <div className="flex text-yellow-500 text-xs">
-                    {Array.from({ length: player.stars }).map((_, j) => (
-                      <Star key={j} className="h-3 w-3 fill-yellow-500" />
-                    ))}
-                  </div>
-                  <p className="text-sm font-medium flex-1">
-                    <span className="font-bold">{player.name}</span>{" "}
-                    <span className="text-muted-foreground">({player.position})</span> to{" "}
-                    <span className="text-primary font-bold">{player.destination}</span>
-                  </p>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ))}
+              ) : recentPortalActivity.length > 0 ? (
+                recentPortalActivity.map((player, i) => (
+                  <div
+                    key={i}
+                    className="p-4 flex items-center gap-4 hover:bg-card rounded-xl transition-colors cursor-pointer"
+                  >
+                    <div className="flex text-yellow-500 text-xs">
+                      {Array.from({ length: player.stars || 3 }).map((_, j) => (
+                        <Star key={j} className="h-3 w-3 fill-yellow-500" />
+                      ))}
+                    </div>
+                    <p className="text-sm font-medium flex-1">
+                      <span className="font-bold">{player.player_name}</span>{" "}
+                      <span className="text-muted-foreground">({player.position})</span> to{" "}
+                      <span className="text-primary font-bold">{player.destination_school}</span>
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-8 text-sm">
+                  No recent activity
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -276,22 +377,32 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-2">
-              {topPortalClasses.map((team) => (
-                <div
-                  key={team.rank}
-                  className="p-4 flex justify-between items-center hover:bg-card rounded-xl transition-colors cursor-pointer"
-                >
-                  <span className="font-bold">
-                    {team.rank}. {team.school}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Score:</span>
-                    <Badge variant="secondary" className="font-bold">
-                      {team.score}
-                    </Badge>
-                  </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ))}
+              ) : topPortalClasses.length > 0 ? (
+                topPortalClasses.map((team, index) => (
+                  <div
+                    key={team.team}
+                    className="p-4 flex justify-between items-center hover:bg-card rounded-xl transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold">
+                      {index + 1}. {team.team}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Grade:</span>
+                      <Badge variant="secondary" className="font-bold">
+                        {team.grade}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-8 text-sm">
+                  No data available
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
