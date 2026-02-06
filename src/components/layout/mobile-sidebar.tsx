@@ -7,10 +7,14 @@ import {
   LayoutDashboard,
   DollarSign,
   ArrowRightLeft,
-  Trophy,
+  TrendingUp,
+  Bot,
+  GitCompareArrows,
   Users,
+  School,
   Settings,
   Menu,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +28,7 @@ import { useSubscriptionTier } from "@/stores/auth-store";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
-const navigation = [
+const mainNavigation = [
   {
     name: "Dashboard",
     href: "/dashboard",
@@ -41,14 +45,40 @@ const navigation = [
     icon: ArrowRightLeft,
   },
   {
-    name: "Draft Tracker",
-    href: "/draft-tracker",
-    icon: Trophy,
+    name: "Win Impact",
+    href: "/win-impact",
+    icon: TrendingUp,
   },
   {
-    name: "Roster Builder",
-    href: "/roster-builder",
+    name: "AI Assistant",
+    href: "/ai-assistant",
+    icon: Bot,
+  },
+];
+
+const toolsNavigation = [
+  {
+    name: "Player Comparison",
+    href: "/player-comparison",
+    icon: GitCompareArrows,
+  },
+  {
+    name: "Watchlist",
+    href: "/watchlist",
     icon: Users,
+  },
+  {
+    name: "Schools",
+    href: "/schools",
+    icon: School,
+  },
+];
+
+const bottomNavigation = [
+  {
+    name: "Notifications",
+    href: "/notifications",
+    icon: Bell,
   },
   {
     name: "Settings",
@@ -84,8 +114,11 @@ export function MobileSidebar() {
           </Link>
         </SheetHeader>
 
-        <nav className="flex-1 px-2 py-4 space-y-1">
-          {navigation.map((item) => {
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Main Menu
+          </p>
+          {mainNavigation.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
@@ -96,10 +129,62 @@ export function MobileSidebar() {
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
+                )}
+              >
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                <span className="truncate">{item.name}</span>
+              </Link>
+            );
+          })}
+
+          <div className="my-3 border-t border-sidebar-border" />
+
+          <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Tools
+          </p>
+          {toolsNavigation.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
+                )}
+              >
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                <span className="truncate">{item.name}</span>
+              </Link>
+            );
+          })}
+
+          <div className="my-3 border-t border-sidebar-border" />
+
+          {bottomNavigation.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-primary"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
                 )}
               >
                 <Icon className="h-5 w-5 flex-shrink-0" />

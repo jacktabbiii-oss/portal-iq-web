@@ -36,6 +36,7 @@ import {
   type PlayerSearchResult,
   type PlayerStats,
 } from "@/lib/api/players";
+import { PlayerRadarChart } from "@/components/charts/player-radar-chart";
 
 interface ComparisonPlayer {
   searchResult: PlayerSearchResult;
@@ -413,6 +414,36 @@ export default function PlayerComparisonPage() {
                 No players found matching &quot;{searchQuery}&quot;
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Radar Chart Visualization */}
+      {player1 && player2 && player1.stats?.pff && player2.stats?.pff && (
+        <Card className="glass">
+          <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+              <GitCompare className="h-4 w-4 text-primary" />
+              PFF Grade Comparison
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <PlayerRadarChart
+              player1Name={player1.searchResult.name}
+              player2Name={player2.searchResult.name}
+              player1Stats={player1.stats.pff}
+              player2Stats={player2.stats.pff}
+            />
+            <div className="flex justify-center gap-8 mt-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-primary" />
+                <span className="text-muted-foreground">{player1.searchResult.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span className="text-muted-foreground">{player2.searchResult.name}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

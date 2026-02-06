@@ -24,6 +24,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Search,
   TrendingUp,
   TrendingDown,
@@ -42,7 +48,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNILLeaderboard, predictNIL, type NILLeaderboardPlayer, type PlayerInput } from "@/lib/api/nil";
+import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
+import { SocialGrowthSimulator } from "@/components/charts/nil-growth-chart";
+import { TransferValueChart } from "@/components/charts/transfer-value-chart";
+import { PlayerWARCard } from "@/components/charts/war-gauge";
 import { HEIGHT_PRESETS, WEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
+import { useWatchlist } from "@/hooks/use-watchlist";
+import { Heart, HeartOff } from "lucide-react";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
 const conferences = ["All", "SEC", "Big Ten", "Big 12", "ACC", "Pac-12", "AAC", "MWC", "Sun Belt", "C-USA"];
@@ -117,6 +129,38 @@ export default function NILValuatorPage() {
   const [error, setError] = useState<string | null>(null);
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [isCustomLoading, setIsCustomLoading] = useState(false);
+
+  // Watchlist
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
+
+  // Player detail sheet
+  const [selectedPlayer, setSelectedPlayer] = useState<NILPlayerWithMeasurables | null>(null);
+
+  // WAR calculation for selected player
+  const playerWAR = useMemo(() => {
+    if (!selectedPlayer) return null;
+
+    const warResult = calculateDetailedWAR({
+      position: selectedPlayer.position,
+      stars: selectedPlayer.stars,
+      nil_value: selectedPlayer.valuation,
+      destination_school: selectedPlayer.school,
+      is_predicted_nil: true,
+    });
+
+    const { tier } = getSchoolTier(selectedPlayer.school);
+    const transferValue = analyzeTransferValue(
+      warResult.war,
+      selectedPlayer.valuation,
+      selectedPlayer.position
+    );
+
+    return {
+      ...warResult,
+      winProbAdded: warResult.war * 7, // Each WAR = ~7% win probability
+      transferValue,
+    };
+  }, [selectedPlayer]);
 
   // Custom valuation form state
   const [customForm, setCustomForm] = useState({
@@ -294,7 +338,7 @@ export default function NILValuatorPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-card border border-border">
+        <TabsList className="bg-card border border-border flex-wrap">
           <TabsTrigger
             value="search"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -308,6 +352,20 @@ export default function NILValuatorPage() {
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Custom Valuation
+          </TabsTrigger>
+          <TabsTrigger
+            value="growth"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          >
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Social Growth
+          </TabsTrigger>
+          <TabsTrigger
+            value="transfer"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          >
+            <DollarSign className="h-4 w-4 mr-2" />
+            Transfer Value
           </TabsTrigger>
         </TabsList>
 
@@ -482,6 +540,9 @@ export default function NILValuatorPage() {
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-12">
                         #
                       </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-16">
+
+                      </TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
                         Player
                       </TableHead>
@@ -516,7 +577,7 @@ export default function NILValuatorPage() {
                   <TableBody>
                     {filteredPlayers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={showAdvancedFilters ? 10 : 8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={showAdvancedFilters ? 11 : 9} className="text-center py-8 text-muted-foreground">
                           No players found matching your criteria
                         </TableCell>
                       </TableRow>
@@ -525,9 +586,28 @@ export default function NILValuatorPage() {
                         <TableRow
                           key={player.player_id}
                           className="cursor-pointer hover:bg-card border-border"
+                          onClick={() => setSelectedPlayer(player)}
                         >
                           <TableCell className="text-muted-foreground font-mono text-sm">
                             {player.rank}
+                          </TableCell>
+                          <TableCell>
+                            {player.headshot_url ? (
+                              <Image
+                                src={player.headshot_url}
+                                alt={player.player_name}
+                                width={40}
+                                height={40}
+                                className="rounded-full object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                <span className="text-xs font-bold text-primary">
+                                  {player.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                </span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="font-semibold">{player.player_name}</TableCell>
                           <TableCell>
@@ -777,6 +857,135 @@ export default function NILValuatorPage() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* Social Growth Tab */}
+        <TabsContent value="growth" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Player Selection */}
+            <Card className="glass">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="h-5 w-5 text-primary" />
+                  Select a Player
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <p className="text-muted-foreground mb-4">
+                  Choose a player from the leaderboard or enter custom values to simulate social media growth impact.
+                </p>
+                {selectedPlayer ? (
+                  <div className="flex items-center gap-4 p-4 bg-card rounded-lg border border-border">
+                    {selectedPlayer.headshot_url ? (
+                      <Image
+                        src={selectedPlayer.headshot_url}
+                        alt={selectedPlayer.player_name}
+                        width={50}
+                        height={50}
+                        className="rounded-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">
+                          {selectedPlayer.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="font-bold">{selectedPlayer.player_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedPlayer.position} • {selectedPlayer.school}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-primary">{formatCurrency(selectedPlayer.valuation)}</p>
+                      <Badge className={cn("uppercase", getTierBadge(selectedPlayer.nil_tier))}>
+                        {selectedPlayer.nil_tier}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Click on a player in the Search Players tab to select them</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Growth Simulator */}
+            {selectedPlayer && (
+              <SocialGrowthSimulator
+                currentNILValue={selectedPlayer.valuation}
+                currentFollowers={selectedPlayer.social_followers || 50000}
+                playerName={selectedPlayer.player_name}
+              />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Transfer Value Tab */}
+        <TabsContent value="transfer" className="space-y-6">
+          <div className="grid grid-cols-1 gap-6">
+            {/* Player Selection */}
+            <Card className="glass">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  Transfer Value Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <p className="text-muted-foreground mb-4">
+                  See how a player&apos;s NIL value would change at different schools based on market size and brand value.
+                </p>
+                {selectedPlayer ? (
+                  <div className="flex items-center gap-4 p-4 bg-card rounded-lg border border-border mb-6">
+                    {selectedPlayer.headshot_url ? (
+                      <Image
+                        src={selectedPlayer.headshot_url}
+                        alt={selectedPlayer.player_name}
+                        width={50}
+                        height={50}
+                        className="rounded-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">
+                          {selectedPlayer.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="font-bold">{selectedPlayer.player_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedPlayer.position} • {selectedPlayer.school}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-primary">{formatCurrency(selectedPlayer.valuation)}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Click on a player in the Search Players tab to analyze their transfer value</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Transfer Value Chart */}
+            {selectedPlayer && (
+              <TransferValueChart
+                currentSchool={selectedPlayer.school}
+                currentValue={selectedPlayer.valuation}
+                position={selectedPlayer.position}
+              />
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* Market Stats Footer */}
@@ -823,6 +1032,205 @@ export default function NILValuatorPage() {
           </div>
         </Card>
       </div>
+
+      {/* Player Detail Sheet */}
+      <Sheet open={!!selectedPlayer} onOpenChange={(open) => !open && setSelectedPlayer(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {selectedPlayer && (
+            <>
+              <SheetHeader className="pb-6">
+                <div className="flex items-center gap-4">
+                  {selectedPlayer.headshot_url ? (
+                    <Image
+                      src={selectedPlayer.headshot_url}
+                      alt={selectedPlayer.player_name}
+                      width={80}
+                      height={80}
+                      className="rounded-full object-cover border-2 border-primary"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary">
+                      <span className="text-xl font-bold text-primary">
+                        {selectedPlayer.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <SheetTitle className="text-xl">{selectedPlayer.player_name}</SheetTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="font-mono">
+                        {selectedPlayer.position}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">{selectedPlayer.school}</span>
+                    </div>
+                    {selectedPlayer.stars && (
+                      <div className="flex mt-1 text-yellow-500">
+                        {Array.from({ length: Math.min(selectedPlayer.stars, 5) }).map((_, i) => (
+                          <Star key={i} className="h-4 w-4 fill-yellow-500" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </SheetHeader>
+
+              {/* NIL Value Section */}
+              <div className="space-y-6">
+                <Card className="glass">
+                  <CardContent className="p-4">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-1">NIL Valuation</p>
+                      <p className="text-3xl font-bold text-primary">
+                        {formatCurrency(selectedPlayer.valuation)}
+                      </p>
+                      <Badge className={cn("mt-2 uppercase", getTierBadge(selectedPlayer.nil_tier))}>
+                        {selectedPlayer.nil_tier} Tier
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Measurables */}
+                {(selectedPlayer.height || selectedPlayer.weight) && (
+                  <Card className="glass">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                        <Ruler className="h-4 w-4" />
+                        Measurables
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <div className="grid grid-cols-2 gap-4">
+                        {selectedPlayer.height && (
+                          <div className="text-center p-3 bg-card rounded-lg">
+                            <p className="text-xs text-muted-foreground">Height</p>
+                            <p className="text-lg font-bold">{formatHeight(selectedPlayer.height)}</p>
+                          </div>
+                        )}
+                        {selectedPlayer.weight && (
+                          <div className="text-center p-3 bg-card rounded-lg">
+                            <p className="text-xs text-muted-foreground">Weight</p>
+                            <p className="text-lg font-bold">{selectedPlayer.weight} lbs</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* PFF Grades */}
+                {selectedPlayer.pff_overall && (
+                  <Card className="glass">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        PFF Grades
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Overall</span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "font-mono",
+                              selectedPlayer.pff_overall >= 80 && "border-green-500 text-green-500",
+                              selectedPlayer.pff_overall >= 70 && selectedPlayer.pff_overall < 80 && "border-yellow-500 text-yellow-500",
+                              selectedPlayer.pff_overall < 70 && "border-orange-500 text-orange-500"
+                            )}
+                          >
+                            {selectedPlayer.pff_overall.toFixed(1)}
+                          </Badge>
+                        </div>
+                        {selectedPlayer.pff_offense && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Offense</span>
+                            <span className="font-mono text-sm">{selectedPlayer.pff_offense.toFixed(1)}</span>
+                          </div>
+                        )}
+                        {selectedPlayer.pff_defense && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Defense</span>
+                            <span className="font-mono text-sm">{selectedPlayer.pff_defense.toFixed(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* WAR / Win Impact Analysis */}
+                {playerWAR && (
+                  <PlayerWARCard
+                    war={playerWAR.war}
+                    warLow={playerWAR.war_low}
+                    warHigh={playerWAR.war_high}
+                    confidence={playerWAR.confidence}
+                    winProbAdded={playerWAR.winProbAdded}
+                    breakdown={playerWAR.breakdown}
+                    transferValue={{
+                      costPerWAR: playerWAR.transferValue.cost_per_war,
+                      fairValue: playerWAR.transferValue.fair_value_per_war,
+                      valueRatio: playerWAR.transferValue.value_ratio,
+                      valueRating: playerWAR.transferValue.value_rating,
+                      roiProjection: playerWAR.transferValue.roi_projection,
+                      marketComparison: playerWAR.transferValue.market_comparison,
+                    }}
+                  />
+                )}
+
+                {/* Quick Actions */}
+                <div className="flex flex-col gap-2">
+                  <Button
+                    className={cn(
+                      "w-full",
+                      isInWatchlist(selectedPlayer.player_id)
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "variant-outline"
+                    )}
+                    variant={isInWatchlist(selectedPlayer.player_id) ? "default" : "outline"}
+                    onClick={() =>
+                      toggleWatchlist({
+                        id: selectedPlayer.player_id,
+                        player_name: selectedPlayer.player_name,
+                        position: selectedPlayer.position,
+                        school: selectedPlayer.school,
+                        nil_valuation: selectedPlayer.valuation,
+                        stars: selectedPlayer.stars,
+                        headshot_url: selectedPlayer.headshot_url,
+                      })
+                    }
+                  >
+                    {isInWatchlist(selectedPlayer.player_id) ? (
+                      <>
+                        <HeartOff className="h-4 w-4 mr-2" />
+                        Remove from Watchlist
+                      </>
+                    ) : (
+                      <>
+                        <Heart className="h-4 w-4 mr-2" />
+                        Add to Watchlist
+                      </>
+                    )}
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button className="flex-1" variant="outline" onClick={() => setActiveTab("transfer")}>
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Transfer Value
+                    </Button>
+                    <Button className="flex-1" variant="outline" onClick={() => setActiveTab("growth")}>
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Growth Sim
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
