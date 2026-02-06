@@ -145,15 +145,39 @@ class S3DataLoader:
 # Data Loading Functions
 # =============================================================================
 
-# Data path mappings
+# Base path for local data files (ml-engine/data)
+LOCAL_DATA_BASE = Path(__file__).parent.parent.parent / "data"
+
+# Data path mappings - S3 key and local fallback
 DATA_PATHS = {
-    "nil_valuations": "processed/portal_nil_valuations.csv",
-    "nil_rankings": "processed/on3_all_nil_rankings.csv",
-    "transfer_portal": "processed/on3_transfer_portal.csv",
-    "team_portal_rankings": "processed/on3_team_portal_rankings.csv",
-    "cfbd_rosters": "processed/cfbd_rosters.csv",
-    "cfbd_player_stats": "processed/cfbd_player_stats.csv",
-    "pff_grades": "processed/pff_player_grades.csv",
+    "nil_valuations": {
+        "s3_key": "processed/portal_nil_valuations.csv",
+        "local": "processed/portal_nil_valuations.csv",
+    },
+    "nil_rankings": {
+        "s3_key": "processed/on3_all_nil_rankings.csv",
+        "local": "processed/on3_all_nil_rankings.csv",
+    },
+    "transfer_portal": {
+        "s3_key": "processed/on3_transfer_portal.csv",
+        "local": "processed/on3_transfer_portal.csv",
+    },
+    "team_portal_rankings": {
+        "s3_key": "processed/on3_team_portal_rankings.csv",
+        "local": "processed/on3_team_portal_rankings.csv",
+    },
+    "cfbd_rosters": {
+        "s3_key": "processed/cfbd_rosters.csv",
+        "local": "processed/cfbd_rosters.csv",
+    },
+    "cfbd_player_stats": {
+        "s3_key": "processed/cfbd_player_stats.csv",
+        "local": "processed/cfbd_player_stats.csv",
+    },
+    "pff_grades": {
+        "s3_key": "processed/pff_player_grades.csv",
+        "local": "processed/pff_player_grades.csv",
+    },
 }
 
 
@@ -162,61 +186,86 @@ def get_s3_loader() -> S3DataLoader:
     return S3DataLoader()
 
 
+def load_csv_with_fallback(data_key: str) -> pd.DataFrame:
+    """Load CSV from S3, falling back to local file if S3 fails.
+
+    Args:
+        data_key: Key from DATA_PATHS (e.g., "nil_valuations")
+
+    Returns:
+        DataFrame
+    """
+    paths = DATA_PATHS.get(data_key)
+    if not paths:
+        logger.error(f"Unknown data key: {data_key}")
+        return pd.DataFrame()
+
+    # Try S3 first
+    loader = get_s3_loader()
+    df = loader.read_csv(paths["s3_key"])
+    if not df.empty:
+        logger.info(f"Loaded {data_key} from S3: {len(df)} rows")
+        return df
+
+    # Fallback to local file
+    local_path = LOCAL_DATA_BASE / paths["local"]
+    if local_path.exists():
+        try:
+            df = pd.read_csv(local_path)
+            logger.info(f"Loaded {data_key} from local file: {len(df)} rows")
+            return df
+        except Exception as e:
+            logger.error(f"Failed to read local file {local_path}: {e}")
+
+    logger.warning(f"No data available for {data_key} (S3 and local both failed)")
+    return pd.DataFrame()
+
+
 def load_nil_data() -> pd.DataFrame:
-    """Load NIL valuation data from S3.
+    """Load NIL valuation data.
 
     Returns:
         DataFrame with columns: name, position, school, nil_value, etc.
     """
-    loader = get_s3_loader()
-
     # Try portal NIL valuations first (most comprehensive)
-    df = loader.read_csv(DATA_PATHS["nil_valuations"])
+    df = load_csv_with_fallback("nil_valuations")
     if not df.empty:
         return df
 
     # Fallback to NIL rankings
-    df = loader.read_csv(DATA_PATHS["nil_rankings"])
+    df = load_csv_with_fallback("nil_rankings")
     if not df.empty:
         return df
 
-    logger.warning("No NIL data available")
+    logger.warning("No NIL data available from any source")
     return pd.DataFrame()
 
 
 def load_portal_data() -> pd.DataFrame:
-    """Load transfer portal data from S3.
+    """Load transfer portal data.
 
     Returns:
         DataFrame with portal player information
     """
-    loader = get_s3_loader()
-    df = loader.read_csv(DATA_PATHS["transfer_portal"])
-
-    if df.empty:
-        logger.warning("No portal data available")
-
-    return df
+    return load_csv_with_fallback("transfer_portal")
 
 
 def load_pff_grades() -> pd.DataFrame:
-    """Load PFF player grades from S3.
+    """Load PFF player grades.
 
     Returns:
         DataFrame with PFF grades
     """
-    loader = get_s3_loader()
-    return loader.read_csv(DATA_PATHS["pff_grades"])
+    return load_csv_with_fallback("pff_grades")
 
 
 def load_rosters() -> pd.DataFrame:
-    """Load CFBD roster data from S3.
+    """Load CFBD roster data.
 
     Returns:
         DataFrame with roster information
     """
-    loader = get_s3_loader()
-    return loader.read_csv(DATA_PATHS["cfbd_rosters"])
+    return load_csv_with_fallback("cfbd_rosters")
 
 
 def get_s3_diagnostics() -> dict:
@@ -226,31 +275,47 @@ def get_s3_diagnostics() -> dict:
     result = {
         "boto3_available": BOTO3_AVAILABLE,
         "s3_configured": is_s3_configured(),
+        "local_data_base": str(LOCAL_DATA_BASE),
+        "local_data_exists": LOCAL_DATA_BASE.exists(),
         "config": {
             "endpoint_url": config["endpoint_url"][:50] + "..." if config["endpoint_url"] else None,
             "bucket_name": config["bucket_name"],
             "access_key_set": bool(config["access_key_id"]),
             "secret_key_set": bool(config["secret_access_key"]),
         },
-        "files_found": [],
+        "s3_files": [],
+        "local_files": [],
         "error": None,
     }
 
+    # Check local files first
+    for name, paths in DATA_PATHS.items():
+        local_path = LOCAL_DATA_BASE / paths["local"]
+        if local_path.exists():
+            try:
+                size = local_path.stat().st_size
+                result["local_files"].append(f"✓ {name}: {size / 1024:.1f} KB")
+            except Exception:
+                result["local_files"].append(f"? {name}: exists but can't read size")
+        else:
+            result["local_files"].append(f"✗ {name}: not found at {local_path}")
+
+    # Check S3
     if not BOTO3_AVAILABLE:
-        result["error"] = "boto3 not installed"
+        result["error"] = "boto3 not installed - using local files only"
         return result
 
     if not is_s3_configured():
-        result["error"] = "S3 not configured - missing required env vars"
+        result["error"] = "S3 not configured - using local files only"
         return result
 
     loader = get_s3_loader()
 
     if not loader.client:
-        result["error"] = "Failed to create S3 client"
+        result["error"] = "Failed to create S3 client - using local files only"
         return result
 
-    # Try to list files
+    # Try to list S3 files
     try:
         response = loader.client.list_objects_v2(
             Bucket=loader.bucket,
@@ -258,17 +323,9 @@ def get_s3_diagnostics() -> dict:
             MaxKeys=20
         )
         files = [obj["Key"] for obj in response.get("Contents", [])]
-        result["files_found"] = files
-        result["total_files"] = response.get("KeyCount", 0)
+        result["s3_files"] = files
+        result["s3_total_files"] = response.get("KeyCount", 0)
     except Exception as e:
-        result["error"] = f"Failed to list files: {str(e)}"
-
-    # Try to read a specific file
-    for key in DATA_PATHS.values():
-        try:
-            loader.client.head_object(Bucket=loader.bucket, Key=key)
-            result["files_found"].append(f"✓ {key}")
-        except Exception as e:
-            result["files_found"].append(f"✗ {key}: {str(e)[:50]}")
+        result["error"] = f"S3 list failed: {str(e)[:100]}"
 
     return result
