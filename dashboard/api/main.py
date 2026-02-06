@@ -579,6 +579,260 @@ async def get_team_rankings_endpoint(
 
 
 # =============================================================================
+# Frontend Compatibility Endpoints (for Next.js frontend)
+# =============================================================================
+
+@app.get("/api/nil/leaderboard")
+async def get_nil_leaderboard(
+    position: Optional[str] = None,
+    school: Optional[str] = None,
+    conference: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=500),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get NIL leaderboard for the frontend dashboard.
+
+    Returns players sorted by NIL valuation with optional filters.
+    """
+    df = get_nil_players()
+
+    if df.empty:
+        return {"status": "success", "data": {"players": [], "total": 0}}
+
+    # Apply filters
+    if position:
+        df = df[df["position"].str.upper() == position.upper()]
+    if school:
+        df = df[df["school"].str.lower().str.contains(school.lower(), na=False)]
+    if conference:
+        df = df[df.get("conference", "").str.lower().str.contains(conference.lower(), na=False)]
+
+    # Sort by NIL value
+    if "nil_value" in df.columns:
+        df = df.sort_values("nil_value", ascending=False)
+
+    total = len(df)
+    df = df.head(limit)
+
+    players = []
+    for i, (_, row) in enumerate(df.iterrows()):
+        nil_val = row.get("nil_value", 0) or 0
+        players.append({
+            "rank": i + 1,
+            "player_id": str(row.get("player_id", f"player_{i}")),
+            "player_name": row.get("name", ""),
+            "position": row.get("position", ""),
+            "school": row.get("school", row.get("team", "")),
+            "valuation": nil_val,
+            "nil_tier": _get_nil_tier(nil_val),
+            "social_followers": row.get("social_followers"),
+            "headshot_url": row.get("headshot_url"),
+        })
+
+    return {"status": "success", "data": {"players": players, "total": total}}
+
+
+def _get_nil_tier(value: float) -> str:
+    """Get NIL tier based on valuation."""
+    if value >= 1000000:
+        return "Elite"
+    elif value >= 500000:
+        return "Premium"
+    elif value >= 100000:
+        return "High"
+    elif value >= 50000:
+        return "Mid"
+    else:
+        return "Emerging"
+
+
+@app.get("/api/portal/active")
+async def get_active_portal_players(
+    position: Optional[str] = None,
+    origin_school: Optional[str] = None,
+    origin_conference: Optional[str] = None,
+    min_stars: Optional[int] = None,
+    status: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=500),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get active transfer portal players for the frontend.
+
+    Returns players currently in the portal with optional filters.
+    """
+    df = get_portal_players()
+
+    if df.empty:
+        return {"status": "success", "data": []}
+
+    # Apply filters
+    if position:
+        df = df[df["position"].str.upper() == position.upper()]
+    if origin_school:
+        df = df[df["origin_school"].str.lower().str.contains(origin_school.lower(), na=False)]
+    if origin_conference and "origin_conference" in df.columns:
+        df = df[df["origin_conference"].str.lower().str.contains(origin_conference.lower(), na=False)]
+    if min_stars:
+        df = df[df["stars"] >= min_stars]
+    if status and status != "all":
+        if status == "available":
+            df = df[~df["status"].str.lower().isin(["committed", "withdrawn"])]
+        else:
+            df = df[df["status"].str.lower() == status.lower()]
+
+    df = df.head(limit)
+
+    players = []
+    for _, row in df.iterrows():
+        players.append({
+            "player_id": str(row.get("player_id", "")),
+            "player_name": row.get("name", ""),
+            "position": row.get("position", ""),
+            "origin_school": row.get("origin_school", ""),
+            "origin_conference": row.get("origin_conference"),
+            "destination_school": row.get("destination_school"),
+            "stars": row.get("stars"),
+            "entry_date": str(row.get("entry_date", "")) if row.get("entry_date") else None,
+            "status": _normalize_status(row.get("status", "available")),
+            "nil_valuation": row.get("nil_value") or row.get("nil_valuation"),
+            "days_in_portal": row.get("days_in_portal"),
+            "headshot_url": row.get("headshot_url"),
+        })
+
+    return {"status": "success", "data": players}
+
+
+def _normalize_status(status: str) -> str:
+    """Normalize portal status to frontend expected values."""
+    status_lower = str(status).lower()
+    if "commit" in status_lower:
+        return "committed"
+    elif "withdraw" in status_lower:
+        return "withdrawn"
+    else:
+        return "available"
+
+
+@app.get("/api/search/status")
+async def get_search_status():
+    """Get AI search availability status."""
+    import os
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+
+    # Get dataset counts
+    nil_df = get_nil_players()
+    portal_df = get_portal_players()
+    pff_df = get_pff_grades()
+
+    datasets = {
+        "nil_valuations": {"loaded": not nil_df.empty, "records": len(nil_df)},
+        "portal_players": {"loaded": not portal_df.empty, "records": len(portal_df)},
+        "pff_grades": {"loaded": not pff_df.empty, "records": len(pff_df)},
+    }
+
+    return {
+        "status": "success",
+        "data": {
+            "available": bool(anthropic_key),
+            "anthropic_configured": bool(anthropic_key),
+            "datasets_loaded": sum(1 for d in datasets.values() if d["loaded"]),
+            "datasets": datasets
+        }
+    }
+
+
+@app.post("/api/search")
+async def ai_search(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """AI-powered search endpoint.
+
+    Uses Anthropic Claude to answer questions about players, NIL, and portal.
+    """
+    import os
+    query = request.get("query", "")
+    context = request.get("context", "")
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+
+    if not anthropic_key:
+        return {
+            "status": "success",
+            "data": {
+                "response": "AI search is not configured. Please set the ANTHROPIC_API_KEY environment variable.",
+                "sources": [],
+                "players_mentioned": [],
+                "data_used": []
+            }
+        }
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=anthropic_key)
+
+        # Get relevant data context
+        nil_df = get_nil_players()
+        portal_df = get_portal_players()
+
+        # Build data context for the AI
+        data_context = "Available data:\n"
+
+        if not nil_df.empty:
+            top_nil = nil_df.nlargest(10, "nil_value")[["name", "position", "school", "nil_value"]].to_string()
+            data_context += f"\nTop NIL Players:\n{top_nil}\n"
+
+        if not portal_df.empty:
+            recent_portal = portal_df.head(10)[["name", "position", "origin_school", "destination_school", "status"]].to_string()
+            data_context += f"\nRecent Portal Activity:\n{recent_portal}\n"
+
+        system_prompt = f"""You are Portal IQ's AI Assistant, an expert on college football NIL valuations and the transfer portal.
+
+{data_context}
+
+Previous conversation context:
+{context}
+
+Answer questions about:
+- NIL valuations and projections
+- Transfer portal players and activity
+- Player comparisons and analytics
+- Team recruiting and portal strategies
+
+Be concise and data-driven. Reference specific players and values when available."""
+
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[{"role": "user", "content": query}]
+        )
+
+        ai_response = response.content[0].text
+
+        return {
+            "status": "success",
+            "data": {
+                "response": ai_response,
+                "sources": ["Portal IQ Database", "NIL Valuations", "Transfer Portal Data"],
+                "players_mentioned": [],
+                "data_used": ["nil_valuations", "portal_players"]
+            }
+        }
+    except Exception as e:
+        logger.error(f"AI search error: {e}")
+        return {
+            "status": "success",
+            "data": {
+                "response": f"I encountered an error processing your request. Please try again.",
+                "sources": [],
+                "players_mentioned": [],
+                "data_used": []
+            }
+        }
+
+
+# =============================================================================
 # Webhook Endpoints (for playmakervc.com notifications)
 # =============================================================================
 

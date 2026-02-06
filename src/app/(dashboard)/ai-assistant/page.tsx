@@ -409,8 +409,8 @@ export default function AIAssistantPage() {
                 Powered By
               </h3>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
-                  <span className="text-lg">🧭</span>
+                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center overflow-hidden">
+                  <img src="/logo.png" alt="Portal IQ" className="h-8 w-8 object-contain" />
                 </div>
                 <div>
                   <p className="font-bold text-primary">Elite Sports Solutions</p>

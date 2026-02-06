@@ -183,8 +183,8 @@ export default function DashboardPage() {
       <section className="relative py-8 text-center">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent -z-10 blur-3xl opacity-30 rounded-3xl" />
 
-        <div className="inline-flex items-center justify-center p-4 bg-card rounded-2xl mb-4 glow-gold">
-          <span className="text-primary text-4xl">🧭</span>
+        <div className="inline-flex items-center justify-center p-2 bg-card rounded-2xl mb-4 glow-gold">
+          <img src="/logo.png" alt="Portal IQ" className="h-16 w-16 object-contain" />
         </div>
 
         <h1 className="text-5xl font-black tracking-tighter mb-2">
