@@ -38,7 +38,7 @@ const features = [
   {
     title: "Portal Intelligence",
     description:
-      "11,000+ current transfer portal entries. Track commitments, analyze team rankings, and find the best portal targets in real-time.",
+      "4,500+ current transfer portal entries. Track commitments, analyze team rankings, and find the best portal targets in real-time.",
     icon: ArrowRightLeft,
     href: "/portal-intelligence",
     cta: "Transfer portal analytics",

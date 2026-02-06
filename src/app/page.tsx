@@ -26,7 +26,7 @@ import {
 
 const stats = [
   { value: "21,200+", label: "NIL Valuations", description: "Live data updated daily" },
-  { value: "11,000+", label: "Portal Players", description: "2025-26 cycle tracking" },
+  { value: "4,500+", label: "Portal Players", description: "2025-26 cycle tracking" },
   { value: "134", label: "FBS Programs", description: "Complete coverage" },
   { value: "24/7", label: "Live Updates", description: "Never miss a move" },
 ];
@@ -42,7 +42,7 @@ const features = [
     icon: Target,
     title: "Portal Tracker",
     description: "Real-time alerts when players enter the portal. Filter by position, conference, star rating, and more. Never miss a prospect.",
-    highlight: "11,000+ players tracked",
+    highlight: "4,500+ players tracked",
   },
   {
     icon: BarChart3,
