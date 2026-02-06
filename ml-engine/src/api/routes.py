@@ -11,9 +11,6 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-# Import S3/R2 data loader for production data (relative import like app.py uses)
-from ..utils.s3_loader import load_nil_data, load_portal_data, get_s3_diagnostics
-
 from .schemas import (
     # Base
     APIResponse,
@@ -359,8 +356,13 @@ async def nil_leaderboard(
     api_key: str = Depends(require_api_key),
 ):
     """Get NIL leaderboard with optional filters."""
-    # Load NIL data from R2 (with local fallback)
-    df = load_nil_data()
+    # Lazy import to avoid import errors crashing the whole app
+    try:
+        from ..utils.s3_loader import load_nil_data
+        df = load_nil_data()
+    except ImportError as e:
+        logger.error(f"Failed to import s3_loader: {e}")
+        df = pd.DataFrame()
 
     if df.empty:
         return APIResponse(
@@ -428,8 +430,13 @@ async def market_report(
     api_key: str = Depends(require_api_key),
 ):
     """Generate NIL market report with optional position/conference filters."""
-    # Load NIL data from R2 (with local fallback)
-    df = load_nil_data()
+    # Lazy import to avoid import errors crashing the whole app
+    try:
+        from ..utils.s3_loader import load_nil_data
+        df = load_nil_data()
+    except ImportError as e:
+        logger.error(f"Failed to import s3_loader: {e}")
+        df = pd.DataFrame()
 
     if not df.empty:
         try:
@@ -572,8 +579,13 @@ async def portal_active(
     api_key: str = Depends(require_api_key),
 ):
     """Get active portal players with optional filters."""
-    # Load portal data from R2 (with local fallback)
-    df = load_portal_data()
+    # Lazy import to avoid import errors crashing the whole app
+    try:
+        from ..utils.s3_loader import load_portal_data
+        df = load_portal_data()
+    except ImportError as e:
+        logger.error(f"Failed to import s3_loader: {e}")
+        df = pd.DataFrame()
 
     if df.empty:
         return APIResponse(
@@ -1509,7 +1521,12 @@ async def debug_s3(
     api_key: str = Depends(require_api_key),
 ):
     """Check S3/R2 connection status and available files."""
-    diagnostics = get_s3_diagnostics()
+    # Lazy import to avoid import errors crashing the whole app
+    try:
+        from ..utils.s3_loader import get_s3_diagnostics
+        diagnostics = get_s3_diagnostics()
+    except ImportError as e:
+        diagnostics = {"error": f"Failed to import s3_loader: {e}"}
 
     return APIResponse(
         status="success",
