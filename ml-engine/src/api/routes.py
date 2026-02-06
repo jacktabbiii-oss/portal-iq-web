@@ -548,6 +548,9 @@ async def nil_leaderboard(
         if value_col in df.columns:
             df = df.sort_values(value_col, ascending=False)
 
+        # Capture total count BEFORE limiting
+        total_count = len(df)
+
         # Limit results
         df = df.head(limit)
 
@@ -616,7 +619,7 @@ async def nil_leaderboard(
             status="success",
             data={
                 "players": players,
-                "total": len(players),
+                "total": total_count,
                 "filters_applied": {
                     "position": position,
                     "conference": conference,
@@ -826,6 +829,9 @@ async def portal_active(
         elif 'stars' in df.columns:
             df = df.sort_values('stars', ascending=False)
 
+        # Capture total count BEFORE limiting
+        total_count = len(df)
+
         # Limit results
         df = df.head(limit)
 
@@ -889,7 +895,7 @@ async def portal_active(
             status="success",
             data={
                 "players": players,
-                "total": len(players),
+                "total": total_count,
                 "source": "r2/on3_transfer_portal.csv",
                 "filters_applied": {
                     "status": status,
