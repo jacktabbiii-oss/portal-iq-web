@@ -710,7 +710,7 @@ export default function WinImpactPage() {
                           border: "1px solid #333",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => [value.toFixed(2), "Avg WAR"]}
+                        formatter={(value) => [typeof value === 'number' ? value.toFixed(2) : '0', "Avg WAR"]}
                       />
                       <Bar dataKey="avgWAR" fill="#D4AF37" radius={[0, 4, 4, 0]}>
                         {positionWARData.map((entry, index) => (
@@ -750,9 +750,10 @@ export default function WinImpactPage() {
                           border: "1px solid #333",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number, name: string) => {
-                          if (name === "nil") return [`$${value.toFixed(2)}M`, "NIL Value"];
-                          return [value.toFixed(2), "WAR"];
+                        formatter={(value, name) => {
+                          const v = typeof value === 'number' ? value : 0;
+                          if (name === "nil") return [`$${v.toFixed(2)}M`, "NIL Value"];
+                          return [v.toFixed(2), "WAR"];
                         }}
                       />
                       <Scatter data={warVsNILData} fill="#D4AF37">
@@ -1109,9 +1110,10 @@ export default function WinImpactPage() {
                         border: "1px solid #333",
                         borderRadius: "8px",
                       }}
-                      formatter={(value: number, name: string) => {
-                        if (name === "portal_score") return [value.toFixed(1), "Score"];
-                        return [value, name];
+                      formatter={(value, name) => {
+                        const v = typeof value === 'number' ? value : 0;
+                        if (name === "portal_score") return [v.toFixed(1), "Score"];
+                        return [v, name];
                       }}
                     />
                     <Bar dataKey="portal_score" radius={[4, 4, 0, 0]}>
