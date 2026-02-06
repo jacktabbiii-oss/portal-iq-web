@@ -187,7 +187,7 @@ def get_s3_loader() -> S3DataLoader:
 
 
 def load_csv_with_fallback(data_key: str) -> pd.DataFrame:
-    """Load CSV from S3, falling back to local file if S3 fails.
+    """Load CSV from local data folder.
 
     Args:
         data_key: Key from DATA_PATHS (e.g., "nil_valuations")
@@ -200,24 +200,18 @@ def load_csv_with_fallback(data_key: str) -> pd.DataFrame:
         logger.error(f"Unknown data key: {data_key}")
         return pd.DataFrame()
 
-    # Try S3 first
-    loader = get_s3_loader()
-    df = loader.read_csv(paths["s3_key"])
-    if not df.empty:
-        logger.info(f"Loaded {data_key} from S3: {len(df)} rows")
-        return df
-
-    # Fallback to local file
+    # Load from local file (bundled with Docker image)
     local_path = LOCAL_DATA_BASE / paths["local"]
     if local_path.exists():
         try:
             df = pd.read_csv(local_path)
-            logger.info(f"Loaded {data_key} from local file: {len(df)} rows")
+            logger.info(f"Loaded {data_key} from local: {len(df)} rows")
             return df
         except Exception as e:
-            logger.error(f"Failed to read local file {local_path}: {e}")
+            logger.error(f"Failed to read {local_path}: {e}")
+            return pd.DataFrame()
 
-    logger.warning(f"No data available for {data_key} (S3 and local both failed)")
+    logger.warning(f"Data file not found: {local_path}")
     return pd.DataFrame()
 
 
