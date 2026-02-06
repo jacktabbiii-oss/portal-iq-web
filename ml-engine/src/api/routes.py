@@ -172,6 +172,23 @@ async def debug_s3():
     return get_s3_diagnostics()
 
 
+@router.post(
+    "/debug/clear-cache",
+    tags=["Debug"],
+    summary="Clear S3 data cache",
+    description="Clear the in-memory S3 data cache to force reload from R2.",
+)
+async def clear_cache(api_key: str = Depends(require_api_key)):
+    """Clear the S3 data cache to force reload fresh data from R2."""
+    from ..utils.s3_loader import get_s3_loader
+    loader = get_s3_loader()
+    loader.clear_cache()
+    return {
+        "status": "success",
+        "message": "S3 data cache cleared. Next request will reload from R2.",
+    }
+
+
 @router.get(
     "/stats/database",
     response_model=APIResponse,
