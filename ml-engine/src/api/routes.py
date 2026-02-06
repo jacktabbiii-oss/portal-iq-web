@@ -567,6 +567,106 @@ async def market_report(
 # Portal Endpoints
 # =============================================================================
 
+@router.get(
+    "/portal/active",
+    response_model=APIResponse,
+    tags=["Portal"],
+    summary="Active portal players",
+    description="Get list of players currently in the transfer portal.",
+)
+async def portal_active(
+    request: Request,
+    status: Optional[str] = None,
+    position: Optional[str] = None,
+    limit: int = 100,
+    api_key: str = Depends(require_api_key),
+):
+    """Get active portal players with optional filters."""
+    from pathlib import Path
+
+    # Find portal tracker data (prefer most recent year)
+    data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
+    portal_file = None
+
+    for year in [2026, 2025, 2024]:
+        candidate = data_dir / f"on3_portal_tracker_{year}.csv"
+        if candidate.exists():
+            portal_file = candidate
+            break
+
+    # Fallback to other portal files
+    if not portal_file or not portal_file.exists():
+        portal_file = data_dir / "portal_nil_valuations.csv"
+
+    if not portal_file or not portal_file.exists():
+        portal_file = data_dir / "on3_transfer_portal.csv"
+
+    if not portal_file or not portal_file.exists():
+        return APIResponse(
+            status="error",
+            message="No portal data available.",
+            data={"players": [], "total": 0}
+        )
+
+    try:
+        df = pd.read_csv(portal_file)
+
+        # Apply filters
+        if status and status.lower() != "all":
+            if 'status' in df.columns:
+                df = df[df['status'].str.lower() == status.lower()]
+        if position:
+            if 'position' in df.columns:
+                df = df[df['position'].str.upper() == position.upper()]
+
+        # Sort by NIL valuation or stars if available
+        if 'nil_valuation' in df.columns:
+            df = df.sort_values('nil_valuation', ascending=False)
+        elif 'stars' in df.columns:
+            df = df.sort_values('stars', ascending=False)
+
+        # Limit results
+        df = df.head(limit)
+
+        # Map columns to match frontend expectations
+        players = []
+        for _, row in df.iterrows():
+            player = {
+                "name": row.get('name', row.get('player_name', 'Unknown')),
+                "position": row.get('position', 'Unknown'),
+                "origin_school": row.get('from_school', row.get('school', 'Unknown')),
+                "destination_school": row.get('to_school', None),
+                "status": row.get('status', 'Active'),
+                "nil_valuation": row.get('nil_valuation', row.get('custom_nil_value', 0)),
+                "stars": row.get('stars', 0),
+            }
+            # Add optional fields
+            if 'headshot_url' in row and pd.notna(row.get('headshot_url')):
+                player["headshot_url"] = row['headshot_url']
+            if 'class_year' in row and pd.notna(row.get('class_year')):
+                player["class_year"] = row['class_year']
+            if 'commit_date' in row and pd.notna(row.get('commit_date')):
+                player["commit_date"] = str(row['commit_date'])
+            players.append(player)
+
+        return APIResponse(
+            status="success",
+            data={
+                "players": players,
+                "total": len(players),
+                "source": portal_file.name,
+                "filters_applied": {
+                    "status": status,
+                    "position": position,
+                }
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Portal active error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post(
     "/portal/flight-risk",
     response_model=APIResponse,
