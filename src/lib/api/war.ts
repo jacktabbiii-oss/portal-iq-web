@@ -86,39 +86,138 @@ export interface WARLeaderboardParams {
   limit?: number;
 }
 
-// Position WAR weights based on win impact analysis
-const POSITION_WAR_WEIGHTS: Record<string, number> = {
-  QB: 1.0,      // QBs have highest individual win impact
-  EDGE: 0.65,
-  WR: 0.55,
-  CB: 0.50,
-  OT: 0.45,
-  DT: 0.40,
-  LB: 0.35,
-  S: 0.35,
-  TE: 0.30,
-  RB: 0.28,
-  OG: 0.25,
-  C: 0.25,
-  K: 0.15,
-  P: 0.10,
+// =============================================================================
+// PORTAL IQ PROPRIETARY WAR ALGORITHM
+// Must match dashboard/utils/win_impact_calculator.py exactly
+// =============================================================================
+
+// Base position WAR values (expected wins above replacement for elite player)
+const POSITION_BASE_WAR: Record<string, number> = {
+  // Offense - Premium positions
+  QB: 3.0,      // Quarterbacks have highest single-player impact
+  WR: 1.2,      // Top receivers create big plays
+  RB: 0.9,      // Running backs still valuable but committee approach
+  TE: 0.8,      // Receiving TEs more valuable
+  // Offensive Line
+  OT: 1.0,      // Tackles protect blind side
+  OG: 0.7,      // Guards important for run game
+  C: 0.6,       // Center controls line
+  IOL: 0.7,     // Generic interior line
+  // Defense - Premium positions
+  EDGE: 1.5,    // Pass rushers change games
+  CB: 1.2,      // Corners lock down receivers
+  S: 0.9,       // Safeties cover deep
+  LB: 1.0,      // Linebackers versatile
+  DT: 0.8,      // Interior disruption
+  DL: 0.9,      // Generic defensive line
+  // Special Teams
+  K: 0.4,       // Kickers can swing close games
+  P: 0.3,       // Punters flip field position
+  // Default
+  ATH: 0.8,     // Athletes can play anywhere
+};
+
+// Position scarcity multiplier (harder to find quality = higher value)
+const POSITION_SCARCITY: Record<string, number> = {
+  QB: 1.4,      // Elite QBs are rare
+  EDGE: 1.3,    // Pass rushers always in demand
+  OT: 1.2,      // Good tackles hard to find
+  CB: 1.2,      // Lockdown corners scarce
+  WR: 1.0,      // More available
+  RB: 0.8,      // Running backs replaceable
+};
+
+// NIL-to-star tier mapping (used when we only have NIL data)
+// These thresholds help estimate player tier from market value
+const NIL_STAR_THRESHOLDS: Record<string, { min: number; stars: number }[]> = {
+  QB: [
+    { min: 2000000, stars: 5 },
+    { min: 800000, stars: 4 },
+    { min: 200000, stars: 3 },
+    { min: 50000, stars: 2 },
+  ],
+  DEFAULT: [
+    { min: 500000, stars: 5 },
+    { min: 200000, stars: 4 },
+    { min: 75000, stars: 3 },
+    { min: 25000, stars: 2 },
+  ],
+};
+
+// Star rating multipliers (must match backend)
+const STAR_MULTIPLIERS: Record<number, number> = {
+  5: 2.0,    // 5-star = proven elite talent
+  4: 1.5,    // 4-star = high upside
+  3: 1.0,    // 3-star = baseline
+  2: 0.6,    // 2-star = developmental
+  1: 0.3,    // Walk-on level
 };
 
 /**
- * Calculate WAR from NIL valuation and position
- * Uses position weights and NIL value as proxy for production
+ * Estimate star rating from NIL value when actual stars not available
  */
-function calculateWAR(nilValue: number, position: string): number {
-  const posWeight = POSITION_WAR_WEIGHTS[position.toUpperCase()] || 0.3;
+function estimateStarsFromNIL(nilValue: number, position: string): number {
+  const thresholds = NIL_STAR_THRESHOLDS[position.toUpperCase()] || NIL_STAR_THRESHOLDS.DEFAULT;
+  for (const tier of thresholds) {
+    if (nilValue >= tier.min) return tier.stars;
+  }
+  return 2; // Default to 2-star if below all thresholds
+}
 
-  // Base WAR calculation:
-  // - Top QB ($5M+) = ~3.0 WAR
-  // - Average starter ($200K) = ~0.5 WAR
-  // - Backup ($50K) = ~0.1 WAR
-  const baseWAR = Math.log10(Math.max(nilValue, 10000)) - 4; // log10($10K) = 4
-  const war = baseWAR * posWeight * 1.5;
+/**
+ * Calculate NIL market signal bonus (must match backend get_nil_market_signal)
+ */
+function getNILMarketSignal(nilValue: number, position: string): number {
+  if (!nilValue || nilValue <= 0) return 0;
 
-  return Math.max(0, Math.min(4.0, war)); // Cap at 0-4 range
+  // Position-adjusted baselines
+  const positionNILBaseline: Record<string, number> = {
+    QB: 500000,
+    WR: 200000,
+    RB: 150000,
+    EDGE: 150000,
+    CB: 120000,
+  };
+
+  const baseline = positionNILBaseline[position.toUpperCase()] || 100000;
+  const ratio = nilValue / baseline;
+
+  if (ratio >= 10) return 0.5;      // 10x = superstar
+  if (ratio >= 5) return 0.35;      // 5x = premium
+  if (ratio >= 2) return 0.2;       // 2x = above average
+  if (ratio >= 1) return 0.1;       // At baseline
+  return 0;
+}
+
+/**
+ * Calculate WAR using Portal IQ's proprietary algorithm
+ * IMPORTANT: This must match dashboard/utils/win_impact_calculator.py
+ */
+function calculateWAR(nilValue: number, position: string, stars?: number, school?: string): number {
+  const pos = position?.toUpperCase() || "ATH";
+
+  // 1. Base WAR from position
+  const baseWAR = POSITION_BASE_WAR[pos] || 0.8;
+  const scarcity = POSITION_SCARCITY[pos] || 1.0;
+
+  // 2. Star rating multiplier
+  const effectiveStars = stars || estimateStarsFromNIL(nilValue, pos);
+  const starMult = STAR_MULTIPLIERS[effectiveStars] || 1.0;
+
+  // 3. School tier factor (if school provided)
+  const { multiplier: schoolMult } = getSchoolTier(school || "");
+
+  // 4. NIL market signal (bonus, not multiplier)
+  // Treat all NIL from leaderboard as predicted (0.7 discount)
+  const nilBonus = getNILMarketSignal(nilValue, pos) * 0.7;
+
+  // Calculate final WAR (simplified - no measurables/experience without full data)
+  const rawWAR = baseWAR * scarcity;
+  const adjustedWAR = rawWAR * starMult;
+  const schoolAdjusted = adjustedWAR * schoolMult;
+  const finalWAR = schoolAdjusted + nilBonus;
+
+  return Math.round(finalWAR * 100) / 100;
 }
 
 /**
@@ -166,10 +265,11 @@ export async function getWARLeaderboard(
     headshot_url?: string;
   }>; total: number };
 
-  // Transform NIL data to WAR metrics
+  // Transform NIL data to WAR metrics using Portal IQ's proprietary algorithm
   const warPlayers: WARPlayer[] = data.players.map((player, index) => {
     const nilValue = player.valuation || 0;
-    const war = calculateWAR(nilValue, player.position);
+    // Pass school for school tier adjustment in WAR calculation
+    const war = calculateWAR(nilValue, player.position, undefined, player.school);
     const winProbAdded = calculateWinProbAdded(war);
     const valuePerWin = war > 0 ? nilValue / war : 0;
 
@@ -180,7 +280,7 @@ export async function getWARLeaderboard(
       position: player.position,
       school: player.school,
       nil_valuation: nilValue,
-      war: Math.round(war * 10) / 10, // Round to 1 decimal
+      war: Math.round(war * 100) / 100, // Round to 2 decimals for accuracy
       win_prob_added: Math.round(winProbAdded * 10) / 10,
       value_per_win: Math.round(valuePerWin),
       grade: getGrade(war),
