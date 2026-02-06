@@ -187,7 +187,7 @@ def get_s3_loader() -> S3DataLoader:
 
 
 def load_csv_with_fallback(data_key: str) -> pd.DataFrame:
-    """Load CSV from local data folder.
+    """Load CSV from R2/S3, falling back to local file if needed.
 
     Args:
         data_key: Key from DATA_PATHS (e.g., "nil_valuations")
@@ -200,7 +200,17 @@ def load_csv_with_fallback(data_key: str) -> pd.DataFrame:
         logger.error(f"Unknown data key: {data_key}")
         return pd.DataFrame()
 
-    # Load from local file (bundled with Docker image)
+    # Try R2/S3 first
+    if is_s3_configured():
+        loader = get_s3_loader()
+        df = loader.read_csv(paths["s3_key"])
+        if not df.empty:
+            logger.info(f"Loaded {data_key} from R2: {len(df)} rows")
+            return df
+        else:
+            logger.warning(f"R2 load failed for {data_key}, trying local fallback")
+
+    # Fallback to local file
     local_path = LOCAL_DATA_BASE / paths["local"]
     if local_path.exists():
         try:
@@ -211,7 +221,7 @@ def load_csv_with_fallback(data_key: str) -> pd.DataFrame:
             logger.error(f"Failed to read {local_path}: {e}")
             return pd.DataFrame()
 
-    logger.warning(f"Data file not found: {local_path}")
+    logger.warning(f"Data not found in R2 or local: {data_key}")
     return pd.DataFrame()
 
 
