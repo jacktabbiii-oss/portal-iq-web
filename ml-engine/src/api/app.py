@@ -550,10 +550,11 @@ def custom_openapi():
                 if isinstance(method, dict) and "security" not in method:
                     method["security"] = [{"ApiKeyAuth": []}]
 
-    # Add servers
+    # Add servers - use environment variable or Railway URL
+    production_url = os.getenv("API_BASE_URL", "https://portal-iq-web-production.up.railway.app")
     openapi_schema["servers"] = [
+        {"url": production_url, "description": "Production"},
         {"url": "http://localhost:8000", "description": "Development"},
-        {"url": "https://api.portaliq.app", "description": "Production"},
     ]
 
     app.openapi_schema = openapi_schema
