@@ -138,7 +138,7 @@ export function PlayerRadarChart({
             color: "#fff",
             fontSize: "12px",
           }}
-          formatter={(value: number) => value.toFixed(1)}
+          formatter={(value) => typeof value === 'number' ? value.toFixed(1) : String(value ?? '')}
         />
       </RadarChart>
     </ResponsiveContainer>
