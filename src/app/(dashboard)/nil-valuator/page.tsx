@@ -360,7 +360,7 @@ export default function NILValuatorPage() {
             NIL Valuator
           </h1>
           <p className="text-muted-foreground mt-1">
-            AI-powered NIL valuations for 17,500+ college athletes
+            AI-powered NIL valuations for 21,200+ college athletes
           </p>
         </div>
         <div className="flex items-center gap-2">

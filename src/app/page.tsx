@@ -25,10 +25,10 @@ import {
 } from "lucide-react";
 
 const stats = [
-  { value: "17,500+", label: "NIL Valuations", description: "Continuously updated" },
-  { value: "4,000+", label: "Portal Players", description: "Real-time tracking" },
-  { value: "130+", label: "FBS Programs", description: "Full coverage" },
-  { value: "24/7", label: "Monitoring", description: "Never miss a move" },
+  { value: "21,200+", label: "NIL Valuations", description: "Live data updated daily" },
+  { value: "11,000+", label: "Portal Players", description: "2025-26 cycle tracking" },
+  { value: "134", label: "FBS Programs", description: "Complete coverage" },
+  { value: "24/7", label: "Live Updates", description: "Never miss a move" },
 ];
 
 const features = [
@@ -42,7 +42,7 @@ const features = [
     icon: Target,
     title: "Portal Tracker",
     description: "Real-time alerts when players enter the portal. Filter by position, conference, star rating, and more. Never miss a prospect.",
-    highlight: "4,000+ players tracked",
+    highlight: "11,000+ players tracked",
   },
   {
     icon: BarChart3,
@@ -571,7 +571,7 @@ export default function LandingPage() {
           </div>
           <div className="border-t border-white/10 pt-8 flex flex-col items-center justify-between gap-4 md:flex-row">
             <p className="text-sm text-gray-500">
-              © 2025 Portal IQ by Playmaker VC. All rights reserved.
+              © 2026 Portal IQ by Playmaker VC. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-gray-500">
               <a href="https://twitter.com/portaliq" className="hover:text-white transition">Twitter</a>
