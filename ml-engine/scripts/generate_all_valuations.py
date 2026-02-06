@@ -96,6 +96,27 @@ def load_data():
     return data
 
 
+def convert_height_to_inches(height) -> float:
+    """Convert height string like '6' 4\"' to inches (76)."""
+    if pd.isna(height):
+        return None
+    if isinstance(height, (int, float)):
+        return float(height)
+    height_str = str(height).strip()
+    if "'" in height_str:
+        try:
+            parts = height_str.replace('"', '').split("'")
+            feet = int(parts[0].strip())
+            inches = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
+            return float(feet * 12 + inches)
+        except (ValueError, IndexError):
+            return None
+    try:
+        return float(height_str)
+    except ValueError:
+        return None
+
+
 def get_school_tier(school: str, team_talent_df: pd.DataFrame) -> int:
     """Get school tier (1-6) based on team talent rankings."""
     if pd.isna(school):
@@ -331,14 +352,17 @@ def generate_valuations(data: dict) -> pd.DataFrame:
         name_lower = name.lower()
 
         # Start with ESPN data
+        raw_height = row.get("height", "")
+        raw_weight = row.get("weight", "")
+
         player = {
             "name": name,
             "player_id": row.get("player_id", idx),
             "position": row.get("position", "ATH"),
             "school": row.get("school", "Unknown"),
             "class_year": row.get("class_year", ""),
-            "height": row.get("height", ""),
-            "weight": row.get("weight", ""),
+            "height": convert_height_to_inches(raw_height),
+            "weight": float(raw_weight) if pd.notna(raw_weight) else None,
             "headshot_url": row.get("headshot_url", ""),
         }
 
