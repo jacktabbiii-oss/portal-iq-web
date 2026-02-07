@@ -300,16 +300,12 @@ export default function PortalIntelligencePage() {
       setTotalInDatabase(response.total_count || response.total || 0);
       setHasMore(response.has_more || false);
 
-      // Calculate stats from dataset
-      const activeCount = playersList.filter((p) => p.status === "available").length;
-      const committedCount = playersList.filter((p) => p.status === "committed").length;
-      const schools = new Set(playersList.map((p) => p.origin_school)).size;
-
+      // Use stats from API (calculated across ALL matching players, not just loaded ones)
       setStats({
-        activeInPortal: activeCount,
-        committed: committedCount,
+        activeInPortal: response.active_in_portal || 0,
+        committed: response.committed || 0,
         newToday: Math.floor((response.total_count || response.total) * 0.02),
-        schools,
+        schools: response.schools_active || 0,
       });
     } catch (err) {
       console.error("Failed to fetch portal players:", err);
@@ -424,7 +420,7 @@ export default function PortalIntelligencePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Total Players</p>
-                <p className="text-2xl font-bold">{totalCount.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{totalInDatabase.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -1172,8 +1168,9 @@ export default function PortalIntelligencePage() {
                   </Card>
                 )}
 
-                {/* WAR / Win Impact Analysis */}
+                {/* WAR / Win Impact Analysis - Fit Score & NIL Impact buttons scroll here */}
                 {playerWAR && (
+                  <div data-war-card>
                   <PlayerWARCard
                     war={playerWAR.war}
                     warLow={playerWAR.war_low}
@@ -1190,6 +1187,7 @@ export default function PortalIntelligencePage() {
                       marketComparison: playerWAR.transferValue.market_comparison,
                     }}
                   />
+                  </div>
                 )}
 
                 {/* Quick Actions */}
@@ -1222,11 +1220,27 @@ export default function PortalIntelligencePage() {
                     )}
                   </Button>
                   <div className="flex gap-2">
-                    <Button className="flex-1" variant="outline">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={() => {
+                        // Scroll to WAR card which shows fit/impact analysis
+                        const warCard = document.querySelector('[data-war-card]');
+                        warCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }}
+                    >
                       <TrendingUp className="h-4 w-4 mr-2" />
                       Fit Score
                     </Button>
-                    <Button className="flex-1" variant="outline">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={() => {
+                        // Scroll to WAR card which shows NIL impact/transfer value
+                        const warCard = document.querySelector('[data-war-card]');
+                        warCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }}
+                    >
                       <DollarSign className="h-4 w-4 mr-2" />
                       NIL Impact
                     </Button>

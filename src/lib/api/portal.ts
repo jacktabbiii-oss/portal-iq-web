@@ -111,6 +111,9 @@ export interface PortalPlayersResponse {
   players: PortalPlayer[];
   total: number;
   total_count: number;  // Total matching players in database
+  active_in_portal: number;  // Players still in portal (not committed)
+  committed: number;         // Players who committed to new schools
+  schools_active: number;    // Unique origin schools in the data
   offset: number;
   limit: number;
   has_more: boolean;
@@ -145,6 +148,9 @@ export async function getActivePortalPlayers(
     players: data.players || [],
     total: data.total || 0,
     total_count: data.total_count || data.total || 0,
+    active_in_portal: data.active_in_portal || 0,
+    committed: data.committed || 0,
+    schools_active: data.schools_active || 0,
     offset: data.offset || 0,
     limit: data.limit || 200,
     has_more: data.has_more || false,
