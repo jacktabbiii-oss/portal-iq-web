@@ -29,6 +29,8 @@ export interface NILLeaderboardResponse {
   players: NILLeaderboardPlayer[];
   total: number;
   total_count: number;  // Total matching players in database
+  avg_value: number;    // Average NIL value across all filtered players
+  market_cap: number;   // Sum of all NIL values across all filtered players
   offset: number;
   limit: number;
   has_more: boolean;

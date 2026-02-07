@@ -134,8 +134,9 @@ export default function NILValuatorPage() {
   // Watchlist
   const { isInWatchlist, toggleWatchlist } = useWatchlist();
 
-  // Player detail sheet
+  // Player detail sheet - separate visibility from selected player for tab switching
   const [selectedPlayer, setSelectedPlayer] = useState<NILPlayerWithMeasurables | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
@@ -207,6 +208,10 @@ export default function NILValuatorPage() {
   const [currentPage, setCurrentPage] = useState<number>(0);
   const pageSize = 50; // Show 50 players per page for readability
 
+  // Market stats from API (calculated across ALL matching players, not just loaded ones)
+  const [avgValue, setAvgValue] = useState<number>(0);
+  const [marketCap, setMarketCap] = useState<number>(0);
+
   // Fetch NIL leaderboard data - now with pagination support
   const fetchPlayers = useCallback(async (loadMore = false) => {
     setIsLoading(true);
@@ -250,6 +255,9 @@ export default function NILValuatorPage() {
       setTotalPlayers(response.total);
       setTotalInDatabase(response.total_count || response.total);
       setHasMore(response.has_more || false);
+      // Set market stats from API (calculated across ALL matching players)
+      setAvgValue(response.avg_value || 0);
+      setMarketCap(response.market_cap || 0);
     } catch (err) {
       console.error("Failed to fetch NIL leaderboard:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -607,7 +615,7 @@ export default function NILValuatorPage() {
                       <div
                         key={player.player_id}
                         className="p-4 hover:bg-card/50 cursor-pointer transition-colors flex items-center gap-4"
-                        onClick={() => setSelectedPlayer(player)}
+                        onClick={() => { setSelectedPlayer(player); setIsSheetOpen(true); }}
                       >
                         {/* Rank */}
                         <div className="w-10 text-center">
@@ -898,9 +906,21 @@ export default function NILValuatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <p className="text-muted-foreground mb-4">
-                  Choose a player from the leaderboard or enter custom values to simulate social media growth impact.
-                </p>
+                {/* Quick search for player selection */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search for a player..."
+                    className="pl-10 bg-input border-border"
+                    onChange={(e) => {
+                      const query = e.target.value.toLowerCase();
+                      if (query.length >= 2) {
+                        const found = players.find(p => p.player_name.toLowerCase().includes(query));
+                        if (found) { setSelectedPlayer(found); }
+                      }
+                    }}
+                  />
+                </div>
                 {selectedPlayer ? (
                   <div className="flex items-center gap-4 p-4 bg-card rounded-lg border border-border">
                     {selectedPlayer.headshot_url ? (
@@ -933,9 +953,9 @@ export default function NILValuatorPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Click on a player in the Search Players tab to select them</p>
+                  <div className="text-center py-4 text-muted-foreground">
+                    <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Search above or select from the Search Players tab</p>
                   </div>
                 )}
               </CardContent>
@@ -964,7 +984,22 @@ export default function NILValuatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <p className="text-muted-foreground mb-4">
+                {/* Quick search for player selection */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search for a player..."
+                    className="pl-10 bg-input border-border"
+                    onChange={(e) => {
+                      const query = e.target.value.toLowerCase();
+                      if (query.length >= 2) {
+                        const found = players.find(p => p.player_name.toLowerCase().includes(query));
+                        if (found) { setSelectedPlayer(found); }
+                      }
+                    }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-4 text-sm">
                   See how a player&apos;s NIL value would change at different schools based on market size and brand value.
                 </p>
                 {selectedPlayer ? (
@@ -996,9 +1031,9 @@ export default function NILValuatorPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Click on a player in the Search Players tab to analyze their transfer value</p>
+                  <div className="text-center py-4 text-muted-foreground">
+                    <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Search above or select from the Search Players tab</p>
                   </div>
                 )}
               </CardContent>
@@ -1016,7 +1051,7 @@ export default function NILValuatorPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Market Stats Footer */}
+      {/* Market Stats Footer - using API values calculated across ALL players, not just loaded ones */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="glass p-4">
           <div className="flex items-center gap-3">
@@ -1025,7 +1060,7 @@ export default function NILValuatorPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Players</p>
-              <p className="text-lg font-bold">{(totalPlayers || 0).toLocaleString()}</p>
+              <p className="text-lg font-bold">{(totalInDatabase || 0).toLocaleString()}</p>
             </div>
           </div>
         </Card>
@@ -1036,13 +1071,7 @@ export default function NILValuatorPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Avg NIL Value</p>
-              <p className="text-lg font-bold">
-                {players.length > 0
-                  ? formatCurrency(
-                      players.reduce((sum, p) => sum + p.valuation, 0) / players.length
-                    )
-                  : "$0"}
-              </p>
+              <p className="text-lg font-bold">{formatCurrency(avgValue)}</p>
             </div>
           </div>
         </Card>
@@ -1053,16 +1082,14 @@ export default function NILValuatorPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Market Cap</p>
-              <p className="text-lg font-bold">
-                {formatCurrency(players.reduce((sum, p) => sum + p.valuation, 0))}
-              </p>
+              <p className="text-lg font-bold">{formatCurrency(marketCap)}</p>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Player Detail Sheet */}
-      <Sheet open={!!selectedPlayer} onOpenChange={(open) => !open && setSelectedPlayer(null)}>
+      <Sheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if (!open) setSelectedPlayer(null); }}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {selectedPlayer && (
             <>
@@ -1446,11 +1473,11 @@ export default function NILValuatorPage() {
                     )}
                   </Button>
                   <div className="flex gap-2">
-                    <Button className="flex-1" variant="outline" onClick={() => setActiveTab("transfer")}>
+                    <Button className="flex-1" variant="outline" onClick={() => { setIsSheetOpen(false); setActiveTab("transfer"); }}>
                       <TrendingUp className="h-4 w-4 mr-2" />
                       Transfer Value
                     </Button>
-                    <Button className="flex-1" variant="outline" onClick={() => setActiveTab("growth")}>
+                    <Button className="flex-1" variant="outline" onClick={() => { setIsSheetOpen(false); setActiveTab("growth"); }}>
                       <DollarSign className="h-4 w-4 mr-2" />
                       Growth Sim
                     </Button>
