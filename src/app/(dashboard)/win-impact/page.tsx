@@ -540,7 +540,7 @@ export default function WinImpactPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>PFF Grade (optional)</Label>
+                    <Label>Performance Grade (optional)</Label>
                     <Input
                       type="number"
                       placeholder="e.g., 85.5"

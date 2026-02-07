@@ -119,7 +119,7 @@ export interface PortalPlayersResponse {
 
 /**
  * Get active transfer portal players with real data from the API.
- * This fetches actual player data from On3 transfer portal.
+ * This fetches actual player data from our transfer portal database.
  * Supports pagination with offset/limit and full-text search.
  */
 export async function getActivePortalPlayers(

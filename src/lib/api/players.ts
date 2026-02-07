@@ -118,6 +118,73 @@ export interface PlayerStats {
 }
 
 // =============================================================================
+// Comparison Types
+// =============================================================================
+
+export interface NFLOutcome {
+  team?: string;
+  seasons_played?: number;
+  draft_round?: number;
+  draft_pick?: number;
+  career_highlights?: string[];
+}
+
+export interface MatchingStats {
+  [key: string]: {
+    target: number;
+    comparison: number;
+  };
+}
+
+export interface PlayerComparison {
+  name: string;
+  school_or_team: string;
+  position: string;
+  seasons: number[];
+  similarity: number;
+  league: "NFL" | "NCAA";
+  matching_stats: MatchingStats;
+  nfl_outcome?: NFLOutcome;
+  headshot_url?: string;
+}
+
+export interface PlayerComparisonsResponse {
+  player: string;
+  position: string;
+  nfl_comparisons: PlayerComparison[];
+  college_comparisons: PlayerComparison[];
+  message?: string;
+}
+
+export interface EliteProfile {
+  player: string;
+  position: string;
+  elite_traits: string[];
+  elite_trait_count: number;
+  elite_bonus: number;
+  draft_adjustment: number;
+  measurables: {
+    height?: number;
+    weight?: number;
+    forty?: number;
+    vertical?: number;
+    broad_jump?: number;
+    bench?: number;
+    three_cone?: number;
+    shuttle?: number;
+  };
+  thresholds: { [key: string]: number };
+}
+
+export interface CareerStats {
+  player_name: string;
+  college_seasons: Record<string, unknown>[];
+  nfl_seasons: Record<string, unknown>[];
+  combine_data?: Record<string, unknown>;
+  total_seasons: number;
+}
+
+// =============================================================================
 // API Functions
 // =============================================================================
 
@@ -199,4 +266,78 @@ export function getPFFGradeLabel(grade: number | undefined): string {
   if (grade >= 60) return "Average";
   if (grade >= 50) return "Below Average";
   return "Poor";
+}
+
+/**
+ * Get comparable players (NFL and college) for a player.
+ */
+export async function getPlayerComparisons(
+  playerName: string,
+  includeNfl: boolean = true,
+  includeCollege: boolean = true,
+  limit: number = 5
+): Promise<PlayerComparisonsResponse> {
+  const encodedName = encodeURIComponent(playerName);
+  const params = new URLSearchParams({
+    include_nfl: includeNfl.toString(),
+    include_college: includeCollege.toString(),
+    limit: limit.toString(),
+  });
+
+  const response = await apiClient.get(
+    `/api/players/${encodedName}/comparisons?${params}`
+  );
+  return response as unknown as PlayerComparisonsResponse;
+}
+
+/**
+ * Get elite athlete profile with measurables and bonuses.
+ */
+export async function getPlayerEliteProfile(
+  playerName: string
+): Promise<EliteProfile> {
+  const encodedName = encodeURIComponent(playerName);
+  const response = await apiClient.get(
+    `/api/players/${encodedName}/elite-profile`
+  );
+  return response as unknown as EliteProfile;
+}
+
+/**
+ * Get career stats across multiple seasons.
+ */
+export async function getPlayerCareer(playerName: string): Promise<CareerStats> {
+  const encodedName = encodeURIComponent(playerName);
+  const response = await apiClient.get(`/api/players/${encodedName}/career`);
+  return response as unknown as CareerStats;
+}
+
+/**
+ * Get similarity score color based on percentage.
+ */
+export function getSimilarityColor(similarity: number): string {
+  if (similarity >= 90) return "text-green-500";
+  if (similarity >= 80) return "text-emerald-400";
+  if (similarity >= 70) return "text-yellow-500";
+  if (similarity >= 60) return "text-orange-400";
+  return "text-muted-foreground";
+}
+
+/**
+ * Format elite trait name for display.
+ */
+export function formatEliteTrait(trait: string): string {
+  const traitNames: { [key: string]: string } = {
+    height: "Height",
+    weight: "Weight",
+    forty: "40-Yard Dash",
+    vertical: "Vertical Jump",
+    broad_jump: "Broad Jump",
+    bench: "Bench Press",
+    three_cone: "3-Cone Drill",
+    shuttle: "Shuttle",
+    arm_length: "Arm Length",
+    hand_size: "Hand Size",
+  };
+  return traitNames[trait] || trait;
 }

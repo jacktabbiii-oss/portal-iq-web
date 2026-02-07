@@ -12,10 +12,11 @@ export default function PrivacyPage() {
           Back to Home
         </Link>
 
-        <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
+        <h1 className="text-4xl font-bold mb-2">Privacy Policy</h1>
+        <p className="text-gray-500 mb-8">Portal IQ by Elite Sports Solutions</p>
 
         <div className="prose prose-invert max-w-none space-y-6 text-gray-300">
-          <p>Last updated: February 2025</p>
+          <p>Last updated: February 2026</p>
 
           <h2 className="text-2xl font-semibold text-white mt-8">1. Information We Collect</h2>
           <p>
@@ -54,6 +55,10 @@ export default function PrivacyPage() {
               support@portaliq.ai
             </a>
           </p>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-white/10 text-center text-sm text-gray-500">
+          © 2026 Portal IQ by Elite Sports Solutions. All rights reserved.
         </div>
       </div>
     </div>

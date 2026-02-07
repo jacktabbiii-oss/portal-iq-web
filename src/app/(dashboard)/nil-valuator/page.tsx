@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNILLeaderboard, predictNIL, type NILLeaderboardPlayer, type PlayerInput } from "@/lib/api/nil";
+import { getPlayerStats, type PlayerStats } from "@/lib/api/players";
 import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
 import { SocialGrowthSimulator } from "@/components/charts/nil-growth-chart";
 import { TransferValueChart } from "@/components/charts/transfer-value-chart";
@@ -135,6 +136,28 @@ export default function NILValuatorPage() {
 
   // Player detail sheet
   const [selectedPlayer, setSelectedPlayer] = useState<NILPlayerWithMeasurables | null>(null);
+  const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // Fetch detailed stats when a player is selected
+  useEffect(() => {
+    if (selectedPlayer?.player_name) {
+      setIsLoadingStats(true);
+      getPlayerStats(selectedPlayer.player_name)
+        .then((stats) => {
+          setPlayerStats(stats);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch player stats:", err);
+          setPlayerStats(null);
+        })
+        .finally(() => {
+          setIsLoadingStats(false);
+        });
+    } else {
+      setPlayerStats(null);
+    }
+  }, [selectedPlayer?.player_name]);
 
   // WAR calculation for selected player
   const playerWAR = useMemo(() => {
@@ -573,168 +596,111 @@ export default function NILValuatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-border">
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-12">
-                        #
-                      </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-16">
+                {/* Player Cards - Better UX than cramped table */}
+                <div className="divide-y divide-border">
+                  {filteredPlayers.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      No players found matching your criteria
+                    </div>
+                  ) : (
+                    filteredPlayers.map((player) => (
+                      <div
+                        key={player.player_id}
+                        className="p-4 hover:bg-card/50 cursor-pointer transition-colors flex items-center gap-4"
+                        onClick={() => setSelectedPlayer(player)}
+                      >
+                        {/* Rank */}
+                        <div className="w-10 text-center">
+                          <span className="text-lg font-bold text-muted-foreground">
+                            #{player.rank}
+                          </span>
+                        </div>
 
-                      </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Player
-                      </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Position
-                      </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
-                        School
-                      </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
-                        Stars
-                      </TableHead>
-                      {showAdvancedFilters && (
-                        <>
-                          <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
-                            Ht/Wt
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">
-                            PFF
-                          </TableHead>
-                        </>
-                      )}
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">
-                        NIL Value
-                      </TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Tier
-                      </TableHead>
-                      <TableHead className="w-10"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredPlayers.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={showAdvancedFilters ? 11 : 9} className="text-center py-8 text-muted-foreground">
-                          No players found matching your criteria
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredPlayers.map((player) => (
-                        <TableRow
-                          key={player.player_id}
-                          className="cursor-pointer hover:bg-card border-border"
-                          onClick={() => setSelectedPlayer(player)}
-                        >
-                          <TableCell className="text-muted-foreground font-mono text-sm">
-                            {player.rank}
-                          </TableCell>
-                          <TableCell>
-                            {player.headshot_url ? (
-                              <Image
-                                src={player.headshot_url}
-                                alt={player.player_name}
-                                width={40}
-                                height={40}
-                                className="rounded-full object-cover"
-                                unoptimized
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                                <span className="text-xs font-bold text-primary">
-                                  {player.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                                </span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-semibold">{player.player_name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-mono text-xs">
+                        {/* Player Photo - BIGGER */}
+                        {player.headshot_url ? (
+                          <Image
+                            src={player.headshot_url}
+                            alt={player.player_name}
+                            width={64}
+                            height={64}
+                            className="rounded-full object-cover border-2 border-border flex-shrink-0"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center border-2 border-border flex-shrink-0">
+                            <span className="text-lg font-bold text-primary">
+                              {player.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Player Info - BIGGER NAME */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-lg font-bold truncate">{player.player_name}</h3>
+                            <Badge variant="outline" className="font-mono text-xs flex-shrink-0">
                               {player.position}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{player.school}</TableCell>
-                          <TableCell className="text-center">
-                            {player.stars ? (
-                              <div className="flex justify-center text-yellow-500">
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                            <span>{player.school}</span>
+                            {player.stars && (
+                              <div className="flex text-yellow-500">
                                 {Array.from({ length: Math.min(player.stars, 5) }).map((_, i) => (
-                                  <Star key={i} className="h-3 w-3 fill-yellow-500" />
+                                  <Star key={i} className="h-3.5 w-3.5 fill-yellow-500" />
                                 ))}
                               </div>
-                            ) : (
-                              "—"
                             )}
-                          </TableCell>
-                          {showAdvancedFilters && (
-                            <>
-                              <TableCell className="text-center text-sm text-muted-foreground">
-                                {player.height && player.weight
-                                  ? `${formatHeight(player.height)} / ${player.weight}`
-                                  : "—"}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {player.pff_overall ? (
-                                  <Badge
-                                    variant="outline"
-                                    className={cn(
-                                      "font-mono text-xs",
-                                      player.pff_overall >= 80 && "border-green-500 text-green-500",
-                                      player.pff_overall >= 70 && player.pff_overall < 80 && "border-yellow-500 text-yellow-500",
-                                      player.pff_overall < 70 && "border-orange-500 text-orange-500"
-                                    )}
-                                  >
-                                    {player.pff_overall.toFixed(1)}
-                                  </Badge>
-                                ) : (
-                                  "—"
-                                )}
-                              </TableCell>
-                            </>
-                          )}
-                          <TableCell className="text-right font-bold text-primary">
+                            {showAdvancedFilters && player.height && player.weight && (
+                              <span className="text-xs">
+                                {formatHeight(player.height)} / {player.weight} lbs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* NIL Value - RIGHT SIDE */}
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xl font-bold text-primary">
                             {formatCurrency(player.valuation)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={cn(
-                                "font-semibold text-xs uppercase",
-                                getTierBadge(player.nil_tier)
-                              )}
-                            >
-                              {player.nil_tier}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                          </p>
+                          <Badge
+                            className={cn(
+                              "font-semibold text-xs uppercase mt-1",
+                              getTierBadge(player.nil_tier)
+                            )}
+                          >
+                            {player.nil_tier}
+                          </Badge>
+                        </div>
+
+                        {/* Arrow */}
+                        <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                      </div>
+                    ))
+                  )}
+                </div>
 
                 {/* Load More / Pagination Info */}
-                <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-border bg-card/30">
                   <div className="text-sm text-muted-foreground">
-                    Showing {filteredPlayers.length.toLocaleString()} of {totalInDatabase.toLocaleString()} players
-                    {searchQuery && ` matching "${searchQuery}"`}
+                    Showing <span className="font-semibold text-foreground">{filteredPlayers.length.toLocaleString()}</span> of{" "}
+                    <span className="font-semibold text-foreground">{totalInDatabase.toLocaleString()}</span> players
+                    {searchQuery && <span className="text-primary"> matching &quot;{searchQuery}&quot;</span>}
                   </div>
                   {hasMore && (
                     <Button
-                      variant="outline"
+                      variant="default"
                       onClick={() => fetchPlayers(true)}
                       disabled={isLoading}
-                      className="gap-2"
+                      className="gap-2 bg-primary text-primary-foreground"
                     >
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      Load More
+                      Load More Players
                     </Button>
                   )}
                 </div>
@@ -839,7 +805,7 @@ export default function NILValuatorPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>PFF Grade (Optional)</Label>
+                  <Label>Performance Grade (Optional)</Label>
                   <Input
                     type="number"
                     placeholder="e.g., 85.5"
@@ -1181,13 +1147,13 @@ export default function NILValuatorPage() {
                   </Card>
                 )}
 
-                {/* PFF Grades */}
+                {/* Performance Grades */}
                 {selectedPlayer.pff_overall && (
                   <Card className="glass">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                         <TrendingUp className="h-4 w-4" />
-                        PFF Grades
+                        Performance Grades
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
@@ -1217,6 +1183,208 @@ export default function NILValuatorPage() {
                             <span className="text-sm text-muted-foreground">Defense</span>
                             <span className="font-mono text-sm">{selectedPlayer.pff_defense.toFixed(1)}</span>
                           </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Position-Specific Stats */}
+                {isLoadingStats ? (
+                  <Card className="glass">
+                    <CardContent className="p-4 flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Loading stats...</span>
+                    </CardContent>
+                  </Card>
+                ) : playerStats && (
+                  <Card className="glass">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Season Stats
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* QB Stats */}
+                        {playerStats.passing && (
+                          <>
+                            {playerStats.passing.yards && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Pass Yards</p>
+                                <p className="text-lg font-bold">{playerStats.passing.yards.toLocaleString()}</p>
+                              </div>
+                            )}
+                            {playerStats.passing.touchdowns && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Pass TDs</p>
+                                <p className="text-lg font-bold">{playerStats.passing.touchdowns}</p>
+                              </div>
+                            )}
+                            {playerStats.passing.completion_pct && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Comp %</p>
+                                <p className="text-lg font-bold">{playerStats.passing.completion_pct.toFixed(1)}%</p>
+                              </div>
+                            )}
+                            {playerStats.passing.passer_rating && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Passer Rating</p>
+                                <p className="text-lg font-bold">{playerStats.passing.passer_rating.toFixed(1)}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* RB Stats */}
+                        {playerStats.rushing && (
+                          <>
+                            {playerStats.rushing.yards && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Rush Yards</p>
+                                <p className="text-lg font-bold">{playerStats.rushing.yards.toLocaleString()}</p>
+                              </div>
+                            )}
+                            {playerStats.rushing.touchdowns && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Rush TDs</p>
+                                <p className="text-lg font-bold">{playerStats.rushing.touchdowns}</p>
+                              </div>
+                            )}
+                            {playerStats.rushing.yards_per_carry && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">YPC</p>
+                                <p className="text-lg font-bold">{playerStats.rushing.yards_per_carry.toFixed(1)}</p>
+                              </div>
+                            )}
+                            {playerStats.rushing.elusive_rating && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Elusive Rating</p>
+                                <p className="text-lg font-bold">{playerStats.rushing.elusive_rating.toFixed(1)}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* WR/TE Stats */}
+                        {playerStats.receiving && (
+                          <>
+                            {playerStats.receiving.receptions && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Receptions</p>
+                                <p className="text-lg font-bold">{playerStats.receiving.receptions}</p>
+                              </div>
+                            )}
+                            {playerStats.receiving.yards && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Rec Yards</p>
+                                <p className="text-lg font-bold">{playerStats.receiving.yards.toLocaleString()}</p>
+                              </div>
+                            )}
+                            {playerStats.receiving.touchdowns && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Rec TDs</p>
+                                <p className="text-lg font-bold">{playerStats.receiving.touchdowns}</p>
+                              </div>
+                            )}
+                            {playerStats.receiving.yards_per_route_run && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Yds/Route</p>
+                                <p className="text-lg font-bold">{playerStats.receiving.yards_per_route_run.toFixed(2)}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Pass Rush Stats */}
+                        {playerStats.pass_rush && (
+                          <>
+                            {playerStats.pass_rush.sacks && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Sacks</p>
+                                <p className="text-lg font-bold">{playerStats.pass_rush.sacks}</p>
+                              </div>
+                            )}
+                            {playerStats.pass_rush.pressures && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Pressures</p>
+                                <p className="text-lg font-bold">{playerStats.pass_rush.pressures}</p>
+                              </div>
+                            )}
+                            {playerStats.pass_rush.pass_rush_win_rate && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Win Rate</p>
+                                <p className="text-lg font-bold">{playerStats.pass_rush.pass_rush_win_rate.toFixed(1)}%</p>
+                              </div>
+                            )}
+                            {playerStats.pass_rush.hurries && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Hurries</p>
+                                <p className="text-lg font-bold">{playerStats.pass_rush.hurries}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Coverage Stats */}
+                        {playerStats.coverage && (
+                          <>
+                            {playerStats.coverage.interceptions && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">INTs</p>
+                                <p className="text-lg font-bold">{playerStats.coverage.interceptions}</p>
+                              </div>
+                            )}
+                            {playerStats.coverage.pass_breakups && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Pass Breakups</p>
+                                <p className="text-lg font-bold">{playerStats.coverage.pass_breakups}</p>
+                              </div>
+                            )}
+                            {playerStats.coverage.passer_rating_allowed && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Rating Allowed</p>
+                                <p className="text-lg font-bold">{playerStats.coverage.passer_rating_allowed.toFixed(1)}</p>
+                              </div>
+                            )}
+                            {playerStats.coverage.forced_incompletes && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Forced Incmpl</p>
+                                <p className="text-lg font-bold">{playerStats.coverage.forced_incompletes}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* O-Line Stats */}
+                        {playerStats.blocking && (
+                          <>
+                            {playerStats.blocking.pass_blocking_efficiency && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Pass Block Eff</p>
+                                <p className="text-lg font-bold">{playerStats.blocking.pass_blocking_efficiency.toFixed(1)}</p>
+                              </div>
+                            )}
+                            {playerStats.blocking.pressures_allowed !== undefined && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Press Allowed</p>
+                                <p className="text-lg font-bold">{playerStats.blocking.pressures_allowed}</p>
+                              </div>
+                            )}
+                            {playerStats.blocking.sacks_allowed !== undefined && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Sacks Allowed</p>
+                                <p className="text-lg font-bold">{playerStats.blocking.sacks_allowed}</p>
+                              </div>
+                            )}
+                            {playerStats.blocking.run_block_percent && (
+                              <div className="text-center p-2 bg-card rounded-lg">
+                                <p className="text-xs text-muted-foreground">Run Block %</p>
+                                <p className="text-lg font-bold">{playerStats.blocking.run_block_percent.toFixed(1)}%</p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </CardContent>

@@ -124,7 +124,7 @@ export interface MarketReport {
 
 /**
  * Get NIL leaderboard with real data from the API.
- * This fetches actual player valuations from On3 and proprietary models.
+ * This fetches actual player valuations from our proprietary ML models.
  * Supports pagination with offset/limit and full-text search.
  */
 export async function getNILLeaderboard(

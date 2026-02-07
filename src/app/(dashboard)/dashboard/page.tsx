@@ -30,7 +30,7 @@ const features = [
   {
     title: "NIL Valuator",
     description:
-      "Real On3 NIL valuations plus our custom algorithm. Compare players, analyze value breakdowns, and track market trends instantly.",
+      "Proprietary NIL valuations powered by our ML algorithm. Compare players, analyze value breakdowns, and track market trends instantly.",
     icon: DollarSign,
     href: "/nil-valuator",
     cta: "Predict player market value",

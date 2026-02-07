@@ -308,6 +308,16 @@ export function Sidebar() {
           )}
         </Button>
       </div>
+
+      {/* Powered By Footer */}
+      {!collapsed && (
+        <div className="px-4 py-2 border-t border-sidebar-border">
+          <p className="text-[10px] text-center text-muted-foreground">
+            Powered by{" "}
+            <span className="text-primary font-medium">Elite Sports Solutions</span>
+          </p>
+        </div>
+      )}
     </aside>
   );
 }

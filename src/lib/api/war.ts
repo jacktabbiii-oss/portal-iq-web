@@ -312,7 +312,7 @@ export async function calculatePlayerWAR(input: {
   // Use NIL value for base calculation
   let nilValue = input.nil_valuation;
 
-  // Adjust based on PFF grade if provided (65-95 range)
+  // Adjust based on performance grade if provided (65-95 range)
   if (input.pff_grade) {
     const gradeMultiplier = (input.pff_grade - 60) / 30; // 0-1.17 range
     nilValue = nilValue * (0.7 + gradeMultiplier * 0.6);

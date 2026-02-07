@@ -25,16 +25,23 @@ import {
   Minus,
   DollarSign,
   User,
+  Trophy,
+  GraduationCap,
+  Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   searchPlayers,
   getPlayerStats,
+  getPlayerComparisons,
   formatNILValue,
   formatHeight,
   getPFFGradeColor,
+  getSimilarityColor,
   type PlayerSearchResult,
   type PlayerStats,
+  type PlayerComparison,
+  type PlayerComparisonsResponse,
 } from "@/lib/api/players";
 import { PlayerRadarChart } from "@/components/charts/player-radar-chart";
 
@@ -113,6 +120,24 @@ export default function PlayerComparisonPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [players, setPlayers] = useState<ComparisonPlayer[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [historicalComps, setHistoricalComps] = useState<PlayerComparisonsResponse | null>(null);
+  const [isLoadingComps, setIsLoadingComps] = useState(false);
+
+  // Fetch historical comparisons when player1 is loaded
+  useEffect(() => {
+    if (players[0]?.stats && !players[0]?.loading) {
+      setIsLoadingComps(true);
+      getPlayerComparisons(players[0].searchResult.name)
+        .then((comps) => setHistoricalComps(comps))
+        .catch((err) => {
+          console.error("Failed to load comparisons:", err);
+          setHistoricalComps(null);
+        })
+        .finally(() => setIsLoadingComps(false));
+    } else {
+      setHistoricalComps(null);
+    }
+  }, [players[0]?.stats]);
 
   // Search for players
   useEffect(() => {
@@ -186,7 +211,7 @@ export default function PlayerComparisonPage() {
             Player Comparison
           </h1>
           <p className="text-muted-foreground mt-1">
-            Compare players side-by-side with stats, NIL values, and PFF grades
+            Compare players side-by-side with stats, NIL values, and performance grades
           </p>
         </div>
       </div>
@@ -240,7 +265,7 @@ export default function PlayerComparisonPage() {
                   </div>
                   {player1.stats?.pff?.overall && (
                     <Badge className={getPFFGradeColor(player1.stats.pff.overall)}>
-                      PFF: {player1.stats.pff.overall.toFixed(1)}
+                      PIQ: {player1.stats.pff.overall.toFixed(1)}
                     </Badge>
                   )}
                 </div>
@@ -310,7 +335,7 @@ export default function PlayerComparisonPage() {
                   </div>
                   {player2.stats?.pff?.overall && (
                     <Badge className={getPFFGradeColor(player2.stats.pff.overall)}>
-                      PFF: {player2.stats.pff.overall.toFixed(1)}
+                      PIQ: {player2.stats.pff.overall.toFixed(1)}
                     </Badge>
                   )}
                 </div>
@@ -424,7 +449,7 @@ export default function PlayerComparisonPage() {
           <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
             <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
               <GitCompare className="h-4 w-4 text-primary" />
-              PFF Grade Comparison
+              Performance Grade Comparison
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -476,7 +501,7 @@ export default function PlayerComparisonPage() {
                     format="currency"
                   />
                   <StatComparison
-                    label="PFF Overall"
+                    label="PIQ Overall"
                     value1={player1.stats?.pff?.overall}
                     value2={player2.stats?.pff?.overall}
                     format="grade"
@@ -501,12 +526,12 @@ export default function PlayerComparisonPage() {
             </CardContent>
           </Card>
 
-          {/* PFF Grades */}
+          {/* Performance Grades */}
           {(player1.stats?.pff || player2.stats?.pff) && (
             <Card className="glass overflow-hidden">
               <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
                 <CardTitle className="text-sm font-bold uppercase tracking-wider">
-                  PFF Grades
+                  Performance Grades
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -668,6 +693,134 @@ export default function PlayerComparisonPage() {
         </div>
       )}
 
+      {/* Historical Comparisons - Show when player1 is selected */}
+      {player1 && !player2 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* NFL Comparisons */}
+          <Card className="glass">
+            <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-primary" />
+                NFL Comparisons
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Similar NFL players - predict draft value & career trajectory
+              </p>
+            </CardHeader>
+            <CardContent className="p-4">
+              {isLoadingComps ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : historicalComps?.nfl_comparisons?.length ? (
+                <div className="space-y-3">
+                  {historicalComps.nfl_comparisons.map((comp, idx) => (
+                    <div
+                      key={`nfl-${idx}`}
+                      className="p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                            <Trophy className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{comp.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {comp.school_or_team} • {comp.position}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge className={cn("font-mono", getSimilarityColor(comp.similarity))}>
+                          <Percent className="h-3 w-3 mr-1" />
+                          {comp.similarity}%
+                        </Badge>
+                      </div>
+                      {comp.nfl_outcome && (
+                        <div className="mt-2 pt-2 border-t border-border/50">
+                          <p className="text-xs text-muted-foreground">
+                            {comp.nfl_outcome.draft_round && (
+                              <span>Round {comp.nfl_outcome.draft_round}, Pick {comp.nfl_outcome.draft_pick} • </span>
+                            )}
+                            {comp.nfl_outcome.team}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">
+                  NFL comparison data not yet available
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* College Comparisons */}
+          <Card className="glass">
+            <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                <GraduationCap className="h-4 w-4 text-primary" />
+                College Comparisons
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Similar current/recent college players
+              </p>
+            </CardHeader>
+            <CardContent className="p-4">
+              {isLoadingComps ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : historicalComps?.college_comparisons?.length ? (
+                <div className="space-y-3">
+                  {historicalComps.college_comparisons.map((comp, idx) => (
+                    <div
+                      key={`college-${idx}`}
+                      className="p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                            <GraduationCap className="h-5 w-5 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{comp.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {comp.school_or_team} • {comp.position}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge className={cn("font-mono", getSimilarityColor(comp.similarity))}>
+                          <Percent className="h-3 w-3 mr-1" />
+                          {comp.similarity}%
+                        </Badge>
+                      </div>
+                      {comp.matching_stats && Object.keys(comp.matching_stats).length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-border/50">
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(comp.matching_stats).slice(0, 3).map(([key, val]) => (
+                              <span key={key} className="text-xs bg-muted/50 px-2 py-0.5 rounded">
+                                {key.replace(/_/g, " ")}: {val.comparison.toFixed(1)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">
+                  College comparison data not yet available
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Empty State */}
       {players.length === 0 && !showSearch && (
         <Card className="glass">
@@ -675,7 +828,7 @@ export default function PlayerComparisonPage() {
             <GitCompare className="h-16 w-16 text-primary mx-auto mb-4" />
             <h3 className="text-xl font-bold mb-2">Compare Players</h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Select two players to compare their NIL values, PFF grades, and position-specific stats side by side.
+              Select two players to compare their NIL values, performance grades, and position-specific stats side by side.
             </p>
             <Button onClick={() => setShowSearch(true)} className="bg-primary text-primary-foreground">
               <Plus className="h-4 w-4 mr-2" />

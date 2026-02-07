@@ -78,7 +78,7 @@ export function PlayerRadarChart({
   if (radarData.length < 3) {
     return (
       <div className="h-64 flex items-center justify-center text-muted-foreground">
-        Not enough PFF data available for radar visualization
+        Not enough performance data available for radar visualization
       </div>
     );
   }
