@@ -49,6 +49,9 @@ import {
   Legend,
   AreaChart,
   Area,
+  Brush,
+  ReferenceArea,
+  ZAxis,
 } from "recharts";
 import {
   getWARLeaderboard,
@@ -65,6 +68,7 @@ import {
   type TransferImpactProjection,
   type TeamPortalScore,
 } from "@/lib/api/war";
+import { searchPlayers, type PlayerSearchResult } from "@/lib/api/players";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OT", "OG", "C", "DL", "EDGE", "LB", "CB", "S"];
 
@@ -288,6 +292,12 @@ export default function WinImpactPage() {
   const [teamScores, setTeamScores] = useState<TeamPortalScore[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<TeamPortalScore | null>(null);
 
+  // Player search state (for analyzing any player)
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [playerSearchResults, setPlayerSearchResults] = useState<PlayerSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchDebounce, setSearchDebounce] = useState<NodeJS.Timeout | null>(null);
+
   // Fetch WAR data
   const fetchPlayers = useCallback(async () => {
     setIsLoading(true);
@@ -359,15 +369,69 @@ export default function WinImpactPage() {
     { name: "Average", value: players.filter(p => p.grade === "Average").length, color: "#64748B" },
   ], [players]);
 
-  // Chart data - WAR vs NIL scatter
+  // Chart data - WAR vs NIL scatter (include more player info for tooltips)
   const warVsNILData = useMemo(() => {
-    return filteredPlayers.slice(0, 50).map(p => ({
+    return filteredPlayers.slice(0, 100).map(p => ({
       name: p.player_name,
       war: p.war,
       nil: p.nil_valuation / 1000000,
+      nilRaw: p.nil_valuation,
       grade: p.grade,
+      position: p.position,
+      school: p.school,
+      stars: p.stars || 3,
+      player_id: p.player_id,
     }));
   }, [filteredPlayers]);
+
+  // Zoom state for scatter chart
+  const [scatterZoom, setScatterZoom] = useState<{
+    xMin: number | null;
+    xMax: number | null;
+    yMin: number | null;
+    yMax: number | null;
+    refAreaLeft: number | null;
+    refAreaRight: number | null;
+  }>({
+    xMin: null,
+    xMax: null,
+    yMin: null,
+    yMax: null,
+    refAreaLeft: null,
+    refAreaRight: null,
+  });
+
+  // Selected point on scatter chart
+  const [hoveredPlayer, setHoveredPlayer] = useState<typeof warVsNILData[0] | null>(null);
+
+  // Reset zoom
+  const resetZoom = () => {
+    setScatterZoom({
+      xMin: null,
+      xMax: null,
+      yMin: null,
+      yMax: null,
+      refAreaLeft: null,
+      refAreaRight: null,
+    });
+  };
+
+  // Calculate domain for scatter chart
+  const scatterDomain = useMemo(() => {
+    if (scatterZoom.xMin !== null && scatterZoom.xMax !== null) {
+      return {
+        x: [scatterZoom.xMin, scatterZoom.xMax] as [number, number],
+        y: [scatterZoom.yMin || 0, scatterZoom.yMax || 5] as [number, number],
+      };
+    }
+    // Auto domain from data
+    const maxNil = Math.max(...warVsNILData.map(d => d.nil), 1);
+    const maxWar = Math.max(...warVsNILData.map(d => d.war), 3);
+    return {
+      x: [0, Math.ceil(maxNil * 1.1)] as [number, number],
+      y: [0, Math.ceil(maxWar * 1.1)] as [number, number],
+    };
+  }, [warVsNILData, scatterZoom]);
 
   // Chart data - WAR Distribution histogram
   const warDistributionData = useMemo(() => {
@@ -438,6 +502,70 @@ export default function WinImpactPage() {
   };
 
   const schoolList = useMemo(() => getSchoolList(), []);
+
+  // Search for any player in the database
+  const handlePlayerSearch = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setPlayerSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await searchPlayers(query, "all", 20);
+      setPlayerSearchResults(results.players || []);
+    } catch (err) {
+      console.error("Player search error:", err);
+      setPlayerSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounced search
+  const handleSearchInputChange = (value: string) => {
+    setPlayerSearchQuery(value);
+    if (searchDebounce) clearTimeout(searchDebounce);
+    const timeout = setTimeout(() => handlePlayerSearch(value), 300);
+    setSearchDebounce(timeout);
+  };
+
+  // Select a player from search results to analyze
+  const handleSearchResultSelect = async (result: PlayerSearchResult) => {
+    // Convert search result to WAR player format and calculate
+    const warResult = await calculatePlayerWAR({
+      name: result.name,
+      position: result.position,
+      school: result.school,
+      nil_valuation: result.nil_value || 0,
+    });
+
+    // Set as selected player
+    setSelectedPlayer(warResult);
+
+    // Calculate detailed WAR
+    const detailedWAR = calculateDetailedWAR({
+      position: result.position,
+      stars: result.stars || 3,
+      nil_value: result.nil_value || 0,
+      destination_school: result.school,
+      is_predicted_nil: true,
+    });
+    setPlayerWARResult(detailedWAR);
+
+    // Calculate transfer value
+    const valueAnalysis = analyzeTransferValue(warResult.war, result.nil_value || 0, result.position);
+    setTransferValue(valueAnalysis);
+
+    // Calculate transfer impact
+    const { tier } = getSchoolTier(result.school);
+    const impact = projectTransferImpact(warResult.war, tier);
+    setTransferImpact(impact);
+
+    // Clear search
+    setPlayerSearchQuery("");
+    setPlayerSearchResults([]);
+  };
 
   return (
     <div className="space-y-6">
@@ -697,25 +825,58 @@ export default function WinImpactPage() {
                 <CardTitle className="text-sm font-bold uppercase tracking-wider">
                   Average WAR by Position
                 </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Click on a position bar to filter the leaderboard
+                </p>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={positionWARData} layout="vertical">
+                    <BarChart
+                      data={positionWARData}
+                      layout="vertical"
+                      onClick={(data) => {
+                        const payload = (data as unknown as { activePayload?: Array<{ payload: { position: string } }> })?.activePayload?.[0];
+                        if (payload) {
+                          setSelectedPosition(payload.payload.position);
+                        }
+                      }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                       <XAxis type="number" domain={[0, 3]} stroke="#888" />
                       <YAxis dataKey="position" type="category" stroke="#888" width={50} />
                       <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#1a2744",
-                          border: "1px solid #333",
-                          borderRadius: "8px",
+                        cursor={{ fill: 'rgba(212, 175, 55, 0.1)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length > 0) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-[#1a2744] border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-bold text-primary text-lg">{data.position}</p>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-2">
+                                  <span className="text-muted-foreground">Avg WAR:</span>
+                                  <span className="font-bold text-green-400">{data.avgWAR.toFixed(2)}</span>
+                                  <span className="text-muted-foreground">Players:</span>
+                                  <span className="font-bold">{data.count.toLocaleString()}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-2 italic">Click to filter</p>
+                              </div>
+                            );
+                          }
+                          return null;
                         }}
-                        formatter={(value) => [typeof value === 'number' ? value.toFixed(2) : '0', "Avg WAR"]}
                       />
-                      <Bar dataKey="avgWAR" fill="#D4AF37" radius={[0, 4, 4, 0]}>
+                      <Bar
+                        dataKey="avgWAR"
+                        fill="#D4AF37"
+                        radius={[0, 4, 4, 0]}
+                        style={{ cursor: 'pointer' }}
+                      >
                         {positionWARData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={CHART_COLORS[index % CHART_COLORS.length]}
+                          />
                         ))}
                       </Bar>
                     </BarChart>
@@ -724,40 +885,88 @@ export default function WinImpactPage() {
               </CardContent>
             </Card>
 
-            {/* NIL vs WAR Scatter */}
+            {/* NIL vs WAR Scatter - Interactive with zoom */}
             <Card className="glass">
               <CardHeader className="border-b border-border">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider">
-                  NIL vs Win Impact Correlation
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider">
+                    NIL vs Win Impact Correlation
+                  </CardTitle>
+                  {(scatterZoom.xMin !== null) && (
+                    <Button variant="outline" size="sm" onClick={resetZoom}>
+                      Reset Zoom
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Click any dot to see player details. Use brush below to zoom.
+                </p>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="h-[300px]">
+                <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
+                    <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                       <XAxis
                         type="number"
                         dataKey="nil"
                         name="NIL"
-                        unit="M"
+                        domain={scatterDomain.x}
                         stroke="#888"
-                        tickFormatter={(v) => `$${v}M`}
+                        tickFormatter={(v) => `$${v.toFixed(1)}M`}
+                        label={{ value: "NIL Value ($M)", position: "bottom", offset: 0, fill: "#888" }}
                       />
-                      <YAxis type="number" dataKey="war" name="WAR" stroke="#888" />
+                      <YAxis
+                        type="number"
+                        dataKey="war"
+                        name="WAR"
+                        domain={scatterDomain.y}
+                        stroke="#888"
+                        label={{ value: "WAR", angle: -90, position: "insideLeft", fill: "#888" }}
+                      />
+                      <ZAxis type="number" dataKey="stars" range={[60, 200]} name="Stars" />
                       <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#1a2744",
-                          border: "1px solid #333",
-                          borderRadius: "8px",
-                        }}
-                        formatter={(value, name) => {
-                          const v = typeof value === 'number' ? value : 0;
-                          if (name === "nil") return [`$${v.toFixed(2)}M`, "NIL Value"];
-                          return [v.toFixed(2), "WAR"];
+                        cursor={{ strokeDasharray: '3 3' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length > 0) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-[#1a2744] border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-bold text-primary text-base">{data.name}</p>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                  {data.position} • {data.school}
+                                </p>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                  <span className="text-muted-foreground">WAR:</span>
+                                  <span className="font-bold text-green-400">{data.war.toFixed(2)}</span>
+                                  <span className="text-muted-foreground">NIL Value:</span>
+                                  <span className="font-bold">${(data.nil).toFixed(2)}M</span>
+                                  <span className="text-muted-foreground">Stars:</span>
+                                  <span>{"⭐".repeat(data.stars)}</span>
+                                  <span className="text-muted-foreground">Grade:</span>
+                                  <span className={cn(
+                                    "font-semibold",
+                                    data.grade === "Elite" && "text-primary",
+                                    data.grade === "Premium" && "text-purple-400",
+                                    data.grade === "Solid" && "text-blue-400"
+                                  )}>{data.grade}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
                         }}
                       />
-                      <Scatter data={warVsNILData} fill="#D4AF37">
+                      <Scatter
+                        data={warVsNILData}
+                        fill="#D4AF37"
+                        onClick={(data) => {
+                          // Find player and select them
+                          const player = players.find(p => p.player_id === data.player_id);
+                          if (player) handlePlayerSelect(player);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
                         {warVsNILData.map((entry, index) => {
                           const gradeColors: Record<string, string> = {
                             Elite: "#D4AF37",
@@ -766,12 +975,59 @@ export default function WinImpactPage() {
                             Average: "#64748B",
                           };
                           return (
-                            <Cell key={`cell-${index}`} fill={gradeColors[entry.grade] || "#D4AF37"} />
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={gradeColors[entry.grade] || "#D4AF37"}
+                              stroke={hoveredPlayer?.player_id === entry.player_id ? "#fff" : "none"}
+                              strokeWidth={hoveredPlayer?.player_id === entry.player_id ? 2 : 0}
+                            />
                           );
                         })}
                       </Scatter>
+                      <Brush
+                        dataKey="nil"
+                        height={30}
+                        stroke="#D4AF37"
+                        fill="#1a2744"
+                        onChange={(e) => {
+                          if (e.startIndex !== undefined && e.endIndex !== undefined) {
+                            const subset = warVsNILData.slice(e.startIndex, e.endIndex + 1);
+                            if (subset.length > 1) {
+                              const xVals = subset.map(d => d.nil);
+                              const yVals = subset.map(d => d.war);
+                              setScatterZoom({
+                                ...scatterZoom,
+                                xMin: Math.min(...xVals) * 0.9,
+                                xMax: Math.max(...xVals) * 1.1,
+                                yMin: Math.min(...yVals) * 0.9,
+                                yMax: Math.max(...yVals) * 1.1,
+                              });
+                            }
+                          }
+                        }}
+                      />
                     </ScatterChart>
                   </ResponsiveContainer>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-6 mt-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-primary" />
+                    <span className="text-xs text-muted-foreground">Elite</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500" />
+                    <span className="text-xs text-muted-foreground">Premium</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="text-xs text-muted-foreground">Solid</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-slate-500" />
+                    <span className="text-xs text-muted-foreground">Average</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -783,23 +1039,70 @@ export default function WinImpactPage() {
               <CardTitle className="text-sm font-bold uppercase tracking-wider">
                 WAR Distribution Across All Players
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click on a bar to filter the player list by WAR range
+              </p>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="h-[250px]">
+              <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={warDistributionData}>
+                  <BarChart
+                    data={warDistributionData}
+                    onClick={(data) => {
+                      const payload = (data as unknown as { activePayload?: Array<{ payload: { range: string } }> })?.activePayload?.[0];
+                      if (payload) {
+                        // Could filter players by this range
+                        console.log("Clicked WAR range:", payload.payload.range);
+                      }
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="range" stroke="#888" />
                     <YAxis stroke="#888" />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1a2744",
-                        border: "1px solid #333",
-                        borderRadius: "8px",
+                      cursor={{ fill: 'rgba(212, 175, 55, 0.1)' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length > 0) {
+                          const data = payload[0].payload;
+                          const percentage = ((data.count / players.length) * 100).toFixed(1);
+                          return (
+                            <div className="bg-[#1a2744] border border-border rounded-lg p-3 shadow-lg">
+                              <p className="font-bold text-primary">WAR: {data.range}</p>
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">Players:</span>{" "}
+                                <span className="font-bold">{data.count.toLocaleString()}</span>
+                              </p>
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">Percentage:</span>{" "}
+                                <span className="font-bold">{percentage}%</span>
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
                       }}
                     />
-                    <Area type="monotone" dataKey="count" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.3} />
-                  </AreaChart>
+                    <Bar
+                      dataKey="count"
+                      radius={[4, 4, 0, 0]}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {warDistributionData.map((entry, index) => {
+                        // Color gradient based on WAR tier
+                        let color = "#64748B";
+                        if (entry.range.startsWith("3") || entry.range.startsWith("4")) color = "#D4AF37";
+                        else if (entry.range.startsWith("2")) color = "#A855F7";
+                        else if (entry.range.startsWith("1")) color = "#3B82F6";
+                        return <Cell key={`cell-${index}`} fill={color} />;
+                      })}
+                    </Bar>
+                    <Brush
+                      dataKey="range"
+                      height={25}
+                      stroke="#D4AF37"
+                      fill="#1a2744"
+                    />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
@@ -851,18 +1154,76 @@ export default function WinImpactPage() {
         <TabsContent value="player" className="space-y-6">
           <div className="mb-4">
             <h2 className="text-xl font-bold uppercase italic">Individual Player Analysis</h2>
-            <p className="text-sm text-muted-foreground">Detailed WAR breakdown and win impact projection</p>
+            <p className="text-sm text-muted-foreground">Search any player in our database to analyze their WAR and win impact</p>
           </div>
 
-          {/* Player Search */}
-          <Card className="glass">
+          {/* Global Player Search */}
+          <Card className="glass border-primary/50">
+            <CardHeader className="border-b border-border">
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-primary" />
+                Search Any Player
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Search across 21,000+ players to analyze their WAR
+              </p>
+            </CardHeader>
             <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Type a player name (e.g., Travis Hunter, Cam Ward)..."
+                  value={playerSearchQuery}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
+                  className="pl-10 bg-input border-border h-12 text-base"
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {playerSearchResults.length > 0 && (
+                <div className="mt-2 border border-border rounded-lg bg-card max-h-[300px] overflow-y-auto">
+                  {playerSearchResults.map((result, idx) => (
+                    <button
+                      key={`${result.name}-${idx}`}
+                      onClick={() => handleSearchResultSelect(result)}
+                      className="w-full p-3 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-b-0 flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="font-semibold">{result.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {result.position} • {result.school}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {result.nil_value && (
+                          <p className="text-sm font-bold text-primary">{formatCurrency(result.nil_value)}</p>
+                        )}
+                        {result.stars && (
+                          <p className="text-xs">{"⭐".repeat(result.stars)}</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Filter from Loaded Data */}
+          <Card className="glass">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="text-sm">Or Browse Top Players</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex flex-col lg:flex-row gap-4 mb-4">
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search players by name..."
+                      placeholder="Filter loaded players..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10 bg-input border-border h-11"
@@ -884,7 +1245,7 @@ export default function WinImpactPage() {
               </div>
 
               {/* Player List */}
-              <div className="mt-4 max-h-[300px] overflow-y-auto">
+              <div className="max-h-[250px] overflow-y-auto">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -906,6 +1267,7 @@ export default function WinImpactPage() {
                         <p className="text-xs text-muted-foreground">
                           {player.position} • {player.school}
                         </p>
+                        <p className="text-xs font-bold text-primary mt-1">WAR: {player.war.toFixed(2)}</p>
                       </button>
                     ))}
                   </div>
@@ -1097,27 +1459,60 @@ export default function WinImpactPage() {
               <CardTitle className="text-sm font-bold uppercase tracking-wider">
                 Portal IQ Team Impact Scores (Top 20)
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click on a team bar to see detailed analysis below
+              </p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={teamScores.slice(0, 20)} layout="horizontal">
+                  <BarChart
+                    data={teamScores.slice(0, 20)}
+                    layout="horizontal"
+                    onClick={(data) => {
+                      const payload = (data as unknown as { activePayload?: Array<{ payload: { team: string } }> })?.activePayload?.[0];
+                      if (payload) {
+                        const team = teamScores.find(t => t.team === payload.payload.team);
+                        if (team) setSelectedTeam(team);
+                      }
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="team" stroke="#888" angle={-45} textAnchor="end" height={100} fontSize={11} />
                     <YAxis stroke="#888" domain={[0, 100]} />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1a2744",
-                        border: "1px solid #333",
-                        borderRadius: "8px",
-                      }}
-                      formatter={(value, name) => {
-                        const v = typeof value === 'number' ? value : 0;
-                        if (name === "portal_score") return [v.toFixed(1), "Score"];
-                        return [v, name];
+                      cursor={{ fill: 'rgba(212, 175, 55, 0.1)' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length > 0) {
+                          const data = payload[0].payload as TeamPortalScore;
+                          return (
+                            <div className="bg-[#1a2744] border border-border rounded-lg p-4 shadow-lg min-w-[200px]">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="font-bold text-primary text-lg">{data.team}</p>
+                                <Badge className={cn("font-semibold", getGradeColor(data.grade))}>
+                                  {data.grade}
+                                </Badge>
+                              </div>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                <span className="text-muted-foreground">Portal Score:</span>
+                                <span className="font-bold">{data.portal_score.toFixed(1)}</span>
+                                <span className="text-muted-foreground">WAR Added:</span>
+                                <span className="font-bold text-green-400">+{data.war_added.toFixed(2)}</span>
+                                <span className="text-muted-foreground">Net WAR:</span>
+                                <span className={cn("font-bold", data.net_war >= 0 ? "text-green-400" : "text-red-400")}>
+                                  {data.net_war >= 0 ? "+" : ""}{data.net_war.toFixed(2)}
+                                </span>
+                                <span className="text-muted-foreground">Transfers In:</span>
+                                <span className="font-bold">{data.breakdown?.transfers_in || 0}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-3 italic">Click to see full analysis</p>
+                            </div>
+                          );
+                        }
+                        return null;
                       }}
                     />
-                    <Bar dataKey="portal_score" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="portal_score" radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }}>
                       {teamScores.slice(0, 20).map((entry, index) => {
                         let color = "#64748B";
                         if (entry.grade === "A+" || entry.grade === "A") color = "#D4AF37";
@@ -1126,6 +1521,12 @@ export default function WinImpactPage() {
                         return <Cell key={`cell-${index}`} fill={color} />;
                       })}
                     </Bar>
+                    <Brush
+                      dataKey="team"
+                      height={25}
+                      stroke="#D4AF37"
+                      fill="#1a2744"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

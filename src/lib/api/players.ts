@@ -341,3 +341,86 @@ export function formatEliteTrait(trait: string): string {
   };
   return traitNames[trait] || trait;
 }
+
+// =============================================================================
+// Draft Projection Types & API
+// =============================================================================
+
+export interface DraftProjection {
+  player: string;
+  position: string;
+  draft_grade: number;
+  draft_letter_grade: string;
+  projected_round: number | null;
+  projected_pick: number;
+  pick_range: string;
+  draft_probability: number;
+  elite_bonus: number;
+  elite_traits: string[];
+  elite_adjustment: number;
+  rookie_contract_estimate: number;
+  career_earnings_estimate: number;
+  expected_draft_value: number;
+}
+
+export interface DraftComparable {
+  name: string;
+  school: string;
+  year: number;
+  round: number;
+  overall_pick: number;
+  nfl_team: string;
+  pre_draft_grade: number | null;
+  position: string;
+}
+
+/**
+ * Get draft projection for a player.
+ */
+export async function getDraftProjection(
+  playerName: string
+): Promise<DraftProjection> {
+  const encodedName = encodeURIComponent(playerName);
+  const response = await apiClient.get(
+    `/api/draft/project/${encodedName}`
+  );
+  return response as unknown as DraftProjection;
+}
+
+/**
+ * Get historical draft comparables for a player.
+ */
+export async function getDraftComparables(
+  playerName: string,
+  limit: number = 5
+): Promise<DraftComparable[]> {
+  const encodedName = encodeURIComponent(playerName);
+  const params = new URLSearchParams({ limit: limit.toString() });
+  const response = await apiClient.get(
+    `/api/draft/comparables/${encodedName}?${params}`
+  );
+  return (response as unknown as { comparables: DraftComparable[] }).comparables || [];
+}
+
+/**
+ * Format contract value to display string.
+ */
+export function formatContractValue(value: number | undefined): string {
+  if (!value) return "$0";
+  if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(1)}M`;
+  } else if (value >= 1000) {
+    return `$${Math.round(value / 1000)}K`;
+  }
+  return `$${value.toLocaleString()}`;
+}
+
+/**
+ * Get draft grade color based on letter grade.
+ */
+export function getDraftGradeColor(grade: string): string {
+  if (grade.startsWith("A")) return "text-green-500";
+  if (grade.startsWith("B")) return "text-yellow-500";
+  if (grade.startsWith("C")) return "text-orange-500";
+  return "text-red-500";
+}
