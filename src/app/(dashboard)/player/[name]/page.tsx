@@ -288,7 +288,7 @@ export default function PlayerDetailPage() {
                           player_name: playerStats.name,
                           position: playerStats.position,
                           school: playerStats.school,
-                          nil_valuation: playerStats.nil_value,
+                          nil_valuation: playerStats.nil_value || 0,
                           stars: playerStats.stars,
                           headshot_url: playerStats.headshot_url,
                         })
