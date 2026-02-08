@@ -47,6 +47,7 @@ import {
   Weight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import { getNILLeaderboard, predictNIL, type NILLeaderboardPlayer, type PlayerInput } from "@/lib/api/nil";
 import { getPlayerStats, type PlayerStats } from "@/lib/api/players";
 import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
@@ -115,6 +116,7 @@ function getTierBadge(tier: string) {
 }
 
 export default function NILValuatorPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("All");
   const [selectedConference, setSelectedConference] = useState("All");
@@ -615,7 +617,7 @@ export default function NILValuatorPage() {
                       <div
                         key={player.player_id}
                         className="p-4 hover:bg-card/50 cursor-pointer transition-colors flex items-center gap-4"
-                        onClick={() => { setSelectedPlayer(player); setIsSheetOpen(true); }}
+                        onClick={() => router.push(`/player/${encodeURIComponent(player.player_name)}`)}
                       >
                         {/* Rank */}
                         <div className="w-10 text-center">
@@ -1130,19 +1132,106 @@ export default function NILValuatorPage() {
                 </div>
               </SheetHeader>
 
-              {/* NIL Value Section */}
+              {/* Dual NIL Valuation Section */}
               <div className="space-y-6">
                 <Card className="glass">
                   <CardContent className="p-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-1">NIL Valuation</p>
-                      <p className="text-3xl font-bold text-primary">
-                        {formatCurrency(selectedPlayer.valuation)}
-                      </p>
-                      <Badge className={cn("mt-2 uppercase", getTierBadge(selectedPlayer.nil_tier))}>
-                        {selectedPlayer.nil_tier} Tier
-                      </Badge>
-                    </div>
+                    {playerStats?.valuation ? (
+                      <div className="space-y-4">
+                        {/* On3 Value - if available */}
+                        {playerStats.valuation.has_on3_data && playerStats.valuation.on3_value && (
+                          <div className="text-center pb-4 border-b border-border">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                              On3 NIL Value
+                            </p>
+                            <p className="text-2xl font-bold text-blue-400">
+                              {formatCurrency(playerStats.valuation.on3_value)}
+                            </p>
+                            <Badge variant="outline" className="mt-1 text-xs">
+                              Actual Market Value
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Portal IQ Value */}
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                            Portal IQ Valuation
+                          </p>
+                          <p className="text-3xl font-bold text-primary">
+                            {formatCurrency(playerStats.valuation.portal_iq_value)}
+                          </p>
+                          <Badge className={cn("mt-2 uppercase", getTierBadge(playerStats.valuation.portal_iq_tier))}>
+                            {playerStats.valuation.portal_iq_tier} Tier
+                          </Badge>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Confidence: {playerStats.valuation.confidence}
+                          </p>
+                        </div>
+
+                        {/* Reasoning */}
+                        {playerStats.valuation.reasoning && playerStats.valuation.reasoning.length > 0 && (
+                          <div className="pt-4 border-t border-border">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                              <Info className="h-3 w-3" />
+                              Valuation Reasoning
+                            </p>
+                            <div className="space-y-1.5">
+                              {playerStats.valuation.reasoning.map((reason, i) => (
+                                <p key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  <span>{reason}</span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Breakdown if available */}
+                        {playerStats.valuation.breakdown && (
+                          <div className="pt-4 border-t border-border">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                              Value Breakdown
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Position Base</span>
+                                <span>{formatCurrency(playerStats.valuation.breakdown.position_base)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">School Mult</span>
+                                <span>{playerStats.valuation.breakdown.school_multiplier}x</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Perf Mult</span>
+                                <span>{playerStats.valuation.breakdown.performance_multiplier}x</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Starter Bonus</span>
+                                <span>{playerStats.valuation.breakdown.starter_bonus}x</span>
+                              </div>
+                              {playerStats.valuation.breakdown.potential_value > 0 && (
+                                <div className="flex justify-between col-span-2">
+                                  <span className="text-muted-foreground">Potential Premium</span>
+                                  <span>{formatCurrency(playerStats.valuation.breakdown.potential_value)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Fallback to existing display if no dual valuation */
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground mb-1">NIL Valuation</p>
+                        <p className="text-3xl font-bold text-primary">
+                          {formatCurrency(selectedPlayer.valuation)}
+                        </p>
+                        <Badge className={cn("mt-2 uppercase", getTierBadge(selectedPlayer.nil_tier))}>
+                          {selectedPlayer.nil_tier} Tier
+                        </Badge>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
