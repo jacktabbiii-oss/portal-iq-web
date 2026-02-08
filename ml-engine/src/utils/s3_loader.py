@@ -204,7 +204,7 @@ PFF_STAT_CATEGORIES = {
     "receiving": ["receiving_summary", "receiving_scheme", "drop_summary", "slot_coverage"],
     "defense": ["defense_summary", "defense_coverage_summary", "defense_coverage_scheme", "run_defense_summary", "run_defense_percentage"],
     "pass_rush": ["pass_rush_summary", "pass_rush_productivity"],
-    "blocking": ["offense_blocking", "offense_pass_blocking", "offense_run_blockng", "offense_blocking_efficiancy", "line_pass_blocking_efficiency"],
+    "blocking": ["offense_blocking", "offense_pass_blocking", "offense_run_blocking", "offense_blocking_efficiency", "line_pass_blocking_efficiency"],
     "special": ["special_teams_summary", "field_goal_summary", "kickoff_summary", "punting_summary", "return_summary"],
 }
 

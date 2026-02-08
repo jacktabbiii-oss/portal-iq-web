@@ -316,10 +316,13 @@ async def request_middleware(request: Request, call_next):
 
 @app.get("/debug/keys", tags=["Debug"])
 async def debug_keys():
-    """Debug endpoint to show loaded keys (DEV ONLY)."""
+    """Debug endpoint to show loaded keys (DEV ONLY - disabled in production)."""
+    import os
+    if os.getenv("ENVIRONMENT", "development") == "production":
+        return {"error": "Debug endpoints disabled in production"}
     return {
         "keys_count": len(VALID_API_KEYS),
-        "keys_preview": [k[:10] + "..." for k in VALID_API_KEYS],
+        "environment": os.getenv("ENVIRONMENT", "development"),
     }
 
 

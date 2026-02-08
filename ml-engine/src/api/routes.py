@@ -101,20 +101,26 @@ async def require_api_key(request: Request) -> str:
     api_key = request.headers.get("X-API-Key")
     from fastapi import HTTPException
 
-    valid_keys = {"dev-key-123", "64c60545aa2809c7fc69d4bb6cc9743a8690df00e19c28ad32b022befa9c2ec1"}
+    # Get valid keys from environment only - no hardcoded keys in production
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
 
-    # Also try to get from app state
-    try:
-        import os
-        from dotenv import load_dotenv
-        load_dotenv()
-        keys_env = os.getenv("PORTAL_IQ_API_KEYS", "dev-key-123")
+    environment = os.getenv("ENVIRONMENT", "development")
+    keys_env = os.getenv("PORTAL_IQ_API_KEYS", "")
+
+    valid_keys = set()
+    if keys_env:
         valid_keys.update(k.strip() for k in keys_env.split(",") if k.strip())
-    except:
-        pass
+
+    # Only allow dev key in development mode
+    if environment != "production" and not valid_keys:
+        valid_keys.add("dev-key-123")
 
     if not api_key:
         raise HTTPException(status_code=401, detail={"error": "Missing API key", "message": "Include X-API-Key header"})
+    if not valid_keys:
+        raise HTTPException(status_code=503, detail={"error": "API keys not configured", "message": "PORTAL_IQ_API_KEYS environment variable is required"})
     if api_key not in valid_keys:
         raise HTTPException(status_code=401, detail={"error": "Invalid API key", "message": "The provided API key is not valid"})
     return api_key

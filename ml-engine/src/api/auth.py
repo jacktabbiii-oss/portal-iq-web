@@ -182,7 +182,7 @@ class PocketBaseAuthMiddleware(BaseHTTPMiddleware):
             "name": "Development User",
             "organization": "Development",
             "organization_type": "independent",
-            "subscription_tier": "enterprise",  # Full access in dev
+            "subscription_tier": "pro",  # Pro access in dev (not enterprise)
             "exp": None,
         }
 
