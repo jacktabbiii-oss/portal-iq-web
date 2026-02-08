@@ -68,7 +68,8 @@ import {
   type TransferImpactProjection,
   type TeamPortalScore,
 } from "@/lib/api/war";
-import { searchPlayers, type PlayerSearchResult } from "@/lib/api/players";
+import { searchPlayers, getPlayerStats, type PlayerSearchResult, type PlayerStats } from "@/lib/api/players";
+import { getPortalTeamRankings, getTeamPortalActivity, type TeamRanking, type PortalPlayer } from "@/lib/api/portal";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OT", "OG", "C", "DL", "EDGE", "LB", "CB", "S"];
 
@@ -292,6 +293,19 @@ export default function WinImpactPage() {
   const [teamScores, setTeamScores] = useState<TeamPortalScore[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<TeamPortalScore | null>(null);
 
+  // Full player stats (fetched when player is selected)
+  const [fullPlayerStats, setFullPlayerStats] = useState<PlayerStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // Portal team rankings from API (real data)
+  const [portalTeamRankings, setPortalTeamRankings] = useState<TeamRanking[]>([]);
+  const [isLoadingTeamRankings, setIsLoadingTeamRankings] = useState(false);
+  const [teamPortalActivity, setTeamPortalActivity] = useState<{
+    incoming: PortalPlayer[];
+    outgoing: PortalPlayer[];
+    net_talent_change: number;
+  } | null>(null);
+
   // Player search state (for analyzing any player)
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
   const [playerSearchResults, setPlayerSearchResults] = useState<PlayerSearchResult[]>([]);
@@ -326,6 +340,42 @@ export default function WinImpactPage() {
   useEffect(() => {
     fetchPlayers();
   }, [fetchPlayers]);
+
+  // Fetch real team portal rankings from API
+  const fetchTeamRankings = useCallback(async () => {
+    setIsLoadingTeamRankings(true);
+    try {
+      const response = await getPortalTeamRankings(30);
+      setPortalTeamRankings(response.rankings || []);
+    } catch (err) {
+      console.error("Failed to fetch team rankings:", err);
+      setPortalTeamRankings([]);
+    } finally {
+      setIsLoadingTeamRankings(false);
+    }
+  }, []);
+
+  // Fetch team rankings when team tab is active
+  useEffect(() => {
+    if (activeTab === "team" && portalTeamRankings.length === 0) {
+      fetchTeamRankings();
+    }
+  }, [activeTab, portalTeamRankings.length, fetchTeamRankings]);
+
+  // Fetch team portal activity when a team is selected
+  const fetchTeamActivity = useCallback(async (teamName: string) => {
+    try {
+      const activity = await getTeamPortalActivity(teamName);
+      setTeamPortalActivity({
+        incoming: activity.incoming || [],
+        outgoing: activity.outgoing || [],
+        net_talent_change: activity.net_talent_change || 0,
+      });
+    } catch (err) {
+      console.error("Failed to fetch team activity:", err);
+      setTeamPortalActivity(null);
+    }
+  }, []);
 
   // Filter players by search
   const filteredPlayers = useMemo(() => {
@@ -532,6 +582,10 @@ export default function WinImpactPage() {
 
   // Select a player from search results to analyze
   const handleSearchResultSelect = async (result: PlayerSearchResult) => {
+    // Clear previous stats
+    setFullPlayerStats(null);
+    setIsLoadingStats(true);
+
     // Convert search result to WAR player format and calculate
     const warResult = await calculatePlayerWAR({
       name: result.name,
@@ -540,8 +594,34 @@ export default function WinImpactPage() {
       nil_valuation: result.nil_value || 0,
     });
 
-    // Set as selected player
+    // Set as selected player (with stars from search result)
+    warResult.stars = result.stars;
+    warResult.headshot_url = result.headshot_url;
     setSelectedPlayer(warResult);
+
+    // Fetch full player stats (PFF grades, height, weight, etc.)
+    try {
+      const stats = await getPlayerStats(result.name, 2025);
+      setFullPlayerStats(stats);
+
+      // Recalculate WAR with actual PFF data if available
+      if (stats.pff?.overall) {
+        const updatedWAR = await calculatePlayerWAR({
+          name: result.name,
+          position: result.position,
+          school: result.school,
+          nil_valuation: stats.nil_value || result.nil_value || 0,
+          pff_grade: stats.pff.overall,
+        });
+        updatedWAR.stars = stats.stars || result.stars;
+        updatedWAR.headshot_url = stats.headshot_url;
+        setSelectedPlayer(updatedWAR);
+      }
+    } catch (err) {
+      console.error("Failed to fetch player stats:", err);
+    } finally {
+      setIsLoadingStats(false);
+    }
 
     // Calculate detailed WAR
     const detailedWAR = calculateDetailedWAR({
@@ -1281,16 +1361,173 @@ export default function WinImpactPage() {
             <>
               {/* Player Card and WAR Breakdown */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Player Info Card */}
+                {/* Player Info Card - Now with full stats */}
                 <Card className="glass border-l-4 border-l-primary">
                   <CardContent className="p-6">
-                    <h3 className="text-2xl font-bold text-primary mb-4">{selectedPlayer.player_name}</h3>
-                    <div className="space-y-2 text-sm">
-                      <p><span className="text-muted-foreground">Position:</span> {selectedPlayer.position}</p>
-                      <p><span className="text-muted-foreground">School:</span> {selectedPlayer.school}</p>
-                      <p><span className="text-muted-foreground">Stars:</span> {"⭐".repeat(selectedPlayer.stars || 3)}</p>
-                      <p><span className="text-muted-foreground">NIL Value:</span> {formatCurrency(selectedPlayer.nil_valuation)}</p>
+                    <div className="flex items-start gap-4 mb-4">
+                      {(selectedPlayer.headshot_url || fullPlayerStats?.headshot_url) && (
+                        <img
+                          src={selectedPlayer.headshot_url || fullPlayerStats?.headshot_url}
+                          alt={selectedPlayer.player_name}
+                          className="w-16 h-16 rounded-lg object-cover bg-muted"
+                        />
+                      )}
+                      <div>
+                        <h3 className="text-xl font-bold text-primary">{selectedPlayer.player_name}</h3>
+                        <p className="text-sm text-muted-foreground">{selectedPlayer.position} • {selectedPlayer.school}</p>
+                      </div>
                     </div>
+
+                    {isLoadingStats ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <span className="ml-2 text-sm text-muted-foreground">Loading full stats...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Basic Info */}
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Stars:</span>{" "}
+                            <span className="font-semibold">{"⭐".repeat(fullPlayerStats?.stars || selectedPlayer.stars || 3)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">NIL:</span>{" "}
+                            <span className="font-semibold text-primary">{formatCurrency(fullPlayerStats?.nil_value || selectedPlayer.nil_valuation)}</span>
+                          </div>
+                        </div>
+
+                        {/* Physical Measurables */}
+                        {(fullPlayerStats?.height || fullPlayerStats?.weight) && (
+                          <div className="grid grid-cols-2 gap-2 text-sm border-t border-border pt-3">
+                            {fullPlayerStats.height && (
+                              <div>
+                                <span className="text-muted-foreground">Height:</span>{" "}
+                                <span className="font-semibold">{Math.floor(fullPlayerStats.height / 12)}&apos;{Math.round(fullPlayerStats.height % 12)}&quot;</span>
+                              </div>
+                            )}
+                            {fullPlayerStats.weight && (
+                              <div>
+                                <span className="text-muted-foreground">Weight:</span>{" "}
+                                <span className="font-semibold">{fullPlayerStats.weight} lbs</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* PFF Grades */}
+                        {fullPlayerStats?.pff?.overall && (
+                          <div className="border-t border-border pt-3">
+                            <p className="text-xs text-muted-foreground uppercase mb-2">PFF Grades</p>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Overall:</span>
+                                <span className={cn("font-bold", fullPlayerStats.pff.overall >= 80 ? "text-green-500" : fullPlayerStats.pff.overall >= 70 ? "text-yellow-500" : "text-muted-foreground")}>
+                                  {fullPlayerStats.pff.overall.toFixed(1)}
+                                </span>
+                              </div>
+                              {fullPlayerStats.pff.offense && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Offense:</span>
+                                  <span className="font-semibold">{fullPlayerStats.pff.offense.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.pff.defense && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Defense:</span>
+                                  <span className="font-semibold">{fullPlayerStats.pff.defense.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.pff.passing && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Passing:</span>
+                                  <span className="font-semibold">{fullPlayerStats.pff.passing.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.pff.rushing && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Rushing:</span>
+                                  <span className="font-semibold">{fullPlayerStats.pff.rushing.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.pff.receiving && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Receiving:</span>
+                                  <span className="font-semibold">{fullPlayerStats.pff.receiving.toFixed(1)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Position-Specific Stats */}
+                        {fullPlayerStats?.passing && (
+                          <div className="border-t border-border pt-3">
+                            <p className="text-xs text-muted-foreground uppercase mb-2">Passing Stats</p>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              {fullPlayerStats.passing.passer_rating && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Passer Rating:</span>
+                                  <span className="font-semibold">{fullPlayerStats.passing.passer_rating.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.passing.completion_pct && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Comp %:</span>
+                                  <span className="font-semibold">{fullPlayerStats.passing.completion_pct.toFixed(1)}%</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.passing.big_time_throw_pct && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">BTT %:</span>
+                                  <span className="font-semibold">{fullPlayerStats.passing.big_time_throw_pct.toFixed(1)}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {fullPlayerStats?.rushing && (
+                          <div className="border-t border-border pt-3">
+                            <p className="text-xs text-muted-foreground uppercase mb-2">Rushing Stats</p>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              {fullPlayerStats.rushing.elusive_rating && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Elusive Rating:</span>
+                                  <span className="font-semibold">{fullPlayerStats.rushing.elusive_rating.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.rushing.yards_per_carry && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">YPC:</span>
+                                  <span className="font-semibold">{fullPlayerStats.rushing.yards_per_carry.toFixed(1)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {fullPlayerStats?.receiving && (
+                          <div className="border-t border-border pt-3">
+                            <p className="text-xs text-muted-foreground uppercase mb-2">Receiving Stats</p>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              {fullPlayerStats.receiving.yards_per_route_run && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">YPRR:</span>
+                                  <span className="font-semibold">{fullPlayerStats.receiving.yards_per_route_run.toFixed(2)}</span>
+                                </div>
+                              )}
+                              {fullPlayerStats.receiving.drop_rate && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Drop Rate:</span>
+                                  <span className="font-semibold">{fullPlayerStats.receiving.drop_rate.toFixed(1)}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1448,111 +1685,137 @@ export default function WinImpactPage() {
 
         {/* ===== TEAM PORTAL IMPACT TAB ===== */}
         <TabsContent value="team" className="space-y-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold uppercase italic">Team Portal Impact Rankings</h2>
-            <p className="text-sm text-muted-foreground">Proprietary team impact scores based on portal acquisitions</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold uppercase italic">Team Portal Impact Rankings</h2>
+              <p className="text-sm text-muted-foreground">Real-time portal data with incoming and outgoing transfers</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchTeamRankings}
+              disabled={isLoadingTeamRankings}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoadingTeamRankings && "animate-spin")} />
+              Refresh
+            </Button>
           </div>
 
-          {/* Team Scores Chart */}
+          {/* Team Rankings from API */}
           <Card className="glass">
             <CardHeader className="border-b border-border">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider">
-                Portal IQ Team Impact Scores (Top 20)
+              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center justify-between">
+                <span>Top Portal Classes (2026)</span>
+                <Badge variant="secondary">{portalTeamRankings.length} teams</Badge>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                Click on a team bar to see detailed analysis below
+                Click on a team to see incoming/outgoing transfers
               </p>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={teamScores.slice(0, 20)}
-                    layout="horizontal"
-                    onClick={(data) => {
-                      const payload = (data as unknown as { activePayload?: Array<{ payload: { team: string } }> })?.activePayload?.[0];
-                      if (payload) {
-                        const team = teamScores.find(t => t.team === payload.payload.team);
-                        if (team) setSelectedTeam(team);
-                      }
-                    }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="team" stroke="#888" angle={-45} textAnchor="end" height={100} fontSize={11} />
-                    <YAxis stroke="#888" domain={[0, 100]} />
-                    <Tooltip
-                      cursor={{ fill: 'rgba(212, 175, 55, 0.1)' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length > 0) {
-                          const data = payload[0].payload as TeamPortalScore;
-                          return (
-                            <div className="bg-[#1a2744] border border-border rounded-lg p-4 shadow-lg min-w-[200px]">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="font-bold text-primary text-lg">{data.team}</p>
-                                <Badge className={cn("font-semibold", getGradeColor(data.grade))}>
-                                  {data.grade}
-                                </Badge>
-                              </div>
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                <span className="text-muted-foreground">Portal Score:</span>
-                                <span className="font-bold">{data.portal_score.toFixed(1)}</span>
-                                <span className="text-muted-foreground">WAR Added:</span>
-                                <span className="font-bold text-green-400">+{data.war_added.toFixed(2)}</span>
-                                <span className="text-muted-foreground">Net WAR:</span>
-                                <span className={cn("font-bold", data.net_war >= 0 ? "text-green-400" : "text-red-400")}>
-                                  {data.net_war >= 0 ? "+" : ""}{data.net_war.toFixed(2)}
-                                </span>
-                                <span className="text-muted-foreground">Transfers In:</span>
-                                <span className="font-bold">{data.breakdown?.transfers_in || 0}</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-3 italic">Click to see full analysis</p>
-                            </div>
-                          );
+              {isLoadingTeamRankings ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="ml-3 text-muted-foreground">Loading team rankings...</span>
+                </div>
+              ) : portalTeamRankings.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No team rankings available yet.</p>
+                  <p className="text-sm">Rankings will appear when players commit to new schools.</p>
+                </div>
+              ) : (
+                <div className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={portalTeamRankings.slice(0, 20)}
+                      layout="horizontal"
+                      onClick={(data) => {
+                        const payload = (data as unknown as { activePayload?: Array<{ payload: TeamRanking }> })?.activePayload?.[0];
+                        if (payload) {
+                          // Fetch portal activity for the selected team
+                          fetchTeamActivity(payload.payload.team);
                         }
-                        return null;
                       }}
-                    />
-                    <Bar dataKey="portal_score" radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }}>
-                      {teamScores.slice(0, 20).map((entry, index) => {
-                        let color = "#64748B";
-                        if (entry.grade === "A+" || entry.grade === "A") color = "#D4AF37";
-                        else if (entry.grade === "B+" || entry.grade === "B") color = "#A855F7";
-                        else if (entry.grade === "C+" || entry.grade === "C") color = "#3B82F6";
-                        return <Cell key={`cell-${index}`} fill={color} />;
-                      })}
-                    </Bar>
-                    <Brush
-                      dataKey="team"
-                      height={25}
-                      stroke="#D4AF37"
-                      fill="#1a2744"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis dataKey="team" stroke="#888" angle={-45} textAnchor="end" height={100} fontSize={11} />
+                      <YAxis stroke="#888" />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(212, 175, 55, 0.1)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length > 0) {
+                            const data = payload[0].payload as TeamRanking;
+                            return (
+                              <div className="bg-[#1a2744] border border-border rounded-lg p-4 shadow-lg min-w-[220px]">
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="font-bold text-primary text-lg">{data.team}</p>
+                                  <Badge className={cn("font-semibold", getGradeColor(data.grade))}>
+                                    {data.grade}
+                                  </Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                  <span className="text-muted-foreground">Portal Score:</span>
+                                  <span className="font-bold">{data.portal_score.toFixed(1)}</span>
+                                  <span className="text-muted-foreground">WAR Added:</span>
+                                  <span className="font-bold text-green-400">+{data.war_added.toFixed(2)}</span>
+                                  <span className="text-muted-foreground">NIL Invested:</span>
+                                  <span className="font-bold">{formatCurrency(data.total_nil_invested)}</span>
+                                  <span className="text-muted-foreground">Transfers In:</span>
+                                  <span className="font-bold">{data.breakdown?.transfers_in || 0}</span>
+                                  <span className="text-muted-foreground">Avg Stars:</span>
+                                  <span className="font-bold">{data.breakdown?.avg_stars?.toFixed(1) || "N/A"}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-3 italic">Click for full portal activity</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar dataKey="portal_score" radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }}>
+                        {portalTeamRankings.slice(0, 20).map((entry, index) => {
+                          let color = "#64748B";
+                          if (entry.grade === "A+" || entry.grade === "A") color = "#D4AF37";
+                          else if (entry.grade === "B+" || entry.grade === "B") color = "#A855F7";
+                          else if (entry.grade === "C+" || entry.grade === "C") color = "#3B82F6";
+                          return <Cell key={`cell-${index}`} fill={color} />;
+                        })}
+                      </Bar>
+                      <Brush
+                        dataKey="team"
+                        height={25}
+                        stroke="#D4AF37"
+                        fill="#1a2744"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Team Details Selector */}
           <Card className="glass">
             <CardHeader className="border-b border-border">
-              <CardTitle>Team Details</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                Team Portal Activity
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="mb-4">
                 <Label>Select Team for Detailed Analysis</Label>
                 <Select
-                  value={selectedTeam?.team || ""}
                   onValueChange={(team) => {
-                    const t = teamScores.find(s => s.team === team);
-                    setSelectedTeam(t || null);
+                    fetchTeamActivity(team);
                   }}
                 >
                   <SelectTrigger className="w-full max-w-md mt-2">
                     <SelectValue placeholder="Choose a team..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {teamScores.map((team) => (
+                    {portalTeamRankings.map((team) => (
                       <SelectItem key={team.team} value={team.team}>
                         {team.team} ({team.grade})
                       </SelectItem>
@@ -1561,89 +1824,50 @@ export default function WinImpactPage() {
                 </Select>
               </div>
 
-              {selectedTeam && (
+              {teamPortalActivity ? (
                 <div className="space-y-6">
                   {/* Summary Metrics */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Card className="bg-card">
                       <CardContent className="p-4 text-center">
-                        <p className="text-xs text-muted-foreground uppercase mb-2">Portal Grade</p>
-                        <Badge className={cn("text-2xl px-4 py-1", getGradeColor(selectedTeam.grade))}>
-                          {selectedTeam.grade}
-                        </Badge>
+                        <p className="text-xs text-muted-foreground uppercase mb-2">Incoming</p>
+                        <p className="text-2xl font-bold text-green-500">+{teamPortalActivity.incoming.length}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-card">
                       <CardContent className="p-4 text-center">
-                        <p className="text-xs text-muted-foreground uppercase mb-2">Portal IQ Score</p>
-                        <p className="text-2xl font-bold">{selectedTeam.portal_score.toFixed(1)}</p>
+                        <p className="text-xs text-muted-foreground uppercase mb-2">Outgoing</p>
+                        <p className="text-2xl font-bold text-red-500">-{teamPortalActivity.outgoing.length}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-card">
                       <CardContent className="p-4 text-center">
-                        <p className="text-xs text-muted-foreground uppercase mb-2">WAR Added</p>
-                        <p className="text-2xl font-bold text-green-500">+{selectedTeam.war_added.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground uppercase mb-2">Net Talent</p>
+                        <p className={cn(
+                          "text-2xl font-bold",
+                          teamPortalActivity.net_talent_change >= 0 ? "text-green-500" : "text-red-500"
+                        )}>
+                          {teamPortalActivity.net_talent_change >= 0 ? "+" : ""}{teamPortalActivity.net_talent_change} Stars
+                        </p>
                       </CardContent>
                     </Card>
                     <Card className="bg-card">
                       <CardContent className="p-4 text-center">
-                        <p className="text-xs text-muted-foreground uppercase mb-2">Net WAR</p>
-                        <p className="text-2xl font-bold">{selectedTeam.net_war >= 0 ? "+" : ""}{selectedTeam.net_war.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground uppercase mb-2">Total NIL In</p>
+                        <p className="text-2xl font-bold text-primary">
+                          {formatCurrency(teamPortalActivity.incoming.reduce((sum, p) => sum + (p.nil_valuation || 0), 0))}
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  {/* Detailed Breakdown */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground uppercase mb-1">Transfers In</p>
-                      <p className="text-xl font-bold">{selectedTeam.breakdown.transfers_in}</p>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground uppercase mb-1">Avg WAR/Transfer</p>
-                      <p className="text-xl font-bold">{selectedTeam.avg_war_per_transfer.toFixed(2)}</p>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground uppercase mb-1">Position Balance</p>
-                      <p className="text-xl font-bold">{(selectedTeam.breakdown.position_balance * 100).toFixed(0)}%</p>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground uppercase mb-1">Star Quality</p>
-                      <p className="text-xl font-bold">{selectedTeam.breakdown.star_quality.toFixed(2)}</p>
-                    </div>
-                  </div>
-
-                  {/* Star Distribution */}
-                  <div>
-                    <h4 className="text-sm font-bold uppercase mb-3">Transfer Quality Distribution</h4>
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="text-center p-4 rounded-lg bg-card border border-border">
-                        <Star className="h-5 w-5 text-primary mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground">5-Star</p>
-                        <p className="text-xl font-bold">{selectedTeam.breakdown.star_distribution[5] || 0}</p>
-                      </div>
-                      <div className="text-center p-4 rounded-lg bg-card border border-border">
-                        <Star className="h-5 w-5 text-purple-500 mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground">4-Star</p>
-                        <p className="text-xl font-bold">{selectedTeam.breakdown.star_distribution[4] || 0}</p>
-                      </div>
-                      <div className="text-center p-4 rounded-lg bg-card border border-border">
-                        <Star className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground">3-Star</p>
-                        <p className="text-xl font-bold">{selectedTeam.breakdown.star_distribution[3] || 0}</p>
-                      </div>
-                      <div className="text-center p-4 rounded-lg bg-card border border-border">
-                        <Star className="h-5 w-5 text-slate-500 mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground">2-Star</p>
-                        <p className="text-xl font-bold">{selectedTeam.breakdown.star_distribution[2] || 0}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Incoming Transfers Table */}
-                  {selectedTeam.incoming_players && selectedTeam.incoming_players.length > 0 && (
+                  {/* Incoming Transfers */}
+                  {teamPortalActivity.incoming.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-bold uppercase mb-3">{selectedTeam.team} Incoming Transfers</h4>
+                      <h4 className="text-sm font-bold uppercase mb-3 flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-green-500" />
+                        Incoming Transfers ({teamPortalActivity.incoming.length})
+                      </h4>
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
@@ -1652,20 +1876,61 @@ export default function WinImpactPage() {
                               <th className="text-left p-3 text-xs uppercase text-muted-foreground">Position</th>
                               <th className="text-left p-3 text-xs uppercase text-muted-foreground">From</th>
                               <th className="text-center p-3 text-xs uppercase text-muted-foreground">Stars</th>
-                              <th className="text-right p-3 text-xs uppercase text-muted-foreground">WAR</th>
+                              <th className="text-right p-3 text-xs uppercase text-muted-foreground">NIL Value</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedTeam.incoming_players
-                              .sort((a, b) => b.war - a.war)
+                            {teamPortalActivity.incoming
+                              .sort((a, b) => (b.stars || 0) - (a.stars || 0))
                               .slice(0, 15)
-                              .map((player) => (
-                              <tr key={player.player_id} className="border-b border-border/50">
+                              .map((player, idx) => (
+                              <tr key={`incoming-${idx}`} className="border-b border-border/50">
                                 <td className="p-3 font-semibold">{player.player_name}</td>
                                 <td className="p-3 text-muted-foreground">{player.position}</td>
                                 <td className="p-3 text-muted-foreground">{player.origin_school || "Unknown"}</td>
                                 <td className="p-3 text-center">{"⭐".repeat(player.stars || 3)}</td>
-                                <td className="p-3 text-right font-bold text-primary">{player.war.toFixed(2)}</td>
+                                <td className="p-3 text-right font-bold text-primary">{formatCurrency(player.nil_valuation)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Outgoing Transfers */}
+                  {teamPortalActivity.outgoing.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-bold uppercase mb-3 flex items-center gap-2">
+                        <ArrowRight className="h-4 w-4 text-red-500" />
+                        Outgoing Transfers ({teamPortalActivity.outgoing.length})
+                      </h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-border">
+                              <th className="text-left p-3 text-xs uppercase text-muted-foreground">Player</th>
+                              <th className="text-left p-3 text-xs uppercase text-muted-foreground">Position</th>
+                              <th className="text-left p-3 text-xs uppercase text-muted-foreground">To</th>
+                              <th className="text-center p-3 text-xs uppercase text-muted-foreground">Status</th>
+                              <th className="text-right p-3 text-xs uppercase text-muted-foreground">Stars</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {teamPortalActivity.outgoing
+                              .sort((a, b) => (b.stars || 0) - (a.stars || 0))
+                              .slice(0, 15)
+                              .map((player, idx) => (
+                              <tr key={`outgoing-${idx}`} className="border-b border-border/50">
+                                <td className="p-3 font-semibold">{player.player_name}</td>
+                                <td className="p-3 text-muted-foreground">{player.position}</td>
+                                <td className="p-3 text-muted-foreground">{player.destination_school || "Still in portal"}</td>
+                                <td className="p-3 text-center">
+                                  <Badge variant={player.status === "committed" ? "default" : "secondary"}>
+                                    {player.status}
+                                  </Badge>
+                                </td>
+                                <td className="p-3 text-right">{"⭐".repeat(player.stars || 3)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1674,12 +1939,10 @@ export default function WinImpactPage() {
                     </div>
                   )}
                 </div>
-              )}
-
-              {!selectedTeam && (
+              ) : (
                 <div className="text-center py-8">
                   <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Select a team above to see detailed portal analysis</p>
+                  <p className="text-muted-foreground">Select a team above to see incoming and outgoing transfers</p>
                 </div>
               )}
             </CardContent>
