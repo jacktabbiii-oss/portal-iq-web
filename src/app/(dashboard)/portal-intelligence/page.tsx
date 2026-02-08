@@ -48,9 +48,9 @@ import {
   MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getActivePortalPlayers, type PortalPlayer } from "@/lib/api/portal";
+import { getActivePortalPlayers, getPortalTeamRankings, type PortalPlayer, type TeamRanking } from "@/lib/api/portal";
 import { getPlayerStats, type PlayerStats } from "@/lib/api/players";
-import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier, calculateTeamPortalScores, type TeamPortalScore, type WARPlayer } from "@/lib/api/war";
+import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
 import { PlayerWARCard } from "@/components/charts/war-gauge";
 import { HEIGHT_PRESETS, WEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
 import { useWatchlist } from "@/hooks/use-watchlist";
@@ -194,42 +194,28 @@ export default function PortalIntelligencePage() {
     schools: 0,
   });
 
-  // Calculate team portal scores from committed players
-  const teamScores = useMemo(() => {
-    // Filter to committed players with destinations
-    const committedPlayers = players.filter(
-      (p) => p.status === "committed" && p.destination_school
-    );
+  // Team rankings from API
+  const [teamRankings, setTeamRankings] = useState<TeamRanking[]>([]);
+  const [isLoadingRankings, setIsLoadingRankings] = useState(false);
 
-    // Convert to WAR format for scoring
-    const warPlayers: WARPlayer[] = committedPlayers.map((p, index) => {
-      const war = calculateDetailedWAR({
-        position: p.position,
-        stars: p.stars,
-        nil_value: p.nil_valuation,
-        destination_school: p.destination_school,
-        is_predicted_nil: true,
-      });
+  // Fetch team rankings from API
+  const fetchTeamRankings = useCallback(async () => {
+    setIsLoadingRankings(true);
+    try {
+      const response = await getPortalTeamRankings(25);
+      setTeamRankings(response.rankings || []);
+    } catch (err) {
+      console.error("Failed to fetch team rankings:", err);
+      setTeamRankings([]);
+    } finally {
+      setIsLoadingRankings(false);
+    }
+  }, []);
 
-      return {
-        rank: index + 1,
-        player_id: p.player_id,
-        player_name: p.player_name,
-        position: p.position,
-        school: p.destination_school || p.origin_school,
-        nil_valuation: p.nil_valuation || 0,
-        war: war.war,
-        win_prob_added: war.war * 7,
-        value_per_win: war.war > 0 ? (p.nil_valuation || 0) / war.war : 0,
-        grade: war.war >= 2.0 ? "Elite" : war.war >= 1.2 ? "Premium" : war.war >= 0.6 ? "Solid" : "Average",
-        stars: p.stars,
-        origin_school: p.origin_school,
-      };
-    });
-
-    // Calculate team scores - limit to top 20
-    return calculateTeamPortalScores(warPlayers).slice(0, 20);
-  }, [players]);
+  // Fetch rankings on initial load
+  useEffect(() => {
+    fetchTeamRankings();
+  }, [fetchTeamRankings]);
 
   // Pagination state
   const [totalInDatabase, setTotalInDatabase] = useState<number>(0);
@@ -753,13 +739,23 @@ export default function PortalIntelligencePage() {
             <CardHeader className="border-b border-border bg-primary/5 px-6 py-4">
               <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center justify-between">
                 <span>Top Portal Classes (2026)</span>
-                <Badge variant="secondary">{teamScores.length} teams</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{teamRankings.length} teams</Badge>
+                  <Button variant="ghost" size="sm" onClick={fetchTeamRankings} disabled={isLoadingRankings}>
+                    <RefreshCw className={cn("h-4 w-4", isLoadingRankings && "animate-spin")} />
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {teamScores.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground">
+              {isLoadingRankings ? (
+                <div className="p-6 text-center text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   <p>Loading team rankings...</p>
+                </div>
+              ) : teamRankings.length === 0 ? (
+                <div className="p-6 text-center text-muted-foreground">
+                  <p>No team rankings available. Check back when players commit.</p>
                 </div>
               ) : (
                 <Table>
@@ -775,7 +771,7 @@ export default function PortalIntelligencePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {teamScores.map((team, index) => (
+                    {teamRankings.map((team, index) => (
                       <TableRow key={team.team} className="border-border">
                         <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
                         <TableCell className="font-semibold">{team.team}</TableCell>

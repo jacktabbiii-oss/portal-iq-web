@@ -97,6 +97,25 @@ export interface BlockingStats {
   run_block_percent?: number;
 }
 
+export interface ValueBreakdown {
+  position_base: number;
+  performance_multiplier: number;
+  school_multiplier: number;
+  social_value: number;
+  potential_value: number;
+  starter_bonus: number;
+}
+
+export interface DualValuation {
+  on3_value: number | null;
+  portal_iq_value: number;
+  portal_iq_tier: string;
+  confidence: string;
+  has_on3_data: boolean;
+  breakdown: ValueBreakdown | null;
+  reasoning: string[];
+}
+
 export interface PlayerStats {
   name: string;
   position: string;
@@ -115,6 +134,7 @@ export interface PlayerStats {
   pass_rush?: PassRushStats;
   coverage?: CoverageStats;
   blocking?: BlockingStats;
+  valuation?: DualValuation;
 }
 
 // =============================================================================

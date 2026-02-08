@@ -844,13 +844,22 @@ async def portal_active(
     request: Request,
     status: Optional[str] = None,
     position: Optional[str] = None,
+    min_stars: Optional[int] = None,
+    search: Optional[str] = None,
     limit: int = 100,
+    offset: int = 0,
     enriched: bool = True,
     api_key: str = Depends(require_api_key),
 ):
     """Get active portal players with optional filters.
 
     Args:
+        status: Filter by status (available, committed, all)
+        position: Filter by position
+        min_stars: Minimum star rating
+        search: Search player names
+        limit: Number of results to return
+        offset: Pagination offset
         enriched: If True, includes PFF grades, CFBD stats, headshots, and measurables
     """
     # Load from R2/S3 with full enrichment (headshots, PFF, CFBD stats)
@@ -860,30 +869,70 @@ async def portal_active(
         return APIResponse(
             status="error",
             message="No portal data available. Check R2 connection.",
-            data={"players": [], "total": 0}
+            data={"players": [], "total": 0, "active_in_portal": 0, "committed": 0, "schools_active": 0}
         )
 
     try:
+        # Calculate stats BEFORE any filtering (total database stats)
+        status_col = 'status' if 'status' in df.columns else None
+
+        # Count active (available/in portal)
+        if status_col:
+            active_mask = df[status_col].str.lower().isin(['available', 'active', 'in portal', ''])
+            active_in_portal = int(active_mask.sum())
+            committed_mask = df[status_col].str.lower().str.contains('committed', na=False)
+            committed_count = int(committed_mask.sum())
+        else:
+            active_in_portal = len(df)
+            committed_count = 0
+
+        # Count unique origin schools
+        origin_col = 'origin_school' if 'origin_school' in df.columns else 'school'
+        if origin_col in df.columns:
+            schools_active = int(df[origin_col].nunique())
+        else:
+            schools_active = 0
+
+        total_in_db = len(df)
 
         # Apply filters
         if status and status.lower() != "all":
-            if 'status' in df.columns:
-                df = df[df['status'].str.lower() == status.lower()]
+            if status_col:
+                if status.lower() == "available":
+                    df = df[df[status_col].str.lower().isin(['available', 'active', 'in portal', ''])]
+                elif status.lower() == "committed":
+                    df = df[df[status_col].str.lower().str.contains('committed', na=False)]
+                else:
+                    df = df[df[status_col].str.lower() == status.lower()]
+
         if position:
             if 'position' in df.columns:
                 df = df[df['position'].str.upper() == position.upper()]
 
+        if min_stars:
+            if 'stars' in df.columns:
+                df = df[df['stars'] >= min_stars]
+
+        if search and len(search) >= 2:
+            name_col = 'name' if 'name' in df.columns else 'player_name'
+            if name_col in df.columns:
+                search_lower = search.lower()
+                df = df[df[name_col].str.lower().str.contains(search_lower, na=False)]
+
         # Sort by NIL valuation or stars if available
-        if 'nil_valuation' in df.columns:
+        if 'nil_value' in df.columns:
+            df = df.sort_values('nil_value', ascending=False)
+        elif 'nil_valuation' in df.columns:
             df = df.sort_values('nil_valuation', ascending=False)
         elif 'stars' in df.columns:
             df = df.sort_values('stars', ascending=False)
 
-        # Capture total count BEFORE limiting
-        total_count = len(df)
+        # Capture total count after filtering but BEFORE pagination
+        total_filtered = len(df)
+        has_more = (offset + limit) < total_filtered
 
-        # Limit results
-        df = df.head(limit)
+        # Apply pagination
+        df = df.iloc[offset:offset + limit]
 
         # Map columns to match frontend PortalPlayer interface expectations
         players = []
@@ -947,11 +996,19 @@ async def portal_active(
             status="success",
             data={
                 "players": players,
-                "total": total_count,
-                "source": "r2/on3_transfer_portal.csv",
+                "total": len(players),
+                "total_count": total_in_db,
+                "active_in_portal": active_in_portal,
+                "committed": committed_count,
+                "schools_active": schools_active,
+                "offset": offset,
+                "limit": limit,
+                "has_more": has_more,
                 "filters_applied": {
                     "status": status,
                     "position": position,
+                    "min_stars": min_stars,
+                    "search": search,
                 }
             }
         )
@@ -1032,6 +1089,211 @@ async def flight_risk(
         data=response_data.model_dump(),
         message="Demo mode",
     )
+
+
+@router.get(
+    "/portal/rankings",
+    response_model=APIResponse,
+    tags=["Portal"],
+    summary="Team portal rankings",
+    description="Get teams ranked by portal success.",
+)
+async def portal_team_rankings(
+    request: Request,
+    limit: int = 25,
+    api_key: str = Depends(require_api_key),
+):
+    """Get teams ranked by portal activity and success."""
+    df = load_portal_data_enriched()
+
+    if df.empty:
+        return APIResponse(
+            status="success",
+            data={"rankings": [], "total_teams": 0}
+        )
+
+    try:
+        dest_col = 'destination_school' if 'destination_school' in df.columns else None
+        origin_col = 'origin_school' if 'origin_school' in df.columns else 'school'
+        status_col = 'status' if 'status' in df.columns else None
+
+        # Only count committed transfers for rankings
+        if status_col:
+            committed_df = df[df[status_col].str.lower().str.contains('committed', na=False)]
+        else:
+            committed_df = df
+
+        if dest_col is None or committed_df.empty:
+            return APIResponse(
+                status="success",
+                data={"rankings": [], "total_teams": 0}
+            )
+
+        # Group by destination school
+        team_stats = {}
+
+        for idx, row in committed_df.iterrows():
+            dest = row.get(dest_col)
+            if not dest or pd.isna(dest):
+                continue
+
+            dest = str(dest).strip()
+            if dest not in team_stats:
+                team_stats[dest] = {
+                    "team": dest,
+                    "transfers_in": 0,
+                    "total_stars": 0,
+                    "total_nil": 0,
+                    "players": [],
+                }
+
+            stars = int(row.get('stars', 0) or 0)
+            nil_val = float(row.get('nil_value', row.get('nil_valuation', 0)) or 0)
+
+            team_stats[dest]["transfers_in"] += 1
+            team_stats[dest]["total_stars"] += stars
+            team_stats[dest]["total_nil"] += nil_val
+            team_stats[dest]["players"].append({
+                "name": row.get('name', row.get('player_name', 'Unknown')),
+                "position": row.get('position', 'Unknown'),
+                "stars": stars,
+                "nil_value": nil_val,
+            })
+
+        # Calculate scores and sort
+        rankings = []
+        for team, stats in team_stats.items():
+            if stats["transfers_in"] == 0:
+                continue
+
+            # Calculate WAR-like score: stars weighted + NIL factor
+            avg_stars = stats["total_stars"] / stats["transfers_in"] if stats["transfers_in"] > 0 else 0
+            war_estimate = stats["total_stars"] * 0.3  # Simple WAR approximation
+
+            # Grade based on total stars acquired
+            total_stars = stats["total_stars"]
+            if total_stars >= 25:
+                grade = "A+"
+            elif total_stars >= 20:
+                grade = "A"
+            elif total_stars >= 15:
+                grade = "B+"
+            elif total_stars >= 10:
+                grade = "B"
+            elif total_stars >= 5:
+                grade = "C"
+            else:
+                grade = "D"
+
+            portal_score = (stats["total_stars"] * 10) + (stats["transfers_in"] * 2) + (stats["total_nil"] / 100000)
+
+            rankings.append({
+                "team": team,
+                "grade": grade,
+                "portal_score": round(portal_score, 1),
+                "war_added": round(war_estimate, 2),
+                "total_nil_invested": stats["total_nil"],
+                "breakdown": {
+                    "transfers_in": stats["transfers_in"],
+                    "total_stars": stats["total_stars"],
+                    "avg_stars": round(avg_stars, 1),
+                },
+                "top_acquisitions": sorted(stats["players"], key=lambda x: x.get("stars", 0), reverse=True)[:3],
+            })
+
+        # Sort by portal score
+        rankings.sort(key=lambda x: x["portal_score"], reverse=True)
+
+        return APIResponse(
+            status="success",
+            data={
+                "rankings": rankings[:limit],
+                "total_teams": len(rankings),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Portal rankings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/portal/team/{team}",
+    response_model=APIResponse,
+    tags=["Portal"],
+    summary="Team portal activity",
+    description="Get incoming and outgoing transfers for a team.",
+)
+async def team_portal_activity(
+    request: Request,
+    team: str,
+    season: int = 2026,
+    api_key: str = Depends(require_api_key),
+):
+    """Get team's portal activity - incoming and outgoing transfers."""
+    df = load_portal_data_enriched()
+
+    if df.empty:
+        return APIResponse(
+            status="error",
+            message="No portal data available",
+            data={"incoming": [], "outgoing": [], "net_talent_change": 0}
+        )
+
+    try:
+        team_lower = team.lower()
+
+        # Find outgoing (players who left this team)
+        origin_col = 'origin_school' if 'origin_school' in df.columns else 'school'
+        outgoing_df = df[df[origin_col].str.lower() == team_lower] if origin_col in df.columns else pd.DataFrame()
+
+        # Find incoming (players who committed to this team)
+        dest_col = 'destination_school' if 'destination_school' in df.columns else None
+        if dest_col and dest_col in df.columns:
+            incoming_df = df[df[dest_col].str.lower() == team_lower]
+        else:
+            incoming_df = pd.DataFrame()
+
+        # Convert to player dicts
+        def to_player_dict(row, idx):
+            return {
+                "player_id": str(idx),
+                "player_name": row.get('name', row.get('player_name', 'Unknown')),
+                "position": row.get('position', 'Unknown'),
+                "origin_school": row.get(origin_col, 'Unknown'),
+                "destination_school": row.get(dest_col) if dest_col and pd.notna(row.get(dest_col)) else None,
+                "status": row.get('status', 'available'),
+                "nil_valuation": float(row.get('nil_value', row.get('nil_valuation', 0)) or 0),
+                "stars": int(row.get('stars', 0) or 0),
+                "headshot_url": row.get('headshot_url') if pd.notna(row.get('headshot_url')) else None,
+            }
+
+        incoming = [to_player_dict(row, idx) for idx, row in incoming_df.iterrows()]
+        outgoing = [to_player_dict(row, idx) for idx, row in outgoing_df.iterrows()]
+
+        # Calculate net talent change (simple: incoming stars - outgoing stars)
+        incoming_talent = sum(p.get('stars', 0) for p in incoming)
+        outgoing_talent = sum(p.get('stars', 0) for p in outgoing)
+        net_talent_change = incoming_talent - outgoing_talent
+
+        return APIResponse(
+            status="success",
+            data={
+                "team": team,
+                "season": season,
+                "incoming": incoming,
+                "outgoing": outgoing,
+                "incoming_count": len(incoming),
+                "outgoing_count": len(outgoing),
+                "net_talent_change": net_talent_change,
+                "incoming_talent_score": incoming_talent,
+                "outgoing_talent_score": outgoing_talent,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Team portal activity error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post(

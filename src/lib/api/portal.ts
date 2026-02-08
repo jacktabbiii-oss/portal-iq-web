@@ -219,3 +219,45 @@ export async function getPortalRecommendations(
   const response = await apiClient.post("/api/portal/recommendations", request);
   return response as unknown as PortalRecommendations;
 }
+
+// =============================================================================
+// Team Rankings API
+// =============================================================================
+
+export interface TeamRanking {
+  team: string;
+  grade: string;
+  portal_score: number;
+  war_added: number;
+  total_nil_invested: number;
+  breakdown: {
+    transfers_in: number;
+    total_stars: number;
+    avg_stars: number;
+  };
+  top_acquisitions: Array<{
+    name: string;
+    position: string;
+    stars: number;
+    nil_value: number;
+  }>;
+}
+
+export interface TeamRankingsResponse {
+  rankings: TeamRanking[];
+  total_teams: number;
+}
+
+/**
+ * Get team portal rankings - teams ranked by portal success.
+ */
+export async function getPortalTeamRankings(
+  limit: number = 25
+): Promise<TeamRankingsResponse> {
+  const response = await apiClient.get(`/api/portal/rankings?limit=${limit}`);
+  const data = response as unknown as TeamRankingsResponse;
+  return {
+    rankings: data.rankings || [],
+    total_teams: data.total_teams || 0,
+  };
+}
