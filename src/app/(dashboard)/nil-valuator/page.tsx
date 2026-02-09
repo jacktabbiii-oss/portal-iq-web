@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,23 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Search,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Star,
   Filter,
@@ -49,14 +34,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { getNILLeaderboard, predictNIL, type NILLeaderboardPlayer, type PlayerInput } from "@/lib/api/nil";
-import { getPlayerStats, searchPlayers, type PlayerStats, type PlayerSearchResult } from "@/lib/api/players";
-import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
+import { searchPlayers, type PlayerSearchResult } from "@/lib/api/players";
 import { SocialGrowthSimulator } from "@/components/charts/nil-growth-chart";
 import { TransferValueChart } from "@/components/charts/transfer-value-chart";
-import { PlayerWARCard } from "@/components/charts/war-gauge";
-import { HEIGHT_PRESETS, WEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
-import { useWatchlist } from "@/hooks/use-watchlist";
-import { Heart, HeartOff } from "lucide-react";
+import { HEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"];
 const conferences = ["All", "SEC", "Big Ten", "Big 12", "ACC", "Pac-12", "AAC", "MWC", "Sun Belt", "C-USA"];
@@ -64,15 +45,8 @@ const starFilters = ["All", "5", "4+", "3+", "2+"];
 const heightFilters = ["All", "6'4\"+", "6'2\"+", "6'0\"+", "5'10\"+"];
 const weightFilters = ["All", "300+", "250+", "220+", "200+", "180+"];
 
-// Extended player type with measurables
-interface NILPlayerWithMeasurables extends NILLeaderboardPlayer {
-  height?: number;
-  weight?: number;
-  pff_overall?: number;
-  pff_offense?: number;
-  pff_defense?: number;
-  stars?: number;
-}
+// Player type alias (all measurables now on NILLeaderboardPlayer)
+type NILPlayerWithMeasurables = NILLeaderboardPlayer;
 
 // Helper to parse height filter string to inches
 function parseHeightFilter(filter: string): number | null {
@@ -133,39 +107,13 @@ export default function NILValuatorPage() {
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [isCustomLoading, setIsCustomLoading] = useState(false);
 
-  // Watchlist
-  const { isInWatchlist, toggleWatchlist } = useWatchlist();
-
-  // Player detail sheet - separate visibility from selected player for tab switching
+  // Selected player for Social Growth and Transfer Value tabs
   const [selectedPlayer, setSelectedPlayer] = useState<NILPlayerWithMeasurables | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   // Tab-specific player search (for Social Growth and Transfer Value tabs)
   const [tabSearchQuery, setTabSearchQuery] = useState("");
   const [tabSearchResults, setTabSearchResults] = useState<PlayerSearchResult[]>([]);
   const [isTabSearching, setIsTabSearching] = useState(false);
-
-  // Fetch detailed stats when a player is selected
-  useEffect(() => {
-    if (selectedPlayer?.player_name) {
-      setIsLoadingStats(true);
-      getPlayerStats(selectedPlayer.player_name)
-        .then((stats) => {
-          setPlayerStats(stats);
-        })
-        .catch((err) => {
-          console.error("Failed to fetch player stats:", err);
-          setPlayerStats(null);
-        })
-        .finally(() => {
-          setIsLoadingStats(false);
-        });
-    } else {
-      setPlayerStats(null);
-    }
-  }, [selectedPlayer?.player_name]);
 
   // Debounced search for Social Growth / Transfer Value tabs
   useEffect(() => {
@@ -189,32 +137,6 @@ export default function NILValuatorPage() {
 
     return () => clearTimeout(timer);
   }, [tabSearchQuery]);
-
-  // WAR calculation for selected player
-  const playerWAR = useMemo(() => {
-    if (!selectedPlayer) return null;
-
-    const warResult = calculateDetailedWAR({
-      position: selectedPlayer.position,
-      stars: selectedPlayer.stars,
-      nil_value: selectedPlayer.valuation,
-      destination_school: selectedPlayer.school,
-      is_predicted_nil: true,
-    });
-
-    const { tier } = getSchoolTier(selectedPlayer.school);
-    const transferValue = analyzeTransferValue(
-      warResult.war,
-      selectedPlayer.valuation,
-      selectedPlayer.position
-    );
-
-    return {
-      ...warResult,
-      winProbAdded: warResult.war * 7, // Each WAR = ~7% win probability
-      transferValue,
-    };
-  }, [selectedPlayer]);
 
   // Custom valuation form state
   const [customForm, setCustomForm] = useState({
@@ -598,6 +520,45 @@ export default function NILValuatorPage() {
             </CardContent>
           </Card>
 
+          {/* Market Stats Summary */}
+          {!isLoading && !error && totalInDatabase > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="glass p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Players</p>
+                    <p className="text-lg font-bold">{totalInDatabase.toLocaleString()}</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="glass p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Avg NIL Value</p>
+                    <p className="text-lg font-bold">{formatCurrency(avgValue)}</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="glass p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Star className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Market Cap</p>
+                    <p className="text-lg font-bold">{formatCurrency(marketCap)}</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
           {/* Error State */}
           {error && (
             <Card className="glass border-red-500/50">
@@ -680,14 +641,27 @@ export default function NILValuatorPage() {
                               {player.position}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                             <span>{player.school}</span>
-                            {player.stars && (
+                            {player.stars && player.stars > 0 && (
                               <div className="flex text-yellow-500">
                                 {Array.from({ length: Math.min(player.stars, 5) }).map((_, i) => (
                                   <Star key={i} className="h-3.5 w-3.5 fill-yellow-500" />
                                 ))}
                               </div>
+                            )}
+                            {player.pff_overall && player.pff_overall > 0 && (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-xs font-mono py-0 h-5",
+                                  player.pff_overall >= 80 && "border-green-500/50 text-green-500",
+                                  player.pff_overall >= 70 && player.pff_overall < 80 && "border-yellow-500/50 text-yellow-500",
+                                  player.pff_overall < 70 && "border-orange-500/50 text-orange-500"
+                                )}
+                              >
+                                {player.pff_overall.toFixed(1)}
+                              </Badge>
                             )}
                             {showAdvancedFilters && player.height && player.weight && (
                               <span className="text-xs">
@@ -710,6 +684,11 @@ export default function NILValuatorPage() {
                           >
                             {player.nil_tier}
                           </Badge>
+                          {player.on3_value && player.on3_value > 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              On3: {formatCurrency(player.on3_value)}
+                            </p>
+                          )}
                         </div>
 
                         {/* Arrow */}
@@ -1034,7 +1013,7 @@ export default function NILValuatorPage() {
             {selectedPlayer && (
               <SocialGrowthSimulator
                 currentNILValue={selectedPlayer.valuation}
-                currentFollowers={selectedPlayer.social_followers || 50000}
+                currentFollowers={50000}
                 playerName={selectedPlayer.player_name}
               />
             )}
@@ -1158,531 +1137,6 @@ export default function NILValuatorPage() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Market Stats Footer - using API values calculated across ALL players, not just loaded ones */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="glass p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Players</p>
-              <p className="text-lg font-bold">{(totalInDatabase || 0).toLocaleString()}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="glass p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Avg NIL Value</p>
-              <p className="text-lg font-bold">{formatCurrency(avgValue)}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="glass p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Star className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Market Cap</p>
-              <p className="text-lg font-bold">{formatCurrency(marketCap)}</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Player Detail Sheet */}
-      <Sheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if (!open) setSelectedPlayer(null); }}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          {selectedPlayer && (
-            <>
-              <SheetHeader className="pb-6">
-                <div className="flex items-center gap-4">
-                  {selectedPlayer.headshot_url ? (
-                    <Image
-                      src={selectedPlayer.headshot_url}
-                      alt={selectedPlayer.player_name}
-                      width={80}
-                      height={80}
-                      className="rounded-full object-cover border-2 border-primary"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary">
-                      <span className="text-xl font-bold text-primary">
-                        {selectedPlayer.player_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <SheetTitle className="text-xl">{selectedPlayer.player_name}</SheetTitle>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="font-mono">
-                        {selectedPlayer.position}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">{selectedPlayer.school}</span>
-                    </div>
-                    {selectedPlayer.stars && (
-                      <div className="flex mt-1 text-yellow-500">
-                        {Array.from({ length: Math.min(selectedPlayer.stars, 5) }).map((_, i) => (
-                          <Star key={i} className="h-4 w-4 fill-yellow-500" />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </SheetHeader>
-
-              {/* Dual NIL Valuation Section */}
-              <div className="space-y-6">
-                <Card className="glass">
-                  <CardContent className="p-4">
-                    {playerStats?.valuation ? (
-                      <div className="space-y-4">
-                        {/* On3 Value - if available */}
-                        {playerStats.valuation.has_on3_data && playerStats.valuation.on3_value && (
-                          <div className="text-center pb-4 border-b border-border">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                              On3 NIL Value
-                            </p>
-                            <p className="text-2xl font-bold text-blue-400">
-                              {formatCurrency(playerStats.valuation.on3_value)}
-                            </p>
-                            <Badge variant="outline" className="mt-1 text-xs">
-                              Actual Market Value
-                            </Badge>
-                          </div>
-                        )}
-
-                        {/* Portal IQ Value */}
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                            Portal IQ Valuation
-                          </p>
-                          <p className="text-3xl font-bold text-primary">
-                            {formatCurrency(playerStats.valuation.portal_iq_value)}
-                          </p>
-                          <Badge className={cn("mt-2 uppercase", getTierBadge(playerStats.valuation.portal_iq_tier))}>
-                            {playerStats.valuation.portal_iq_tier} Tier
-                          </Badge>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Confidence: {playerStats.valuation.confidence}
-                          </p>
-                        </div>
-
-                        {/* Reasoning */}
-                        {playerStats.valuation.reasoning && playerStats.valuation.reasoning.length > 0 && (
-                          <div className="pt-4 border-t border-border">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-                              <Info className="h-3 w-3" />
-                              Valuation Reasoning
-                            </p>
-                            <div className="space-y-1.5">
-                              {playerStats.valuation.reasoning.map((reason, i) => (
-                                <p key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                                  <span className="text-primary mt-0.5">•</span>
-                                  <span>{reason}</span>
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Breakdown if available */}
-                        {playerStats.valuation.breakdown && (
-                          <div className="pt-4 border-t border-border">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                              Value Breakdown
-                            </p>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Position Base</span>
-                                <span>{formatCurrency(playerStats.valuation.breakdown.position_base)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">School Mult</span>
-                                <span>{playerStats.valuation.breakdown.school_multiplier}x</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Perf Mult</span>
-                                <span>{playerStats.valuation.breakdown.performance_multiplier}x</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Starter Bonus</span>
-                                <span>{playerStats.valuation.breakdown.starter_bonus}x</span>
-                              </div>
-                              {playerStats.valuation.breakdown.potential_value > 0 && (
-                                <div className="flex justify-between col-span-2">
-                                  <span className="text-muted-foreground">Potential Premium</span>
-                                  <span>{formatCurrency(playerStats.valuation.breakdown.potential_value)}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      /* Fallback to existing display if no dual valuation */
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground mb-1">NIL Valuation</p>
-                        <p className="text-3xl font-bold text-primary">
-                          {formatCurrency(selectedPlayer.valuation)}
-                        </p>
-                        <Badge className={cn("mt-2 uppercase", getTierBadge(selectedPlayer.nil_tier))}>
-                          {selectedPlayer.nil_tier} Tier
-                        </Badge>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Measurables */}
-                {(selectedPlayer.height || selectedPlayer.weight) && (
-                  <Card className="glass">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                        <Ruler className="h-4 w-4" />
-                        Measurables
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <div className="grid grid-cols-2 gap-4">
-                        {selectedPlayer.height && (
-                          <div className="text-center p-3 bg-card rounded-lg">
-                            <p className="text-xs text-muted-foreground">Height</p>
-                            <p className="text-lg font-bold">{formatHeight(selectedPlayer.height)}</p>
-                          </div>
-                        )}
-                        {selectedPlayer.weight && (
-                          <div className="text-center p-3 bg-card rounded-lg">
-                            <p className="text-xs text-muted-foreground">Weight</p>
-                            <p className="text-lg font-bold">{selectedPlayer.weight} lbs</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Performance Grades */}
-                {selectedPlayer.pff_overall && (
-                  <Card className="glass">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        Performance Grades
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Overall</span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "font-mono",
-                              selectedPlayer.pff_overall >= 80 && "border-green-500 text-green-500",
-                              selectedPlayer.pff_overall >= 70 && selectedPlayer.pff_overall < 80 && "border-yellow-500 text-yellow-500",
-                              selectedPlayer.pff_overall < 70 && "border-orange-500 text-orange-500"
-                            )}
-                          >
-                            {selectedPlayer.pff_overall.toFixed(1)}
-                          </Badge>
-                        </div>
-                        {selectedPlayer.pff_offense && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Offense</span>
-                            <span className="font-mono text-sm">{selectedPlayer.pff_offense.toFixed(1)}</span>
-                          </div>
-                        )}
-                        {selectedPlayer.pff_defense && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Defense</span>
-                            <span className="font-mono text-sm">{selectedPlayer.pff_defense.toFixed(1)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Position-Specific Stats */}
-                {isLoadingStats ? (
-                  <Card className="glass">
-                    <CardContent className="p-4 flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">Loading stats...</span>
-                    </CardContent>
-                  </Card>
-                ) : playerStats && (
-                  <Card className="glass">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        Season Stats
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <div className="grid grid-cols-2 gap-3">
-                        {/* QB Stats */}
-                        {playerStats.passing && (
-                          <>
-                            {playerStats.passing.yards && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Pass Yards</p>
-                                <p className="text-lg font-bold">{playerStats.passing.yards.toLocaleString()}</p>
-                              </div>
-                            )}
-                            {playerStats.passing.touchdowns && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Pass TDs</p>
-                                <p className="text-lg font-bold">{playerStats.passing.touchdowns}</p>
-                              </div>
-                            )}
-                            {playerStats.passing.completion_pct && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Comp %</p>
-                                <p className="text-lg font-bold">{playerStats.passing.completion_pct.toFixed(1)}%</p>
-                              </div>
-                            )}
-                            {playerStats.passing.passer_rating && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Passer Rating</p>
-                                <p className="text-lg font-bold">{playerStats.passing.passer_rating.toFixed(1)}</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* RB Stats */}
-                        {playerStats.rushing && (
-                          <>
-                            {playerStats.rushing.yards && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Rush Yards</p>
-                                <p className="text-lg font-bold">{playerStats.rushing.yards.toLocaleString()}</p>
-                              </div>
-                            )}
-                            {playerStats.rushing.touchdowns && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Rush TDs</p>
-                                <p className="text-lg font-bold">{playerStats.rushing.touchdowns}</p>
-                              </div>
-                            )}
-                            {playerStats.rushing.yards_per_carry && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">YPC</p>
-                                <p className="text-lg font-bold">{playerStats.rushing.yards_per_carry.toFixed(1)}</p>
-                              </div>
-                            )}
-                            {playerStats.rushing.elusive_rating && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Elusive Rating</p>
-                                <p className="text-lg font-bold">{playerStats.rushing.elusive_rating.toFixed(1)}</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* WR/TE Stats */}
-                        {playerStats.receiving && (
-                          <>
-                            {playerStats.receiving.receptions && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Receptions</p>
-                                <p className="text-lg font-bold">{playerStats.receiving.receptions}</p>
-                              </div>
-                            )}
-                            {playerStats.receiving.yards && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Rec Yards</p>
-                                <p className="text-lg font-bold">{playerStats.receiving.yards.toLocaleString()}</p>
-                              </div>
-                            )}
-                            {playerStats.receiving.touchdowns && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Rec TDs</p>
-                                <p className="text-lg font-bold">{playerStats.receiving.touchdowns}</p>
-                              </div>
-                            )}
-                            {playerStats.receiving.yards_per_route_run && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Yds/Route</p>
-                                <p className="text-lg font-bold">{playerStats.receiving.yards_per_route_run.toFixed(2)}</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* Pass Rush Stats */}
-                        {playerStats.pass_rush && (
-                          <>
-                            {playerStats.pass_rush.sacks && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Sacks</p>
-                                <p className="text-lg font-bold">{playerStats.pass_rush.sacks}</p>
-                              </div>
-                            )}
-                            {playerStats.pass_rush.pressures && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Pressures</p>
-                                <p className="text-lg font-bold">{playerStats.pass_rush.pressures}</p>
-                              </div>
-                            )}
-                            {playerStats.pass_rush.pass_rush_win_rate && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Win Rate</p>
-                                <p className="text-lg font-bold">{playerStats.pass_rush.pass_rush_win_rate.toFixed(1)}%</p>
-                              </div>
-                            )}
-                            {playerStats.pass_rush.hurries && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Hurries</p>
-                                <p className="text-lg font-bold">{playerStats.pass_rush.hurries}</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* Coverage Stats */}
-                        {playerStats.coverage && (
-                          <>
-                            {playerStats.coverage.interceptions && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">INTs</p>
-                                <p className="text-lg font-bold">{playerStats.coverage.interceptions}</p>
-                              </div>
-                            )}
-                            {playerStats.coverage.pass_breakups && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Pass Breakups</p>
-                                <p className="text-lg font-bold">{playerStats.coverage.pass_breakups}</p>
-                              </div>
-                            )}
-                            {playerStats.coverage.passer_rating_allowed && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Rating Allowed</p>
-                                <p className="text-lg font-bold">{playerStats.coverage.passer_rating_allowed.toFixed(1)}</p>
-                              </div>
-                            )}
-                            {playerStats.coverage.forced_incompletes && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Forced Incmpl</p>
-                                <p className="text-lg font-bold">{playerStats.coverage.forced_incompletes}</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* O-Line Stats */}
-                        {playerStats.blocking && (
-                          <>
-                            {playerStats.blocking.pass_blocking_efficiency && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Pass Block Eff</p>
-                                <p className="text-lg font-bold">{playerStats.blocking.pass_blocking_efficiency.toFixed(1)}</p>
-                              </div>
-                            )}
-                            {playerStats.blocking.pressures_allowed !== undefined && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Press Allowed</p>
-                                <p className="text-lg font-bold">{playerStats.blocking.pressures_allowed}</p>
-                              </div>
-                            )}
-                            {playerStats.blocking.sacks_allowed !== undefined && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Sacks Allowed</p>
-                                <p className="text-lg font-bold">{playerStats.blocking.sacks_allowed}</p>
-                              </div>
-                            )}
-                            {playerStats.blocking.run_block_percent && (
-                              <div className="text-center p-2 bg-card rounded-lg">
-                                <p className="text-xs text-muted-foreground">Run Block %</p>
-                                <p className="text-lg font-bold">{playerStats.blocking.run_block_percent.toFixed(1)}%</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* WAR / Win Impact Analysis */}
-                {playerWAR && (
-                  <PlayerWARCard
-                    war={playerWAR.war}
-                    warLow={playerWAR.war_low}
-                    warHigh={playerWAR.war_high}
-                    confidence={playerWAR.confidence}
-                    winProbAdded={playerWAR.winProbAdded}
-                    breakdown={playerWAR.breakdown}
-                    transferValue={{
-                      costPerWAR: playerWAR.transferValue.cost_per_war,
-                      fairValue: playerWAR.transferValue.fair_value_per_war,
-                      valueRatio: playerWAR.transferValue.value_ratio,
-                      valueRating: playerWAR.transferValue.value_rating,
-                      roiProjection: playerWAR.transferValue.roi_projection,
-                      marketComparison: playerWAR.transferValue.market_comparison,
-                    }}
-                  />
-                )}
-
-                {/* Quick Actions */}
-                <div className="flex flex-col gap-2">
-                  <Button
-                    className={cn(
-                      "w-full",
-                      isInWatchlist(selectedPlayer.player_id)
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "variant-outline"
-                    )}
-                    variant={isInWatchlist(selectedPlayer.player_id) ? "default" : "outline"}
-                    onClick={() =>
-                      toggleWatchlist({
-                        id: selectedPlayer.player_id,
-                        player_name: selectedPlayer.player_name,
-                        position: selectedPlayer.position,
-                        school: selectedPlayer.school,
-                        nil_valuation: selectedPlayer.valuation,
-                        stars: selectedPlayer.stars,
-                        headshot_url: selectedPlayer.headshot_url,
-                      })
-                    }
-                  >
-                    {isInWatchlist(selectedPlayer.player_id) ? (
-                      <>
-                        <HeartOff className="h-4 w-4 mr-2" />
-                        Remove from Watchlist
-                      </>
-                    ) : (
-                      <>
-                        <Heart className="h-4 w-4 mr-2" />
-                        Add to Watchlist
-                      </>
-                    )}
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button className="flex-1" variant="outline" onClick={() => { setIsSheetOpen(false); setActiveTab("transfer"); }}>
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Transfer Value
-                    </Button>
-                    <Button className="flex-1" variant="outline" onClick={() => { setIsSheetOpen(false); setActiveTab("growth"); }}>
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      Growth Sim
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

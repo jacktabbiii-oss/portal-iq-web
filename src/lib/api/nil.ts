@@ -18,10 +18,19 @@ export interface NILLeaderboardPlayer {
   player_name: string;
   position: string;
   school: string;
+  conference?: string | null;
   valuation: number;
+  on3_value?: number | null;
   nil_tier: string;
+  valuation_source?: string;
   social_followers?: number;
   headshot_url?: string;
+  stars?: number | null;
+  height?: number | null;
+  weight?: number | null;
+  pff_overall?: number | null;
+  pff_offense?: number | null;
+  pff_defense?: number | null;
   change?: number;
 }
 
