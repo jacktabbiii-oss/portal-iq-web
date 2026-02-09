@@ -48,6 +48,8 @@ export interface PassingStats {
   pressure_qb_rating?: number;
   yards?: number;
   touchdowns?: number;
+  avg_depth_of_target?: number;
+  time_to_throw?: number;
 }
 
 export interface RushingStats {
@@ -59,17 +61,23 @@ export interface RushingStats {
   yards?: number;
   touchdowns?: number;
   yards_per_carry?: number;
+  attempts?: number;
+  breakaway_yards?: number;
 }
 
 export interface ReceivingStats {
   yards_per_route_run?: number;
   drop_rate?: number;
+  drops?: number;
   contested_catch_rate?: number;
   yards_after_catch?: number;
+  catch_rate?: number;
   targets?: number;
   receptions?: number;
   yards?: number;
   touchdowns?: number;
+  routes_run?: number;
+  longest?: number;
 }
 
 export interface PassRushStats {
@@ -79,6 +87,7 @@ export interface PassRushStats {
   sacks?: number;
   hurries?: number;
   hits?: number;
+  batted_passes?: number;
 }
 
 export interface CoverageStats {
@@ -88,22 +97,44 @@ export interface CoverageStats {
   interceptions?: number;
   pass_breakups?: number;
   missed_tackle_rate?: number;
+  targets_allowed?: number;
+  completions_allowed?: number;
+  yards_allowed?: number;
 }
 
 export interface BlockingStats {
   pass_blocking_efficiency?: number;
   pressures_allowed?: number;
   sacks_allowed?: number;
+  hits_allowed?: number;
+  hurries_allowed?: number;
   run_block_percent?: number;
+}
+
+export interface TacklingStats {
+  tackles?: number;
+  assists?: number;
+  tackles_for_loss?: number;
+  missed_tackles?: number;
+  missed_tackle_pct?: number;
+  forced_fumbles?: number;
+}
+
+export interface SnapCounts {
+  offensive?: number;
+  defensive?: number;
+  pass_rush?: number;
+  coverage?: number;
 }
 
 export interface ValueBreakdown {
   position_base: number;
   performance_multiplier: number;
   school_multiplier: number;
+  star_multiplier?: number;
   social_value: number;
   potential_value: number;
-  starter_bonus: number;
+  starter_bonus?: number;
 }
 
 export interface MarketComparison {
@@ -136,6 +167,7 @@ export interface PlayerStats {
   stars?: number;
   height?: number;
   weight?: number;
+  games_played?: number;
   pff: PFFGrades;
   passing?: PassingStats;
   rushing?: RushingStats;
@@ -143,6 +175,8 @@ export interface PlayerStats {
   pass_rush?: PassRushStats;
   coverage?: CoverageStats;
   blocking?: BlockingStats;
+  tackling?: TacklingStats;
+  snaps?: SnapCounts;
   valuation?: DualValuation;
 }
 

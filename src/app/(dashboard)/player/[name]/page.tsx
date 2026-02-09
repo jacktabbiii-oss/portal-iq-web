@@ -789,35 +789,59 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.rushing && (playerStats.rushing.yards || playerStats.rushing.touchdowns || playerStats.rushing.yards_per_carry || playerStats.rushing.elusive_rating) && (
+            {playerStats.rushing && (playerStats.rushing.yards || playerStats.rushing.touchdowns || playerStats.rushing.yards_per_carry || playerStats.rushing.attempts || playerStats.rushing.elusive_rating) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Rushing Stats</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    {playerStats.rushing.yards && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {playerStats.rushing.attempts != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Attempts</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.rushing.attempts)}</p>
+                      </div>
+                    )}
+                    {playerStats.rushing.yards != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Yards</p>
-                        <p className="text-2xl font-bold">{playerStats.rushing.yards.toLocaleString()}</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.rushing.yards).toLocaleString()}</p>
                       </div>
                     )}
-                    {playerStats.rushing.touchdowns && (
+                    {playerStats.rushing.touchdowns != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">TDs</p>
-                        <p className="text-2xl font-bold">{playerStats.rushing.touchdowns}</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.rushing.touchdowns)}</p>
                       </div>
                     )}
-                    {playerStats.rushing.yards_per_carry && (
+                    {playerStats.rushing.yards_per_carry != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">YPC</p>
                         <p className="text-2xl font-bold">{playerStats.rushing.yards_per_carry.toFixed(1)}</p>
                       </div>
                     )}
-                    {playerStats.rushing.elusive_rating && (
+                    {playerStats.rushing.yards_after_contact != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">YAC</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.rushing.yards_after_contact)}</p>
+                      </div>
+                    )}
+                    {playerStats.rushing.missed_tackles_forced != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Broken Tackles</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.rushing.missed_tackles_forced)}</p>
+                      </div>
+                    )}
+                    {playerStats.rushing.elusive_rating != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Elusive Rating</p>
                         <p className="text-2xl font-bold">{playerStats.rushing.elusive_rating.toFixed(1)}</p>
+                      </div>
+                    )}
+                    {playerStats.rushing.breakaway_yards != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Breakaway Yds</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.rushing.breakaway_yards)}</p>
                       </div>
                     )}
                   </div>
@@ -825,35 +849,65 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.receiving && (playerStats.receiving.receptions || playerStats.receiving.yards || playerStats.receiving.touchdowns || playerStats.receiving.yards_per_route_run) && (
+            {playerStats.receiving && (playerStats.receiving.receptions || playerStats.receiving.yards || playerStats.receiving.touchdowns || playerStats.receiving.targets || playerStats.receiving.yards_per_route_run) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Receiving Stats</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    {playerStats.receiving.receptions && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {playerStats.receiving.targets != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Targets</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.targets)}</p>
+                      </div>
+                    )}
+                    {playerStats.receiving.receptions != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Receptions</p>
-                        <p className="text-2xl font-bold">{playerStats.receiving.receptions}</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.receptions)}</p>
                       </div>
                     )}
-                    {playerStats.receiving.yards && (
+                    {playerStats.receiving.yards != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Yards</p>
-                        <p className="text-2xl font-bold">{playerStats.receiving.yards.toLocaleString()}</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.yards).toLocaleString()}</p>
                       </div>
                     )}
-                    {playerStats.receiving.touchdowns && (
+                    {playerStats.receiving.touchdowns != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">TDs</p>
-                        <p className="text-2xl font-bold">{playerStats.receiving.touchdowns}</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.touchdowns)}</p>
                       </div>
                     )}
-                    {playerStats.receiving.yards_per_route_run && (
+                    {playerStats.receiving.catch_rate != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Catch Rate</p>
+                        <p className="text-2xl font-bold">{playerStats.receiving.catch_rate.toFixed(1)}%</p>
+                      </div>
+                    )}
+                    {playerStats.receiving.yards_per_route_run != null && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Yds/Route</p>
                         <p className="text-2xl font-bold">{playerStats.receiving.yards_per_route_run.toFixed(2)}</p>
+                      </div>
+                    )}
+                    {playerStats.receiving.yards_after_catch != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">YAC</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.yards_after_catch)}</p>
+                      </div>
+                    )}
+                    {playerStats.receiving.drops != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Drops</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.drops)}</p>
+                      </div>
+                    )}
+                    {playerStats.receiving.longest != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Longest</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.receiving.longest)}</p>
                       </div>
                     )}
                   </div>
@@ -945,9 +999,83 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
+            {/* Tackling Stats */}
+            {playerStats.tackling && (playerStats.tackling.tackles || playerStats.tackling.tackles_for_loss || playerStats.tackling.forced_fumbles) && (
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle>Tackling Stats</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {playerStats.tackling.tackles != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Tackles</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.tackling.tackles)}</p>
+                      </div>
+                    )}
+                    {playerStats.tackling.assists != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Assists</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.tackling.assists)}</p>
+                      </div>
+                    )}
+                    {playerStats.tackling.tackles_for_loss != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">TFLs</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.tackling.tackles_for_loss)}</p>
+                      </div>
+                    )}
+                    {playerStats.tackling.missed_tackles != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Missed</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.tackling.missed_tackles)}</p>
+                      </div>
+                    )}
+                    {playerStats.tackling.forced_fumbles != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Forced Fumbles</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.tackling.forced_fumbles)}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Games & Snaps */}
+            {(playerStats.games_played || playerStats.snaps) && (
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle>Usage</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {playerStats.games_played != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Games Played</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.games_played)}</p>
+                      </div>
+                    )}
+                    {playerStats.snaps?.offensive != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Off. Snaps</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.snaps.offensive)}</p>
+                      </div>
+                    )}
+                    {playerStats.snaps?.defensive != null && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Def. Snaps</p>
+                        <p className="text-2xl font-bold">{Math.round(playerStats.snaps.defensive)}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* No Stats Available - only show if we have no PFF grades and no position stats */}
             {!playerStats.pff?.overall && !playerStats.passing && !playerStats.rushing && !playerStats.receiving &&
-             !playerStats.pass_rush && !playerStats.coverage && !playerStats.blocking && (
+             !playerStats.pass_rush && !playerStats.coverage && !playerStats.blocking && !playerStats.tackling && (
               <Card className="glass col-span-full">
                 <CardContent className="p-8 text-center">
                   <BarChart3 className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30" />
