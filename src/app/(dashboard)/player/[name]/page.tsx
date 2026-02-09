@@ -88,7 +88,7 @@ const VALUATION_FACTORS = {
   },
   performance_multiplier: {
     label: "Performance Multiplier",
-    description: "Based on PFF grades and on-field production metrics.",
+    description: "Based on performance grades and on-field production metrics.",
     icon: TrendingUp,
   },
   social_value: {
@@ -392,7 +392,7 @@ export default function PlayerDetailPage() {
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* PFF Grades Summary */}
+            {/* Performance Grades Summary */}
             <Card className="glass">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -468,7 +468,7 @@ export default function PlayerDetailPage() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Shield className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p>No PFF grades available</p>
+                    <p>No performance grades available</p>
                   </div>
                 )}
               </CardContent>
@@ -629,8 +629,103 @@ export default function PlayerDetailPage() {
         {/* Stats Tab */}
         <TabsContent value="stats" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Position-Specific Stats */}
-            {playerStats.passing && (
+            {/* Player Statistics - Always show if available */}
+            {playerStats.pff?.overall && (
+              <Card className="glass col-span-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-primary" />
+                    Player Statistics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="text-center p-4 bg-card rounded-lg border-2 border-primary">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Overall</p>
+                      <p className={cn("text-3xl font-bold", getPFFGradeColor(playerStats.pff.overall))}>
+                        {playerStats.pff.overall.toFixed(1)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{getPFFGradeLabel(playerStats.pff.overall)}</p>
+                    </div>
+                    {playerStats.pff.offense && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Offense</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.offense))}>
+                          {playerStats.pff.offense.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.defense && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Defense</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.defense))}>
+                          {playerStats.pff.defense.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.passing && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Passing</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.passing))}>
+                          {playerStats.pff.passing.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.rushing && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Rushing</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.rushing))}>
+                          {playerStats.pff.rushing.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.receiving && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Receiving</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.receiving))}>
+                          {playerStats.pff.receiving.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.pass_rush && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Pass Rush</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.pass_rush))}>
+                          {playerStats.pff.pass_rush.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.coverage && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Coverage</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.coverage))}>
+                          {playerStats.pff.coverage.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.run_block && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Run Block</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.run_block))}>
+                          {playerStats.pff.run_block.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {playerStats.pff.pass_block && (
+                      <div className="text-center p-4 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Pass Block</p>
+                        <p className={cn("text-2xl font-bold", getPFFGradeColor(playerStats.pff.pass_block))}>
+                          {playerStats.pff.pass_block.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Position-Specific Stats - only show if has actual data */}
+            {playerStats.passing && (playerStats.passing.yards || playerStats.passing.touchdowns || playerStats.passing.completion_pct || playerStats.passing.passer_rating) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Passing Stats</CardTitle>
@@ -672,7 +767,7 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.rushing && (
+            {playerStats.rushing && (playerStats.rushing.yards || playerStats.rushing.touchdowns || playerStats.rushing.yards_per_carry || playerStats.rushing.elusive_rating) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Rushing Stats</CardTitle>
@@ -708,7 +803,7 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.receiving && (
+            {playerStats.receiving && (playerStats.receiving.receptions || playerStats.receiving.yards || playerStats.receiving.touchdowns || playerStats.receiving.yards_per_route_run) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Receiving Stats</CardTitle>
@@ -744,7 +839,7 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.pass_rush && (
+            {playerStats.pass_rush && (playerStats.pass_rush.sacks || playerStats.pass_rush.pressures || playerStats.pass_rush.pass_rush_win_rate) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Pass Rush Stats</CardTitle>
@@ -774,7 +869,7 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.coverage && (
+            {playerStats.coverage && (playerStats.coverage.interceptions || playerStats.coverage.pass_breakups || playerStats.coverage.passer_rating_allowed) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Coverage Stats</CardTitle>
@@ -804,7 +899,7 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.blocking && (
+            {playerStats.blocking && (playerStats.blocking.pass_blocking_efficiency || playerStats.blocking.pressures_allowed) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Blocking Stats</CardTitle>
@@ -828,15 +923,15 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {/* No Stats Available */}
-            {!playerStats.passing && !playerStats.rushing && !playerStats.receiving &&
+            {/* No Stats Available - only show if we have no PFF grades and no position stats */}
+            {!playerStats.pff?.overall && !playerStats.passing && !playerStats.rushing && !playerStats.receiving &&
              !playerStats.pass_rush && !playerStats.coverage && !playerStats.blocking && (
               <Card className="glass col-span-full">
                 <CardContent className="p-8 text-center">
                   <BarChart3 className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30" />
                   <p className="text-muted-foreground">No detailed stats available for this player</p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Stats are loaded from PFF data when available
+                    Stats are loaded when available
                   </p>
                 </CardContent>
               </Card>
