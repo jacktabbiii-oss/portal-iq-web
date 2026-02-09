@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@/stores/auth-store";
 import { logout } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
@@ -15,13 +15,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Search, LogOut, Settings, User, Moon, Sun } from "lucide-react";
+import { Bell, Search, LogOut, Settings, User, Moon, Sun, Loader2, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { MobileSidebar } from "./mobile-sidebar";
 import { cn } from "@/lib/utils";
 import { getNILLeaderboard } from "@/lib/api/nil";
 import { getActivePortalPlayers, getPortalTeamRankings } from "@/lib/api/portal";
+import { searchPlayers, type PlayerSearchResult, formatNILValue } from "@/lib/api/players";
 
 interface TickerItem {
   type: string;
@@ -114,6 +115,52 @@ export function Header() {
     document.documentElement.classList.toggle("light");
   };
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<PlayerSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await searchPlayers(searchQuery, "all", 8);
+        setSearchResults(response.players);
+        setShowSearchDropdown(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handlePlayerClick = (player: PlayerSearchResult) => {
+    setShowSearchDropdown(false);
+    setSearchQuery("");
+    router.push(`/player/${encodeURIComponent(player.name)}`);
+  };
+
   const initials = user?.name
     ? user.name
         .split(" ")
@@ -151,13 +198,78 @@ export function Header() {
         </div>
 
         {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative flex-1 max-w-xs" ref={searchRef}>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+          {isSearching && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary z-10" />
+          )}
           <Input
             type="search"
             placeholder="Search players, schools..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => searchResults.length > 0 && setShowSearchDropdown(true)}
             className="pl-10 bg-input border-border rounded-full h-9 text-sm focus-visible:ring-primary"
           />
+          {showSearchDropdown && searchResults.length > 0 && (
+            <div className="absolute top-full mt-2 w-[360px] right-0 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
+              <div className="p-2 border-b border-border">
+                <p className="text-xs text-muted-foreground px-2">
+                  {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for &quot;{searchQuery}&quot;
+                </p>
+              </div>
+              <div className="max-h-[400px] overflow-y-auto">
+                {searchResults.map((player) => (
+                  <button
+                    key={`${player.name}-${player.school}`}
+                    onClick={() => handlePlayerClick(player)}
+                    className="w-full p-3 flex items-center gap-3 hover:bg-primary/10 transition-colors text-left"
+                  >
+                    {player.headshot_url ? (
+                      <img
+                        src={player.headshot_url}
+                        alt={player.name}
+                        className="w-9 h-9 rounded-full object-cover border border-border"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                        {player.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{player.name}</p>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/80">{player.position}</span>
+                        <span>-</span>
+                        <span className="truncate">{player.school}</span>
+                        {player.stars && player.stars > 0 && (
+                          <>
+                            <span>-</span>
+                            <span className="flex items-center text-yellow-500">
+                              {player.stars}<Star className="h-3 w-3 fill-yellow-500 ml-0.5" />
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {player.nil_value && player.nil_value > 0 ? (
+                        <p className="text-sm font-bold text-primary">{formatNILValue(player.nil_value)}</p>
+                      ) : null}
+                      {player.pff_overall && player.pff_overall > 0 ? (
+                        <p className="text-[10px] text-muted-foreground">PFF {player.pff_overall.toFixed(1)}</p>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {showSearchDropdown && searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+            <div className="absolute top-full mt-2 w-[360px] right-0 bg-card border border-border rounded-xl shadow-2xl z-50 p-6 text-center">
+              <p className="text-muted-foreground text-sm">No players found for &quot;{searchQuery}&quot;</p>
+            </div>
+          )}
         </div>
 
         {/* Right side */}

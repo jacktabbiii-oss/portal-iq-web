@@ -253,6 +253,7 @@ export interface CareerStats {
 
 /**
  * Search for players by name across NIL and portal data.
+ * Maps backend field names to frontend PlayerSearchResult interface.
  */
 export async function searchPlayers(
   query: string,
@@ -266,7 +267,27 @@ export async function searchPlayers(
   });
 
   const response = await apiClient.get(`/api/players/search?${params}`);
-  return response as unknown as PlayerSearchResponse;
+  const raw = response as unknown as {
+    players: Record<string, unknown>[];
+    total: number;
+    query: string;
+  };
+
+  // Map backend fields to frontend interface (handles both old and new field names)
+  const players: PlayerSearchResult[] = (raw.players || []).map((p) => ({
+    name: (p.name || p.player_name || "") as string,
+    position: (p.position || "") as string,
+    school: (p.school || "") as string,
+    nil_value: (p.nil_value ?? p.valuation ?? undefined) as number | undefined,
+    stars: (p.stars ?? undefined) as number | undefined,
+    headshot_url: (p.headshot_url ?? undefined) as string | undefined,
+    pff_overall: (p.pff_overall ?? undefined) as number | undefined,
+    status: (p.status ?? undefined) as string | undefined,
+    destination_school: (p.destination_school ?? undefined) as string | undefined,
+    data_source: ((p.data_source || p.source || "nil") as "nil" | "portal"),
+  }));
+
+  return { players, total: raw.total, query: raw.query };
 }
 
 /**
