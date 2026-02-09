@@ -49,7 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { getNILLeaderboard, predictNIL, type NILLeaderboardPlayer, type PlayerInput } from "@/lib/api/nil";
-import { getPlayerStats, type PlayerStats } from "@/lib/api/players";
+import { getPlayerStats, searchPlayers, type PlayerStats, type PlayerSearchResult } from "@/lib/api/players";
 import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
 import { SocialGrowthSimulator } from "@/components/charts/nil-growth-chart";
 import { TransferValueChart } from "@/components/charts/transfer-value-chart";
@@ -142,6 +142,11 @@ export default function NILValuatorPage() {
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
+  // Tab-specific player search (for Social Growth and Transfer Value tabs)
+  const [tabSearchQuery, setTabSearchQuery] = useState("");
+  const [tabSearchResults, setTabSearchResults] = useState<PlayerSearchResult[]>([]);
+  const [isTabSearching, setIsTabSearching] = useState(false);
+
   // Fetch detailed stats when a player is selected
   useEffect(() => {
     if (selectedPlayer?.player_name) {
@@ -161,6 +166,29 @@ export default function NILValuatorPage() {
       setPlayerStats(null);
     }
   }, [selectedPlayer?.player_name]);
+
+  // Debounced search for Social Growth / Transfer Value tabs
+  useEffect(() => {
+    if (tabSearchQuery.length < 2) {
+      setTabSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsTabSearching(true);
+      try {
+        const response = await searchPlayers(tabSearchQuery, "nil", 10);
+        setTabSearchResults(response.players);
+      } catch (err) {
+        console.error("Tab search failed:", err);
+        setTabSearchResults([]);
+      } finally {
+        setIsTabSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [tabSearchQuery]);
 
   // WAR calculation for selected player
   const playerWAR = useMemo(() => {
@@ -908,20 +936,59 @@ export default function NILValuatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                {/* Quick search for player selection */}
+                {/* API-powered search for player selection */}
                 <div className="relative mb-4">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search for a player..."
+                    placeholder="Search any player..."
                     className="pl-10 bg-input border-border"
-                    onChange={(e) => {
-                      const query = e.target.value.toLowerCase();
-                      if (query.length >= 2) {
-                        const found = players.find(p => p.player_name.toLowerCase().includes(query));
-                        if (found) { setSelectedPlayer(found); }
-                      }
-                    }}
+                    value={tabSearchQuery}
+                    onChange={(e) => setTabSearchQuery(e.target.value)}
                   />
+                  {isTabSearching && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {/* Search Results Dropdown */}
+                  {tabSearchResults.length > 0 && tabSearchQuery.length >= 2 && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                      {tabSearchResults.map((result) => (
+                        <div
+                          key={result.name}
+                          className="p-3 hover:bg-primary/10 cursor-pointer flex items-center gap-3"
+                          onClick={() => {
+                            setSelectedPlayer({
+                              player_id: result.name,
+                              player_name: result.name,
+                              position: result.position,
+                              school: result.school,
+                              valuation: result.nil_value || 0,
+                              nil_tier: "emerging",
+                              headshot_url: result.headshot_url,
+                              stars: result.stars,
+                              rank: 0,
+                            });
+                            setTabSearchQuery("");
+                            setTabSearchResults([]);
+                          }}
+                        >
+                          {result.headshot_url ? (
+                            <Image src={result.headshot_url} alt={result.name} width={32} height={32} className="rounded-full" unoptimized />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+                              {result.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <p className="font-semibold text-sm">{result.name}</p>
+                            <p className="text-xs text-muted-foreground">{result.position} • {result.school}</p>
+                          </div>
+                          {result.nil_value && (
+                            <span className="text-sm font-bold text-primary">{formatCurrency(result.nil_value)}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {selectedPlayer ? (
                   <div className="flex items-center gap-4 p-4 bg-card rounded-lg border border-border">
@@ -986,20 +1053,59 @@ export default function NILValuatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                {/* Quick search for player selection */}
+                {/* API-powered search for player selection */}
                 <div className="relative mb-4">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search for a player..."
+                    placeholder="Search any player..."
                     className="pl-10 bg-input border-border"
-                    onChange={(e) => {
-                      const query = e.target.value.toLowerCase();
-                      if (query.length >= 2) {
-                        const found = players.find(p => p.player_name.toLowerCase().includes(query));
-                        if (found) { setSelectedPlayer(found); }
-                      }
-                    }}
+                    value={tabSearchQuery}
+                    onChange={(e) => setTabSearchQuery(e.target.value)}
                   />
+                  {isTabSearching && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {/* Search Results Dropdown */}
+                  {tabSearchResults.length > 0 && tabSearchQuery.length >= 2 && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                      {tabSearchResults.map((result) => (
+                        <div
+                          key={result.name}
+                          className="p-3 hover:bg-primary/10 cursor-pointer flex items-center gap-3"
+                          onClick={() => {
+                            setSelectedPlayer({
+                              player_id: result.name,
+                              player_name: result.name,
+                              position: result.position,
+                              school: result.school,
+                              valuation: result.nil_value || 0,
+                              nil_tier: "emerging",
+                              headshot_url: result.headshot_url,
+                              stars: result.stars,
+                              rank: 0,
+                            });
+                            setTabSearchQuery("");
+                            setTabSearchResults([]);
+                          }}
+                        >
+                          {result.headshot_url ? (
+                            <Image src={result.headshot_url} alt={result.name} width={32} height={32} className="rounded-full" unoptimized />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+                              {result.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <p className="font-semibold text-sm">{result.name}</p>
+                            <p className="text-xs text-muted-foreground">{result.position} • {result.school}</p>
+                          </div>
+                          {result.nil_value && (
+                            <span className="text-sm font-bold text-primary">{formatCurrency(result.nil_value)}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <p className="text-muted-foreground mb-4 text-sm">
                   See how a player&apos;s NIL value would change at different schools based on market size and brand value.
