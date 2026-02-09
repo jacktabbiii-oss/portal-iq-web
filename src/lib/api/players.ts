@@ -106,6 +106,14 @@ export interface ValueBreakdown {
   starter_bonus: number;
 }
 
+export interface MarketComparison {
+  on3_reference: number;
+  portal_iq_value: number;
+  difference: number;
+  difference_pct: number;
+  assessment: "undervalued" | "overvalued" | "fair value";
+}
+
 export interface DualValuation {
   on3_value: number | null;
   portal_iq_value: number;
@@ -114,6 +122,7 @@ export interface DualValuation {
   has_on3_data: boolean;
   breakdown: ValueBreakdown | null;
   reasoning: string[];
+  market_comparison?: MarketComparison;
 }
 
 export interface PlayerStats {

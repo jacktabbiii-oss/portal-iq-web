@@ -346,11 +346,33 @@ export default function PlayerDetailPage() {
               {valuation?.has_on3_data && valuation.on3_value && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                    On3 Market Value
+                    On3 Market Reference
                   </p>
                   <p className="text-2xl font-bold text-blue-400">
                     {formatCurrency(valuation.on3_value)}
                   </p>
+
+                  {/* Market comparison assessment */}
+                  {valuation.market_comparison && (
+                    <div className="mt-3">
+                      <Badge
+                        className={cn(
+                          "text-xs px-3 py-1",
+                          valuation.market_comparison.assessment === "undervalued"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : valuation.market_comparison.assessment === "overvalued"
+                              ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                              : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+                        )}
+                      >
+                        {valuation.market_comparison.assessment === "undervalued"
+                          ? `+${valuation.market_comparison.difference_pct}% Undervalued`
+                          : valuation.market_comparison.assessment === "overvalued"
+                            ? `${valuation.market_comparison.difference_pct}% Overvalued`
+                            : "Fair Value"}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               )}
 
