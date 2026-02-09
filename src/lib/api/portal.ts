@@ -17,6 +17,8 @@ export interface PortalPlayer {
   entry_date?: string;
   status: "available" | "committed" | "withdrawn";
   nil_valuation?: number;
+  on3_value?: number;
+  nil_tier?: string;
   days_in_portal?: number;
   headshot_url?: string;
 }

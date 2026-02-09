@@ -688,12 +688,17 @@ export default function PortalIntelligencePage() {
                           )}
                         </div>
 
-                        {/* NIL Value - Right Side */}
+                        {/* Portal IQ Value - Right Side */}
                         <div className="text-right flex-shrink-0">
                           {player.nil_valuation ? (
-                            <div className="text-xl font-bold text-primary">
-                              {formatCurrency(player.nil_valuation)}
-                            </div>
+                            <>
+                              <div className="text-xl font-bold text-primary">
+                                {formatCurrency(player.nil_valuation)}
+                              </div>
+                              {player.nil_tier && (
+                                <p className="text-xs text-muted-foreground capitalize">{player.nil_tier}</p>
+                              )}
+                            </>
                           ) : (
                             <div className="text-muted-foreground">—</div>
                           )}
@@ -892,19 +897,33 @@ export default function PortalIntelligencePage() {
                   </CardContent>
                 </Card>
 
-                {/* NIL Value */}
-                {selectedPlayer.nil_valuation && (
-                  <Card className="glass">
-                    <CardContent className="p-4">
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground mb-1">NIL Valuation</p>
-                        <p className="text-3xl font-bold text-primary">
-                          {formatCurrency(selectedPlayer.nil_valuation)}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                {/* Portal IQ Valuation */}
+                <Card className="glass">
+                  <CardContent className="p-4">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                        Portal IQ Valuation
+                      </p>
+                      <p className="text-3xl font-bold text-primary">
+                        {formatCurrency(selectedPlayer.nil_valuation || (playerStats?.nil_value))}
+                      </p>
+                      {(selectedPlayer as any).nil_tier && (
+                        <Badge className="mt-2 text-xs px-3 py-1 bg-primary/20 text-primary border border-primary/30">
+                          {(selectedPlayer as any).nil_tier.toUpperCase()} TIER
+                        </Badge>
+                      )}
+                      {/* On3 market reference */}
+                      {(selectedPlayer as any).on3_value && (selectedPlayer as any).on3_value > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <p className="text-xs text-muted-foreground">On3 Market Reference</p>
+                          <p className="text-lg font-bold text-blue-400">
+                            {formatCurrency((selectedPlayer as any).on3_value)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Measurables */}
                 {(selectedPlayer.height || selectedPlayer.weight) && (
