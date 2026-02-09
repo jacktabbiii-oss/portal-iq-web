@@ -20,6 +20,7 @@ export interface NILLeaderboardPlayer {
   school: string;
   conference?: string | null;
   valuation: number;
+  performance_value?: number | null;
   on3_value?: number | null;
   nil_tier: string;
   valuation_source?: string;

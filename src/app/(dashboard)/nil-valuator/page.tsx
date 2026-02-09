@@ -671,8 +671,8 @@ export default function NILValuatorPage() {
                           </div>
                         </div>
 
-                        {/* NIL Value - RIGHT SIDE */}
-                        <div className="text-right flex-shrink-0">
+                        {/* NIL Values - RIGHT SIDE */}
+                        <div className="text-right flex-shrink-0 min-w-[120px]">
                           <p className="text-xl font-bold text-primary">
                             {formatCurrency(player.valuation)}
                           </p>
@@ -684,11 +684,18 @@ export default function NILValuatorPage() {
                           >
                             {player.nil_tier}
                           </Badge>
-                          {player.on3_value && player.on3_value > 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              On3: {formatCurrency(player.on3_value)}
-                            </p>
-                          )}
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            {player.performance_value && player.performance_value > 0 && (
+                              <p className="text-xs text-emerald-400">
+                                Perf: {formatCurrency(player.performance_value)}
+                              </p>
+                            )}
+                            {player.on3_value && player.on3_value > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                On3: {formatCurrency(player.on3_value)}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         {/* Arrow */}
