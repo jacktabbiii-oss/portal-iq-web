@@ -131,4 +131,25 @@ export const SCHOOL_LIST = [
   "Arizona", "Arizona State", "Baylor", "BYU", "Cincinnati", "Colorado",
   "Houston", "Iowa State", "Kansas", "Kansas State", "Oklahoma State", "TCU",
   "Texas Tech", "UCF", "Utah", "West Virginia",
+  // AAC
+  "Army", "Charlotte", "East Carolina", "FAU", "Memphis", "Navy",
+  "North Texas", "Rice", "South Florida", "Temple", "Tulane", "Tulsa",
+  "UAB", "UTSA",
+  // Sun Belt
+  "App State", "Arkansas State", "Coastal Carolina", "Georgia Southern",
+  "Georgia State", "James Madison", "Louisiana", "Marshall", "Old Dominion",
+  "South Alabama", "Southern Miss", "Texas State", "Troy", "UL Monroe",
+  // Mountain West
+  "Air Force", "Boise State", "Colorado State", "Fresno State", "Hawaii",
+  "Nevada", "New Mexico", "San Diego State", "San Jose State", "UNLV",
+  "Utah State", "Wyoming",
+  // MAC
+  "Akron", "Ball State", "Bowling Green", "Buffalo", "Central Michigan",
+  "Eastern Michigan", "Kent State", "Miami (OH)", "Northern Illinois",
+  "Ohio", "Toledo", "Western Michigan",
+  // C-USA
+  "FIU", "Jacksonville State", "Kennesaw State", "Liberty", "Louisiana Tech",
+  "Middle Tennessee", "New Mexico State", "Sam Houston", "UTEP", "Western Kentucky",
+  // Independents
+  "Connecticut", "UMass",
 ].sort();

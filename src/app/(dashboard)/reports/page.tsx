@@ -1,100 +1,62 @@
 "use client";
 
 import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
+import { FileText, TrendingUp, ArrowRightLeft, ArrowRight } from "lucide-react";
 
 const REPORT_TYPES = [
   {
     id: "team-portal",
     title: "Team Portal Report",
-    description: "Comprehensive analysis of a team's transfer portal activity",
-    icon: "🏈",
+    description: "Comprehensive analysis of a team's transfer portal activity, incoming and outgoing players, and roster impact.",
+    icon: FileText,
     href: "/team-analysis",
-    available: true,
   },
   {
     id: "nil-leaderboard",
     title: "NIL Leaderboard Report",
-    description: "Top players by NIL valuation with WAR metrics",
-    icon: "💰",
+    description: "Top players by NIL valuation with WAR metrics and win impact analysis.",
+    icon: TrendingUp,
     href: "/win-impact",
-    available: true,
   },
   {
     id: "position-analysis",
     title: "Position Analysis Report",
-    description: "Deep dive into specific positions across the portal",
-    icon: "📊",
+    description: "Deep dive into specific positions across the transfer portal with filtering and comparison tools.",
+    icon: ArrowRightLeft,
     href: "/portal-intelligence",
-    available: true,
-  },
-  {
-    id: "conference-comparison",
-    title: "Conference Comparison",
-    description: "Compare portal activity across conferences",
-    icon: "🏆",
-    href: "#",
-    available: false,
-  },
-  {
-    id: "trend-analysis",
-    title: "Portal Trends Report",
-    description: "Historical trends and predictions",
-    icon: "📈",
-    href: "#",
-    available: false,
-  },
-  {
-    id: "custom-report",
-    title: "Custom Report Builder",
-    description: "Build your own custom reports (Enterprise)",
-    icon: "⚙️",
-    href: "#",
-    available: false,
   },
 ];
 
 export default function ReportsPage() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-white mb-2">Reports</h1>
-      <p className="text-gray-400 mb-6">Generate and download analytical reports</p>
-
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {REPORT_TYPES.map((report) => (
-          <Link
-            key={report.id}
-            href={report.available ? report.href : "#"}
-            className={`bg-[#1a2744] rounded-xl p-6 transition ${
-              report.available
-                ? "hover:bg-[#243354] cursor-pointer"
-                : "opacity-60 cursor-not-allowed"
-            }`}
-          >
-            <div className="text-4xl mb-4">{report.icon}</div>
-            <h3 className="text-white font-bold text-lg mb-2">{report.title}</h3>
-            <p className="text-gray-400 text-sm mb-4">{report.description}</p>
-            {report.available ? (
-              <span className="text-[#D4AF37] text-sm font-medium">
-                Generate Report →
-              </span>
-            ) : (
-              <span className="bg-[#243354] text-gray-400 px-3 py-1 rounded-full text-xs">
-                Coming Soon
-              </span>
-            )}
-          </Link>
-        ))}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold mb-1">Reports</h1>
+        <p className="text-muted-foreground">Quick access to analytical reports and tools</p>
       </div>
 
-      {/* Recent Reports */}
-      <div className="mt-8">
-        <h2 className="text-lg font-bold text-white mb-4">Recent Reports</h2>
-        <div className="bg-[#1a2744] rounded-xl p-6">
-          <div className="text-center text-gray-400 py-8">
-            <p>No recent reports</p>
-            <p className="text-sm mt-1">Reports you generate will appear here</p>
-          </div>
-        </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {REPORT_TYPES.map((report) => {
+          const Icon = report.icon;
+          return (
+            <Link key={report.id} href={report.href}>
+              <Card className="glass h-full hover:-translate-y-1 transition-all duration-200 cursor-pointer group">
+                <CardContent className="p-6 flex flex-col h-full">
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                    <Icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">{report.title}</h3>
+                  <p className="text-muted-foreground text-sm mb-4 flex-1">{report.description}</p>
+                  <div className="flex items-center gap-2 text-primary font-semibold text-sm group-hover:translate-x-1 transition-transform">
+                    View Report
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

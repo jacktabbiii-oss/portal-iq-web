@@ -193,7 +193,7 @@ function getNILMarketSignal(nilValue: number, position: string): number {
  * Calculate WAR using Portal IQ's proprietary algorithm
  * IMPORTANT: This must match dashboard/utils/win_impact_calculator.py
  */
-function calculateWAR(nilValue: number, position: string, stars?: number, school?: string): number {
+export function calculateWAR(nilValue: number, position: string, stars?: number, school?: string): number {
   const pos = position?.toUpperCase() || "ATH";
 
   // 1. Base WAR from position
@@ -263,6 +263,8 @@ export async function getWARLeaderboard(
     school: string;
     valuation: number;
     headshot_url?: string;
+    stars?: number;
+    origin_school?: string;
   }>; total: number };
 
   // Transform NIL data to WAR metrics using Portal IQ's proprietary algorithm
@@ -280,11 +282,13 @@ export async function getWARLeaderboard(
       position: player.position,
       school: player.school,
       nil_valuation: nilValue,
-      war: Math.round(war * 100) / 100, // Round to 2 decimals for accuracy
+      war: Math.round(war * 100) / 100,
       win_prob_added: Math.round(winProbAdded * 10) / 10,
       value_per_win: Math.round(valuePerWin),
       grade: getGrade(war),
       headshot_url: player.headshot_url,
+      stars: player.stars,
+      origin_school: player.origin_school,
     };
   });
 

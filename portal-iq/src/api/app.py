@@ -35,12 +35,28 @@ def create_app(config: Config = None) -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # CORS middleware
+    # CORS middleware - restricted origins in production
+    import os
+    environment = os.getenv("ENVIRONMENT", "development")
+    if environment == "production":
+        allowed_origins = [
+            "https://playmakervc.com",
+            "https://www.playmakervc.com",
+            "https://portal-iq.streamlit.app",
+            "https://portaliq.app",
+        ]
+        # Add any additional origins from environment
+        extra_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
+        if extra_origins:
+            allowed_origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
+    else:
+        allowed_origins = ["*"]  # Allow all in development only
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
 

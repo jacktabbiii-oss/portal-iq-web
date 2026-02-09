@@ -15,6 +15,7 @@ import {
   Settings,
   Menu,
   Bell,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +49,11 @@ const mainNavigation = [
     name: "Win Impact",
     href: "/win-impact",
     icon: TrendingUp,
+  },
+  {
+    name: "Flight Risk",
+    href: "/flight-risk",
+    icon: AlertTriangle,
   },
   {
     name: "AI Assistant",

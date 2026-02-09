@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSubscriptionTier } from "@/stores/auth-store";
+
+const tierLabels: Record<string, string> = {
+  free: "Free Plan",
+  pro: "Pro Plan",
+  enterprise: "Enterprise Plan",
+};
 
 export default function SettingsPage() {
+  const subscriptionTier = useSubscriptionTier();
   const [settings, setSettings] = useState({
     emailAlerts: true,
     portalAlerts: true,
@@ -120,7 +128,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between py-3 border-b border-[#243354]">
             <div>
               <p className="text-white font-medium">Subscription</p>
-              <p className="text-[#D4AF37] text-sm">Pro Plan</p>
+              <p className="text-[#D4AF37] text-sm">{tierLabels[subscriptionTier] || "Free Plan"}</p>
             </div>
             <a
               href="/pricing"

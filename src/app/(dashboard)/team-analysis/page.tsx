@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { getTeamOutlook, SCHOOL_LIST, TeamPlayer } from "@/lib/api/team";
 
 // Position colors
@@ -27,6 +28,15 @@ const NEED_COLORS: Record<string, string> = {
 };
 
 export default function TeamAnalysisPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-gray-400">Loading...</div>}>
+      <TeamAnalysisContent />
+    </Suspense>
+  );
+}
+
+function TeamAnalysisContent() {
+  const searchParams = useSearchParams();
   const [selectedSchool, setSelectedSchool] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,21 +47,32 @@ export default function TeamAnalysisPage() {
     s.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAnalyze = async () => {
-    if (!selectedSchool) return;
+  const handleAnalyze = useCallback(async (school?: string) => {
+    const teamToAnalyze = school || selectedSchool;
+    if (!teamToAnalyze) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const result = await getTeamOutlook(selectedSchool);
+      const result = await getTeamOutlook(teamToAnalyze);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load team data");
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedSchool]);
+
+  // Auto-load from URL params (e.g. /team-analysis?school=Ohio State)
+  useEffect(() => {
+    const schoolParam = searchParams.get("school");
+    if (schoolParam) {
+      setSelectedSchool(schoolParam);
+      handleAnalyze(schoolParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const renderPlayerCard = (player: TeamPlayer, type: "incoming" | "outgoing") => (
     <div
@@ -118,7 +139,7 @@ export default function TeamAnalysisPage() {
           </div>
           <div className="flex items-end">
             <button
-              onClick={handleAnalyze}
+              onClick={() => handleAnalyze()}
               disabled={!selectedSchool || loading}
               className="bg-[#D4AF37] text-[#0f1a2e] px-6 py-2 rounded-lg font-semibold hover:bg-[#c4a030] disabled:opacity-50 disabled:cursor-not-allowed"
             >

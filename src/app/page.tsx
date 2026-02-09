@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -23,13 +24,8 @@ import {
   Medal,
   Crosshair,
 } from "lucide-react";
-
-const stats = [
-  { value: "21,200+", label: "NIL Valuations", description: "Live data updated daily" },
-  { value: "4,500+", label: "Portal Players", description: "2025-26 cycle tracking" },
-  { value: "134", label: "FBS Programs", description: "Complete coverage" },
-  { value: "24/7", label: "Live Updates", description: "Never miss a move" },
-];
+import { getNILLeaderboard } from "@/lib/api/nil";
+import { getActivePortalPlayers } from "@/lib/api/portal";
 
 const features = [
   {
@@ -42,7 +38,7 @@ const features = [
     icon: Target,
     title: "Portal Tracker",
     description: "Real-time alerts when players enter the portal. Filter by position, conference, star rating, and more. Never miss a prospect.",
-    highlight: "4,500+ players tracked",
+    highlight: "Real-time portal tracking",
   },
   {
     icon: BarChart3,
@@ -147,7 +143,37 @@ const faqs = [
   },
 ];
 
+function formatCount(n: number): string {
+  if (n >= 1000) return `${(Math.floor(n / 100) * 100).toLocaleString()}+`;
+  return n.toLocaleString();
+}
+
 export default function LandingPage() {
+  const [nilCount, setNilCount] = useState("21,000+");
+  const [portalCount, setPortalCount] = useState("11,000+");
+
+  useEffect(() => {
+    getNILLeaderboard({ limit: 1 })
+      .then((res) => {
+        const total = (res as { total_count?: number }).total_count || res.total;
+        if (total > 0) setNilCount(formatCount(total));
+      })
+      .catch(() => {});
+    getActivePortalPlayers({ limit: 1 })
+      .then((res) => {
+        const total = res.total_count || res.total;
+        if (total > 0) setPortalCount(formatCount(total));
+      })
+      .catch(() => {});
+  }, []);
+
+  const stats = [
+    { value: nilCount, label: "NIL Valuations", description: "Live data updated daily" },
+    { value: portalCount, label: "Portal Players", description: "Current cycle tracking" },
+    { value: "FBS & FCS", label: "Programs", description: "Full D1 coverage" },
+    { value: "24/7", label: "Live Updates", description: "Never miss a move" },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0f1a2e]">
       {/* Header */}

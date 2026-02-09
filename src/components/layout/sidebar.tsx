@@ -18,6 +18,7 @@ import {
   Bell,
   FileText,
   GitCompareArrows,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -49,6 +50,12 @@ const mainNavigation = [
     href: "/win-impact",
     icon: TrendingUp,
     description: "Player impact analysis",
+  },
+  {
+    name: "Flight Risk",
+    href: "/flight-risk",
+    icon: AlertTriangle,
+    description: "Roster vulnerability",
   },
   {
     name: "AI Assistant",
@@ -219,14 +226,17 @@ export function Sidebar() {
               Season
             </p>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm text-white">2025-26</span>
+              <span className="font-semibold text-sm text-white">
+                {new Date().getMonth() >= 6
+                  ? `${new Date().getFullYear()}-${(new Date().getFullYear() + 1).toString().slice(2)}`
+                  : `${new Date().getFullYear() - 1}-${new Date().getFullYear().toString().slice(2)}`}
+              </span>
               <Badge variant="outline" className="text-[10px] border-primary/50 text-primary">
                 Current
               </Badge>
             </div>
           </div>
           <div className="mt-3 text-[10px] text-muted-foreground space-y-0.5">
-            <p>17,562 players tracked</p>
             <p>Updated: {new Date().toLocaleDateString()}</p>
           </div>
         </div>

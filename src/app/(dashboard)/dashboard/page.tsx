@@ -22,8 +22,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getNILLeaderboard, type NILLeaderboardPlayer } from "@/lib/api/nil";
-import { getActivePortalPlayers, type PortalPlayer } from "@/lib/api/portal";
-import { calculateTeamPortalScores, type TeamPortalScore } from "@/lib/api/war";
+import { getActivePortalPlayers, getPortalTeamRankings, type PortalPlayer, type TeamRanking } from "@/lib/api/portal";
 
 // Feature cards (static content)
 const features = [
@@ -38,7 +37,7 @@ const features = [
   {
     title: "Portal Intelligence",
     description:
-      "4,500+ current transfer portal entries. Track commitments, analyze team rankings, and find the best portal targets in real-time.",
+      "Real-time transfer portal tracking. Analyze commitments, team rankings, and find the best portal targets instantly.",
     icon: ArrowRightLeft,
     href: "/portal-intelligence",
     cta: "Transfer portal analytics",
@@ -63,7 +62,9 @@ const features = [
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return "$0";
-  if (value >= 1000000) {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(1)}B`;
+  } else if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
     return `$${Math.round(value / 1000)}K`;
@@ -81,21 +82,22 @@ export default function DashboardPage() {
   });
   const [topNilPlayers, setTopNilPlayers] = useState<NILLeaderboardPlayer[]>([]);
   const [recentPortalActivity, setRecentPortalActivity] = useState<PortalPlayer[]>([]);
-  const [topPortalClasses, setTopPortalClasses] = useState<TeamPortalScore[]>([]);
+  const [topPortalClasses, setTopPortalClasses] = useState<TeamRanking[]>([]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch data in parallel
-      const [nilResponse, portalResponse] = await Promise.all([
+      // Fetch all data in parallel - including server-side portal rankings
+      const [nilResponse, portalResponse, rankingsResponse] = await Promise.all([
         getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0, total_count: 0 })),
-        getActivePortalPlayers({ limit: 100, status: "all" }).catch(() => ({ players: [], total: 0, total_count: 0 })),
+        getActivePortalPlayers({ limit: 10, status: "all" }).catch(() => ({ players: [], total: 0, total_count: 0, active_in_portal: 0, committed: 0, schools_active: 0 })),
+        getPortalTeamRankings(3).catch(() => ({ rankings: [], total_teams: 0 })),
       ]);
 
       // Set top NIL players
       setTopNilPlayers(nilResponse.players.slice(0, 3));
 
-      // Set stats - use total_count (full database count) not total (items returned)
+      // Set stats from API response (real numbers, not fabricated)
       const nilTotal = (nilResponse as { total_count?: number }).total_count || nilResponse.total || 0;
       const portalTotal = (portalResponse as { total_count?: number }).total_count || portalResponse.total || 0;
 
@@ -103,7 +105,7 @@ export default function DashboardPage() {
         totalPlayers: nilTotal,
         portalEntries: portalTotal,
         nilValuations: nilTotal,
-        newToday: Math.floor(portalTotal * 0.02), // Approximate
+        newToday: 0,
       });
 
       // Set recent portal activity (most recent committed players)
@@ -112,27 +114,8 @@ export default function DashboardPage() {
         .slice(0, 3);
       setRecentPortalActivity(recentCommits);
 
-      // Calculate team portal scores for top classes
-      // Transform portal players to have the right shape for WAR calculation
-      const warPlayers = portalResponse.players
-        .filter((p: PortalPlayer) => p.status === "committed" && p.destination_school)
-        .map((p: PortalPlayer) => ({
-          rank: 0,
-          player_id: p.player_id,
-          player_name: p.player_name,
-          position: p.position,
-          school: p.destination_school || "",
-          nil_valuation: p.nil_valuation || 0,
-          war: 0, // Will be calculated
-          win_prob_added: 0,
-          value_per_win: 0,
-          grade: "Average" as const,
-          stars: p.stars,
-          origin_school: p.origin_school,
-        }));
-
-      const teamScores = calculateTeamPortalScores(warPlayers);
-      setTopPortalClasses(teamScores.slice(0, 3));
+      // Use server-side portal rankings (processes ALL portal entries)
+      setTopPortalClasses(rankingsResponse.rankings.slice(0, 3));
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
     } finally {
@@ -161,8 +144,8 @@ export default function DashboardPage() {
     {
       label: "Portal Entries",
       value: isLoading ? "..." : (stats.portalEntries || 0).toLocaleString(),
-      change: `+${stats.newToday || 0} today`,
-      changeType: "positive" as const,
+      change: "Current cycle",
+      changeType: "neutral" as const,
       icon: ArrowRightLeft,
     },
     {
@@ -175,7 +158,7 @@ export default function DashboardPage() {
     {
       label: "Models Updated",
       value: currentDate,
-      change: "v2.3.1",
+      change: "Latest",
       changeType: "neutral" as const,
       icon: Zap,
     },
@@ -391,11 +374,15 @@ export default function DashboardPage() {
                     key={team.team}
                     className="p-4 flex justify-between items-center hover:bg-card rounded-xl transition-colors cursor-pointer"
                   >
-                    <span className="font-bold">
-                      {index + 1}. {team.team}
-                    </span>
+                    <div>
+                      <span className="font-bold">
+                        {index + 1}. {team.team}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        {team.breakdown.transfers_in} transfers
+                      </p>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Grade:</span>
                       <Badge variant="secondary" className="font-bold">
                         {team.grade}
                       </Badge>

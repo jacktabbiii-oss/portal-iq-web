@@ -67,7 +67,9 @@ function parseWeightFilter(filter: string): number | null {
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return "$0";
-  if (value >= 1000000) {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(1)}B`;
+  } else if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
     return `$${(value / 1000).toFixed(0)}K`;
@@ -343,7 +345,7 @@ export default function NILValuatorPage() {
             NIL Valuator
           </h1>
           <p className="text-muted-foreground mt-1">
-            AI-powered NIL valuations for 21,200+ college athletes
+            AI-powered NIL valuations for {totalInDatabase > 0 ? `${totalInDatabase.toLocaleString()}+` : ""} college athletes
           </p>
         </div>
         <div className="flex items-center gap-2">

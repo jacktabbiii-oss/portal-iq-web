@@ -59,15 +59,13 @@ import {
   calculateDetailedWAR,
   analyzeTransferValue,
   projectTransferImpact,
-  calculateTeamPortalScores,
   getSchoolTier,
-  getSchoolList,
   type WARPlayer,
   type DetailedWARResult,
   type TransferValueAnalysis,
   type TransferImpactProjection,
-  type TeamPortalScore,
 } from "@/lib/api/war";
+import { SCHOOL_LIST } from "@/lib/api/team";
 import { searchPlayers, getPlayerStats, type PlayerSearchResult, type PlayerStats } from "@/lib/api/players";
 import { getPortalTeamRankings, getTeamPortalActivity, type TeamRanking, type PortalPlayer } from "@/lib/api/portal";
 
@@ -77,7 +75,9 @@ const CHART_COLORS = ["#D4AF37", "#22C55E", "#3B82F6", "#A855F7", "#F59E0B", "#E
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return "$0";
-  if (value >= 1000000) {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(1)}B`;
+  } else if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
     return `$${(value / 1000).toFixed(0)}K`;
@@ -289,10 +289,6 @@ export default function WinImpactPage() {
   const [transferImpact, setTransferImpact] = useState<TransferImpactProjection | null>(null);
   const [targetSchool, setTargetSchool] = useState("");
 
-  // Team Impact state
-  const [teamScores, setTeamScores] = useState<TeamPortalScore[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<TeamPortalScore | null>(null);
-
   // Full player stats (fetched when player is selected)
   const [fullPlayerStats, setFullPlayerStats] = useState<PlayerStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -325,10 +321,6 @@ export default function WinImpactPage() {
 
       const data = await getWARLeaderboard(params);
       setPlayers(data);
-
-      // Calculate team scores from player data
-      const scores = calculateTeamPortalScores(data);
-      setTeamScores(scores);
     } catch (err) {
       console.error("Failed to fetch WAR data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -421,7 +413,7 @@ export default function WinImpactPage() {
 
   // Chart data - WAR vs NIL scatter (include more player info for tooltips)
   const warVsNILData = useMemo(() => {
-    return filteredPlayers.slice(0, 100).map(p => ({
+    return filteredPlayers.map(p => ({
       name: p.player_name,
       war: p.war,
       nil: p.nil_valuation / 1000000,
@@ -551,7 +543,7 @@ export default function WinImpactPage() {
     }
   };
 
-  const schoolList = useMemo(() => getSchoolList(), []);
+  const schoolList = SCHOOL_LIST;
 
   // Search for any player in the database
   const handlePlayerSearch = useCallback(async (query: string) => {
@@ -1209,7 +1201,7 @@ export default function WinImpactPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPlayers.slice(0, 15).map((player) => (
+                    {filteredPlayers.slice(0, 50).map((player) => (
                       <tr key={player.player_id} className="border-b border-border/50 hover:bg-muted/50">
                         <td className="p-4 font-semibold">{player.player_name}</td>
                         <td className="p-4 text-muted-foreground">{player.position}</td>
@@ -1332,7 +1324,7 @@ export default function WinImpactPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {filteredPlayers.slice(0, 30).map((player) => (
+                    {filteredPlayers.slice(0, 100).map((player) => (
                       <button
                         key={player.player_id}
                         onClick={() => handlePlayerSelect(player)}

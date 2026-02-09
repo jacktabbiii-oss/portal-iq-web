@@ -48,13 +48,14 @@ import {
   MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import { getActivePortalPlayers, getPortalTeamRankings, type PortalPlayer, type TeamRanking } from "@/lib/api/portal";
 import { getPlayerStats, type PlayerStats } from "@/lib/api/players";
 import { calculateDetailedWAR, analyzeTransferValue, getSchoolTier } from "@/lib/api/war";
 import { PlayerWARCard } from "@/components/charts/war-gauge";
 import { HEIGHT_PRESETS, WEIGHT_PRESETS, formatHeight } from "@/lib/constants/presets";
 import { useWatchlist } from "@/hooks/use-watchlist";
-import { Heart, HeartOff } from "lucide-react";
+import { Heart, HeartOff, ExternalLink } from "lucide-react";
 
 const positions = ["All", "QB", "RB", "WR", "TE", "OT", "OG", "EDGE", "DT", "LB", "CB", "S"];
 const statuses = ["All", "In Portal", "Committed", "Withdrawn"];
@@ -64,7 +65,9 @@ const weightFilters = ["All", "300+", "250+", "220+", "200+", "180+"];
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return "$0";
-  if (value >= 1000000) {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(1)}B`;
+  } else if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   } else if (value >= 1000) {
     return `$${(value / 1000).toFixed(0)}K`;
@@ -118,6 +121,7 @@ function parseWeightFilter(filter: string): number | null {
 }
 
 export default function PortalIntelligencePage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
@@ -190,7 +194,6 @@ export default function PortalIntelligencePage() {
   const [stats, setStats] = useState({
     activeInPortal: 0,
     committed: 0,
-    newToday: 0,
     schools: 0,
   });
 
@@ -290,7 +293,6 @@ export default function PortalIntelligencePage() {
       setStats({
         activeInPortal: response.active_in_portal || 0,
         committed: response.committed || 0,
-        newToday: Math.floor((response.total_count || response.total) * 0.02),
         schools: response.schools_active || 0,
       });
     } catch (err) {
@@ -355,7 +357,7 @@ export default function PortalIntelligencePage() {
             Portal Intelligence
           </h1>
           <p className="text-muted-foreground mt-1">
-            Track {totalCount > 0 ? totalCount.toLocaleString() : "11,000"}+ transfer portal entries in real-time
+            Track {totalCount > 0 ? `${totalCount.toLocaleString()}+` : ""} transfer portal entries in real-time
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -861,6 +863,15 @@ export default function PortalIntelligencePage() {
               </SheetHeader>
 
               <div className="space-y-6">
+                {/* View Full Profile Link */}
+                <Button
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={() => router.push(`/player/${encodeURIComponent(selectedPlayer.player_name)}`)}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View Full Profile
+                </Button>
+
                 {/* Transfer Info */}
                 <Card className="glass">
                   <CardHeader className="pb-2">

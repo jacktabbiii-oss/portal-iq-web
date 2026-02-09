@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/stores/auth-store";
 import { logout } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
@@ -20,29 +20,88 @@ import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { MobileSidebar } from "./mobile-sidebar";
 import { cn } from "@/lib/utils";
+import { getNILLeaderboard } from "@/lib/api/nil";
+import { getActivePortalPlayers, getPortalTeamRankings } from "@/lib/api/portal";
 
-// Live ticker data - in production, this would come from WebSocket/API
-const tickerItems = [
-  { type: "nil", text: "Arch Manning (QB) - $5.4M", color: "text-primary" },
-  { type: "transfer", text: "J'mari Monette (DL) → Indiana", color: "text-blue-400" },
-  { type: "ranking", text: "LSU Rank: #2 Portal Class", color: "text-purple-400" },
-  { type: "nil", text: "Sam Leavitt (QB) - $4.0M", color: "text-primary" },
-  { type: "transfer", text: "Amari Wallace (S) → Miami", color: "text-blue-400" },
-];
+interface TickerItem {
+  type: string;
+  text: string;
+}
+
+function formatTickerValue(value: number): string {
+  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `$${Math.round(value / 1000)}K`;
+  return `$${value.toLocaleString()}`;
+}
 
 export function Header() {
   const user = useUser();
   const router = useRouter();
   const [isDark, setIsDark] = useState(true);
   const [currentTickerIndex, setCurrentTickerIndex] = useState(0);
+  const [tickerItems, setTickerItems] = useState<TickerItem[]>([
+    { type: "loading", text: "Loading live data..." },
+  ]);
+
+  // Fetch real ticker data from API
+  const fetchTickerData = useCallback(async () => {
+    try {
+      const [nilResponse, portalResponse, rankingsResponse] = await Promise.all([
+        getNILLeaderboard({ limit: 5 }).catch(() => ({ players: [], total: 0 })),
+        getActivePortalPlayers({ limit: 10, status: "all" }).catch(() => ({ players: [], total: 0, total_count: 0, active_in_portal: 0, committed: 0, schools_active: 0, offset: 0, limit: 10, has_more: false, filters_applied: {} })),
+        getPortalTeamRankings(3).catch(() => ({ rankings: [], total_teams: 0 })),
+      ]);
+
+      const items: TickerItem[] = [];
+
+      // Add top NIL players
+      for (const player of nilResponse.players.slice(0, 3)) {
+        items.push({
+          type: "nil",
+          text: `${player.player_name} (${player.position}) - ${formatTickerValue(player.valuation)}`,
+        });
+      }
+
+      // Add recent portal commits
+      const commits = portalResponse.players
+        .filter((p) => p.status === "committed" && p.destination_school)
+        .slice(0, 3);
+      for (const player of commits) {
+        items.push({
+          type: "transfer",
+          text: `${player.player_name} (${player.position}) → ${player.destination_school}`,
+        });
+      }
+
+      // Add top portal classes
+      for (const team of rankingsResponse.rankings.slice(0, 2)) {
+        items.push({
+          type: "ranking",
+          text: `${team.team}: ${team.grade} Portal Class (${team.breakdown.transfers_in} transfers)`,
+        });
+      }
+
+      if (items.length > 0) {
+        setTickerItems(items);
+        setCurrentTickerIndex(0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch ticker data:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickerData();
+  }, [fetchTickerData]);
 
   // Rotate ticker every 4 seconds
   useEffect(() => {
+    if (tickerItems.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentTickerIndex((prev) => (prev + 1) % tickerItems.length);
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [tickerItems.length]);
 
   const handleLogout = async () => {
     await logout();
@@ -79,14 +138,14 @@ export function Header() {
             LIVE
           </Badge>
           <div className="flex items-center gap-2 overflow-hidden">
-            <span className="text-primary">●</span>
-            <span
-              className={cn(
-                "text-sm font-medium truncate transition-all duration-300",
-                "text-muted-foreground"
-              )}
-            >
-              {tickerItems[currentTickerIndex].text}
+            <span className={cn(
+              tickerItems[currentTickerIndex]?.type === "nil" && "text-primary",
+              tickerItems[currentTickerIndex]?.type === "transfer" && "text-blue-400",
+              tickerItems[currentTickerIndex]?.type === "ranking" && "text-purple-400",
+              !["nil", "transfer", "ranking"].includes(tickerItems[currentTickerIndex]?.type) && "text-muted-foreground",
+            )}>●</span>
+            <span className="text-sm font-medium truncate transition-all duration-300 text-muted-foreground">
+              {tickerItems[currentTickerIndex]?.text || "Loading..."}
             </span>
           </div>
         </div>
@@ -114,11 +173,10 @@ export function Header() {
           </Button>
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative h-9 w-9">
-            <Bell className="h-4 w-4 text-muted-foreground" />
-            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-[10px] font-bold flex items-center justify-center text-primary-foreground">
-              3
-            </span>
+          <Button variant="ghost" size="icon" asChild className="relative h-9 w-9">
+            <Link href="/notifications">
+              <Bell className="h-4 w-4 text-muted-foreground" />
+            </Link>
           </Button>
 
           {/* User menu */}
