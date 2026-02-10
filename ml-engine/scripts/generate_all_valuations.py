@@ -6,10 +6,10 @@ This script:
 2. Enriches with ESPN rosters (FBS headshots, height, weight)
 3. Enriches with CFBD stats (production data)
 4. Trains a calibrated ML model on real On3 NIL valuations
-5. Predicts valuations for FBS players (FCS gets nil_value=NULL)
+5. Predicts valuations for FBS AND FCS current season players (2025-2026)
 6. Merges portal status, school tiers, and pre-computes WAR
 7. Outputs:
-   - portal_nil_valuations.csv (FBS only, backward-compat)
+   - portal_nil_valuations.csv (FBS + FCS current season, with NIL valuations)
    - unified_players.csv (ALL players - FBS + FCS + historical)
 
 Run: python scripts/generate_all_valuations.py           # legacy mode
@@ -403,18 +403,18 @@ def build_player_dataframe(data: dict, expanded_pff: bool = False) -> tuple:
 
 def generate_calibrated_valuations(all_players_df: pd.DataFrame, real_values: dict,
                                     on3_df: pd.DataFrame, model: 'CustomNILValuator') -> pd.DataFrame:
-    """Generate NIL valuations for FBS players only (FCS gets nil_value=NULL)."""
+    """Generate NIL valuations for FBS and FCS players."""
     print("\n" + "=" * 60)
-    print("GENERATING NIL VALUATIONS (FBS ONLY)")
+    print("GENERATING NIL VALUATIONS (FBS + FCS)")
     print("=" * 60)
 
-    # Separate FBS (predict NIL) from FCS (leave NULL)
+    # Separate FBS and FCS for processing
     fbs_mask = all_players_df["division"] == "FBS"
     fbs_df = all_players_df[fbs_mask].copy()
     fcs_df = all_players_df[~fbs_mask].copy()
 
     print(f"\nFBS players (will predict NIL): {len(fbs_df)}")
-    print(f"FCS players (NIL=NULL): {len(fcs_df)}")
+    print(f"FCS players (will predict NIL): {len(fcs_df)}")
 
     if fbs_df.empty:
         print("No FBS players to predict!")
@@ -479,17 +479,69 @@ def generate_calibrated_valuations(all_players_df: pd.DataFrame, real_values: di
         fbs_old["confidence"] = None
         fbs_old["is_predicted"] = None
 
-    # Combine current and old season players
+    # Combine current and old season FBS players
     fbs_with_nil = pd.concat([fbs_current, fbs_old], ignore_index=True)
 
-    # FCS/Unknown get NULL NIL values
-    fcs_df["nil_value"] = None
-    fcs_df["nil_tier"] = None
-    fcs_df["is_predicted"] = None
-    fcs_df["confidence"] = None
+    # Process FCS players the same way (filter by season, apply custom algorithm)
+    print(f"\nProcessing FCS players...")
+
+    if not fcs_df.empty:
+        # Store On3 values for FCS (if any)
+        fcs_df["on3_nil_value"] = None
+        fcs_df["on3_nil_tier"] = None
+        for idx, row in fcs_df.iterrows():
+            name_lower = str(row["name"]).lower().strip()
+            if name_lower in real_values:
+                rv = real_values[name_lower]
+                val = rv.get("nil_value", 0)
+                fcs_df.at[idx, "on3_nil_value"] = val
+                if val >= 2_000_000:
+                    fcs_df.at[idx, "on3_nil_tier"] = "mega"
+                elif val >= 500_000:
+                    fcs_df.at[idx, "on3_nil_tier"] = "premium"
+                elif val >= 100_000:
+                    fcs_df.at[idx, "on3_nil_tier"] = "solid"
+                elif val >= 25_000:
+                    fcs_df.at[idx, "on3_nil_tier"] = "moderate"
+                else:
+                    fcs_df.at[idx, "on3_nil_tier"] = "entry"
+
+        on3_fcs = fcs_df["on3_nil_value"].notna().sum()
+        print(f"  {on3_fcs} FCS players have On3 values")
+
+        # Filter FCS to current season only
+        fcs_current = fcs_df[fcs_df["season"] == current_season].copy()
+        fcs_old = fcs_df[fcs_df["season"] != current_season].copy()
+
+        print(f"  Current season (2025): {len(fcs_current)} FCS players")
+        print(f"  Old seasons: {len(fcs_old)} FCS players (will set NIL=NULL)")
+
+        # Apply custom algorithm to current FCS players
+        if not fcs_current.empty:
+            print(f"  Applying custom algorithm to {len(fcs_current)} current FCS players...")
+            predicted_fcs = model.valuate_dataframe(fcs_current)
+            fcs_current["nil_value"] = predicted_fcs["custom_nil_value"].values
+            fcs_current["nil_tier"] = predicted_fcs["nil_tier"].values
+            fcs_current["confidence"] = predicted_fcs["valuation_confidence"].values
+            fcs_current["is_predicted"] = True
+
+        # Old season FCS get NULL
+        if not fcs_old.empty:
+            fcs_old["nil_value"] = None
+            fcs_old["nil_tier"] = None
+            fcs_old["confidence"] = None
+            fcs_old["is_predicted"] = None
+
+        fcs_with_nil = pd.concat([fcs_current, fcs_old], ignore_index=True)
+    else:
+        fcs_with_nil = fcs_df
+        fcs_with_nil["nil_value"] = None
+        fcs_with_nil["nil_tier"] = None
+        fcs_with_nil["is_predicted"] = None
+        fcs_with_nil["confidence"] = None
 
     # Combine all
-    combined = pd.concat([fbs_with_nil, fcs_df], ignore_index=True)
+    combined = pd.concat([fbs_with_nil, fcs_with_nil], ignore_index=True)
 
     # Sort by NIL value (nulls last)
     combined = combined.sort_values("nil_value", ascending=False, na_position="last").reset_index(drop=True)
@@ -844,7 +896,7 @@ def main():
     if args.unified:
         print("  MODE: UNIFIED (FBS + FCS + historical)")
     else:
-        print("  MODE: LEGACY (FBS NIL valuations only)")
+        print("  MODE: DEFAULT (FBS + FCS NIL valuations)")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
@@ -865,19 +917,22 @@ def main():
     # Create custom valuator model (transparent, rule-based)
     model = CustomNILValuator()
 
-    # Generate NIL valuations (FBS only)
+    # Generate NIL valuations (FBS + FCS)
     valuations_df = generate_calibrated_valuations(all_players_df, real_values, on3_df, model)
 
     if valuations_df.empty:
         print("ERROR: No data generated!")
         return
 
-    # Save legacy FBS-only format for backward compat
-    fbs_only = valuations_df[valuations_df["division"] == "FBS"].copy()
-    if not fbs_only.empty:
-        output_path = DATA_DIR / "portal_nil_valuations.csv"
-        fbs_only.to_csv(output_path, index=False)
-        print(f"\nSaved {len(fbs_only)} FBS valuations to {output_path}")
+    # Save FBS + FCS valuations
+    output_path = DATA_DIR / "portal_nil_valuations.csv"
+    valuations_df.to_csv(output_path, index=False)
+
+    fbs_count = (valuations_df["division"] == "FBS").sum() if "division" in valuations_df.columns else len(valuations_df)
+    fcs_count = (valuations_df["division"] == "FCS").sum() if "division" in valuations_df.columns else 0
+    print(f"\nSaved {len(valuations_df)} valuations to {output_path}")
+    print(f"  FBS: {fbs_count}")
+    print(f"  FCS: {fcs_count}")
 
     # Filter and save current portal
     current_portal = filter_current_portal(data)
@@ -934,7 +989,7 @@ def main():
     if "nil_value" in valuations_df.columns:
         real_count = (valuations_df["is_predicted"] == False).sum()
         pred_count = (valuations_df["is_predicted"] == True).sum()
-        print(f"\nNIL valuations (FBS only):")
+        print(f"\nNIL valuations (FBS + FCS):")
         print(f"  - With real On3 values: {real_count}")
         print(f"  - With calibrated predictions: {pred_count}")
 
