@@ -184,24 +184,74 @@ def load_data():
         data["team_talent"] = pd.DataFrame()
 
     # Load PFF detailed stats from R2 (production data - yards, TDs, games)
-    print(f"\nLoading PFF detailed stats from R2...")
+    print(f"\nLoading PFF detailed stats from R2 (2025 season)...")
     season = 2025  # Current season
 
+    # Core offensive stats
     data["pff_passing"] = load_pff_stat_from_r2("passing", "passing_summary", season)
     if not data["pff_passing"].empty:
-        print(f"  Passing stats: {len(data['pff_passing'])} QB records")
+        print(f"  Passing: {len(data['pff_passing'])} QBs")
 
     data["pff_rushing"] = load_pff_stat_from_r2("rushing", "rushing_summary", season)
     if not data["pff_rushing"].empty:
-        print(f"  Rushing stats: {len(data['pff_rushing'])} RB records")
+        print(f"  Rushing: {len(data['pff_rushing'])} RBs")
 
     data["pff_receiving"] = load_pff_stat_from_r2("receiving", "receiving_summary", season)
     if not data["pff_receiving"].empty:
-        print(f"  Receiving stats: {len(data['pff_receiving'])} WR/TE records")
+        print(f"  Receiving: {len(data['pff_receiving'])} WR/TEs")
 
+    # Advanced RB stats
+    data["pff_elusive"] = load_pff_stat_from_r2("rushing", "elusive_summary", season)
+    if not data["pff_elusive"].empty:
+        print(f"  Elusive: {len(data['pff_elusive'])} RBs")
+
+    data["pff_breakaway"] = load_pff_stat_from_r2("rushing", "breakaway_summary", season)
+    if not data["pff_breakaway"].empty:
+        print(f"  Breakaway: {len(data['pff_breakaway'])} RBs")
+
+    # Defensive stats
     data["pff_defense"] = load_pff_stat_from_r2("defense", "defense_summary", season)
     if not data["pff_defense"].empty:
-        print(f"  Defense stats: {len(data['pff_defense'])} defensive records")
+        print(f"  Defense: {len(data['pff_defense'])} defenders")
+
+    data["pff_coverage"] = load_pff_stat_from_r2("defense", "defense_coverage_summary", season)
+    if not data["pff_coverage"].empty:
+        print(f"  Coverage: {len(data['pff_coverage'])} DBs")
+
+    # Pass rush stats
+    data["pff_pass_rush"] = load_pff_stat_from_r2("pass_rush", "pass_rush_summary", season)
+    if not data["pff_pass_rush"].empty:
+        print(f"  Pass Rush: {len(data['pff_pass_rush'])} edge rushers")
+
+    data["pff_pass_rush_prod"] = load_pff_stat_from_r2("pass_rush", "pass_rush_productivity", season)
+    if not data["pff_pass_rush_prod"].empty:
+        print(f"  Pass Rush Productivity: {len(data['pff_pass_rush_prod'])} rushers")
+
+    # Blocking stats
+    data["pff_blocking"] = load_pff_stat_from_r2("blocking", "offense_blocking", season)
+    if not data["pff_blocking"].empty:
+        print(f"  Blocking: {len(data['pff_blocking'])} O-linemen")
+
+    data["pff_pass_blocking_eff"] = load_pff_stat_from_r2("blocking", "line_pass_blocking_efficiency", season)
+    if not data["pff_pass_blocking_eff"].empty:
+        print(f"  Pass Blocking Efficiency: {len(data['pff_pass_blocking_eff'])} teams")
+
+    # Special teams
+    data["pff_field_goals"] = load_pff_stat_from_r2("special", "field_goal_summary", season)
+    if not data["pff_field_goals"].empty:
+        print(f"  Field Goals: {len(data['pff_field_goals'])} kickers")
+
+    data["pff_kickoffs"] = load_pff_stat_from_r2("special", "kickoff_summary", season)
+    if not data["pff_kickoffs"].empty:
+        print(f"  Kickoffs: {len(data['pff_kickoffs'])} kickers")
+
+    data["pff_punting"] = load_pff_stat_from_r2("special", "punting_summary", season)
+    if not data["pff_punting"].empty:
+        print(f"  Punting: {len(data['pff_punting'])} punters")
+
+    data["pff_returns"] = load_pff_stat_from_r2("special", "return_summary", season)
+    if not data["pff_returns"].empty:
+        print(f"  Returns: {len(data['pff_returns'])} returners")
 
     return data
 
@@ -443,6 +493,157 @@ def build_player_dataframe(data: dict, expanded_pff: bool = False) -> tuple:
 
         def_matched = base_df["tackles"].notna().sum() if "tackles" in base_df.columns else 0
         print(f"  Defense stats matched: {def_matched} defenders")
+
+    # Merge elusive rating (RBs - advanced)
+    pff_elusive = data.get("pff_elusive", pd.DataFrame())
+    if not pff_elusive.empty:
+        if "player" in pff_elusive.columns:
+            pff_elusive = pff_elusive.rename(columns={"player": "name"})
+        pff_elusive["name_normalized"] = pff_elusive["name"].apply(_normalize_name)
+
+        elusive_cols = ["name_normalized", "elusive_rating", "missed_tackles_forced"]
+        elusive_merge = pff_elusive[[c for c in elusive_cols if c in pff_elusive.columns]].copy()
+        elusive_merge = elusive_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(elusive_merge, on="name_normalized", how="left")
+        elusive_matched = base_df["elusive_rating"].notna().sum() if "elusive_rating" in base_df.columns else 0
+        print(f"  Elusive stats matched: {elusive_matched} RBs")
+
+    # Merge breakaway stats (RBs - advanced)
+    pff_breakaway = data.get("pff_breakaway", pd.DataFrame())
+    if not pff_breakaway.empty:
+        if "player" in pff_breakaway.columns:
+            pff_breakaway = pff_breakaway.rename(columns={"player": "name"})
+        pff_breakaway["name_normalized"] = pff_breakaway["name"].apply(_normalize_name)
+
+        breakaway_cols = ["name_normalized", "breakaway_yards", "breakaway_percent"]
+        breakaway_merge = pff_breakaway[[c for c in breakaway_cols if c in pff_breakaway.columns]].copy()
+        breakaway_merge = breakaway_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(breakaway_merge, on="name_normalized", how="left")
+        breakaway_matched = base_df["breakaway_yards"].notna().sum() if "breakaway_yards" in base_df.columns else 0
+        print(f"  Breakaway stats matched: {breakaway_matched} RBs")
+
+    # Merge coverage stats (DBs)
+    pff_coverage = data.get("pff_coverage", pd.DataFrame())
+    if not pff_coverage.empty:
+        if "player" in pff_coverage.columns:
+            pff_coverage = pff_coverage.rename(columns={"player": "name"})
+        pff_coverage["name_normalized"] = pff_coverage["name"].apply(_normalize_name)
+
+        coverage_cols = ["name_normalized", "targets", "receptions", "interceptions",
+                        "pass_break_ups", "qb_rating_against"]
+        coverage_merge = pff_coverage[[c for c in coverage_cols if c in pff_coverage.columns]].copy()
+        coverage_merge = coverage_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(coverage_merge, on="name_normalized", how="left", suffixes=("", "_coverage"))
+        coverage_matched = base_df["qb_rating_against"].notna().sum() if "qb_rating_against" in base_df.columns else 0
+        print(f"  Coverage stats matched: {coverage_matched} DBs")
+
+    # Merge pass rush stats (edge rushers)
+    pff_pass_rush = data.get("pff_pass_rush", pd.DataFrame())
+    if not pff_pass_rush.empty:
+        if "player" in pff_pass_rush.columns:
+            pff_pass_rush = pff_pass_rush.rename(columns={"player": "name"})
+        pff_pass_rush["name_normalized"] = pff_pass_rush["name"].apply(_normalize_name)
+
+        pass_rush_cols = ["name_normalized", "hits", "hurries", "batted_passes"]
+        pass_rush_merge = pff_pass_rush[[c for c in pass_rush_cols if c in pff_pass_rush.columns]].copy()
+        pass_rush_merge = pass_rush_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(pass_rush_merge, on="name_normalized", how="left", suffixes=("", "_pass_rush"))
+        pass_rush_matched = base_df["hits"].notna().sum() if "hits" in base_df.columns else 0
+        print(f"  Pass rush stats matched: {pass_rush_matched} edge rushers")
+
+    # Merge pass rush productivity
+    pff_pass_rush_prod = data.get("pff_pass_rush_prod", pd.DataFrame())
+    if not pff_pass_rush_prod.empty:
+        if "player" in pff_pass_rush_prod.columns:
+            pff_pass_rush_prod = pff_pass_rush_prod.rename(columns={"player": "name"})
+        pff_pass_rush_prod["name_normalized"] = pff_pass_rush_prod["name"].apply(_normalize_name)
+
+        prod_cols = ["name_normalized", "pass_rush_productivity", "pass_rush_win_rate"]
+        prod_merge = pff_pass_rush_prod[[c for c in prod_cols if c in pff_pass_rush_prod.columns]].copy()
+        prod_merge = prod_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(prod_merge, on="name_normalized", how="left")
+
+    # Merge blocking stats (O-line)
+    pff_blocking = data.get("pff_blocking", pd.DataFrame())
+    if not pff_blocking.empty:
+        if "player" in pff_blocking.columns:
+            pff_blocking = pff_blocking.rename(columns={"player": "name"})
+        pff_blocking["name_normalized"] = pff_blocking["name"].apply(_normalize_name)
+
+        blocking_cols = ["name_normalized", "grades_pass_block", "grades_run_block",
+                        "pressures_allowed", "sacks_allowed"]
+        blocking_merge = pff_blocking[[c for c in blocking_cols if c in pff_blocking.columns]].copy()
+        blocking_merge = blocking_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(blocking_merge, on="name_normalized", how="left")
+        blocking_matched = base_df["grades_pass_block"].notna().sum() if "grades_pass_block" in base_df.columns else 0
+        print(f"  Blocking stats matched: {blocking_matched} O-linemen")
+
+    # Merge field goal stats (kickers)
+    pff_field_goals = data.get("pff_field_goals", pd.DataFrame())
+    if not pff_field_goals.empty:
+        if "player" in pff_field_goals.columns:
+            pff_field_goals = pff_field_goals.rename(columns={"player": "name"})
+        pff_field_goals["name_normalized"] = pff_field_goals["name"].apply(_normalize_name)
+
+        fg_cols = ["name_normalized", "total_made", "pat_made", "twenty_made", "thirty_made",
+                   "forty_made", "fifty_made"]
+        fg_merge = pff_field_goals[[c for c in fg_cols if c in pff_field_goals.columns]].copy()
+        fg_merge = fg_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(fg_merge, on="name_normalized", how="left")
+        fg_matched = base_df["total_made"].notna().sum() if "total_made" in base_df.columns else 0
+        print(f"  Field goal stats matched: {fg_matched} kickers")
+
+    # Merge kickoff stats (kickers)
+    pff_kickoffs = data.get("pff_kickoffs", pd.DataFrame())
+    if not pff_kickoffs.empty:
+        if "player" in pff_kickoffs.columns:
+            pff_kickoffs = pff_kickoffs.rename(columns={"player": "name"})
+        pff_kickoffs["name_normalized"] = pff_kickoffs["name"].apply(_normalize_name)
+
+        ko_cols = ["name_normalized", "kickoffs", "touchbacks", "touchback_pct"]
+        ko_merge = pff_kickoffs[[c for c in ko_cols if c in pff_kickoffs.columns]].copy()
+        ko_merge = ko_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(ko_merge, on="name_normalized", how="left")
+
+    # Merge punting stats (punters)
+    pff_punting = data.get("pff_punting", pd.DataFrame())
+    if not pff_punting.empty:
+        if "player" in pff_punting.columns:
+            pff_punting = pff_punting.rename(columns={"player": "name"})
+        pff_punting["name_normalized"] = pff_punting["name"].apply(_normalize_name)
+
+        punt_cols = ["name_normalized", "attempts", "yards", "average_yards_per_attempt",
+                     "average_net_yards", "inside_twenties", "average_hangtime"]
+        punt_merge = pff_punting[[c for c in punt_cols if c in pff_punting.columns]].copy()
+        punt_merge = punt_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(punt_merge, on="name_normalized", how="left", suffixes=("", "_punt"))
+        punt_matched = base_df["attempts"].notna().sum() if "attempts" in base_df.columns else 0
+        print(f"  Punting stats matched: {punt_matched} punters")
+
+    # Merge return stats (return specialists)
+    pff_returns = data.get("pff_returns", pd.DataFrame())
+    if not pff_returns.empty:
+        if "player" in pff_returns.columns:
+            pff_returns = pff_returns.rename(columns={"player": "name"})
+        pff_returns["name_normalized"] = pff_returns["name"].apply(_normalize_name)
+
+        return_cols = ["name_normalized", "kickoff_attempts", "kickoff_yards", "kickoff_touchdowns",
+                      "punt_attempts", "punt_yards", "punt_touchdowns"]
+        return_merge = pff_returns[[c for c in return_cols if c in pff_returns.columns]].copy()
+        return_merge = return_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(return_merge, on="name_normalized", how="left", suffixes=("", "_return"))
+        return_matched = base_df["kickoff_attempts"].notna().sum() if "kickoff_attempts" in base_df.columns else 0
+        print(f"  Return stats matched: {return_matched} returners")
 
     # Consolidate games_played from multiple sources (prioritize by position)
     if "games_played" not in base_df.columns:
