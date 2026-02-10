@@ -91,7 +91,7 @@ def load_team_data() -> Optional[pd.DataFrame]:
         fbs_conferences = [
             "SEC", "Big Ten", "ACC", "Big 12", "Pac-12",
             "American Athletic", "Mountain West", "Sun Belt",
-            "Conference USA", "MAC", "FBS Independents"
+            "Conference USA", "Mid-American", "FBS Independents"
         ]
         if "conference" in records_df.columns:
             records_df = records_df[records_df["conference"].isin(fbs_conferences)]
