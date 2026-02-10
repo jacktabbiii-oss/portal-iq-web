@@ -202,6 +202,28 @@ class CustomNILValuator:
         interceptions: int = 0,
         pff_grade: Optional[float] = None,
 
+        # Advanced RB stats (NEW)
+        elusive_rating: Optional[float] = None,
+        breakaway_yards: Optional[int] = None,
+        breakaway_percent: Optional[float] = None,
+        missed_tackles_forced: Optional[int] = None,
+
+        # DB coverage stats (NEW)
+        targets_allowed: Optional[int] = None,
+        receptions_allowed: Optional[int] = None,
+        qb_rating_against: Optional[float] = None,
+        pass_break_ups: Optional[int] = None,
+
+        # Pass rush stats (NEW)
+        hits: Optional[int] = None,
+        hurries: Optional[int] = None,
+        batted_passes: Optional[int] = None,
+
+        # Blocking grades (NEW)
+        pass_block_grade: Optional[float] = None,
+        run_block_grade: Optional[float] = None,
+        pressures_allowed: Optional[int] = None,
+
         # Social media
         instagram_followers: int = 0,
         twitter_followers: int = 0,
@@ -238,7 +260,12 @@ class CustomNILValuator:
             position_group, games_played, games_started,
             passing_yards, passing_tds, rushing_yards, rushing_tds,
             receiving_yards, receiving_tds, tackles, sacks, interceptions,
-            pff_grade
+            pff_grade,
+            # Advanced stats for elite trait detection
+            elusive_rating, breakaway_yards, breakaway_percent, missed_tackles_forced,
+            targets_allowed, receptions_allowed, qb_rating_against, pass_break_ups,
+            hits, hurries, batted_passes,
+            pass_block_grade, run_block_grade, pressures_allowed
         )
         performance_value = base_value * perf_multiplier
         factors["performance_multiplier"] = perf_multiplier
@@ -356,14 +383,31 @@ class CustomNILValuator:
         self, position: str, games: int, starts: int,
         pass_yds: int, pass_tds: int, rush_yds: int, rush_tds: int,
         rec_yds: int, rec_tds: int, tackles: int, sacks: float, ints: int,
-        pff_grade: Optional[float]
+        pff_grade: Optional[float],
+        # Advanced stats for elite trait detection
+        elusive_rating: Optional[float] = None,
+        breakaway_yards: Optional[int] = None,
+        breakaway_percent: Optional[float] = None,
+        missed_tackles_forced: Optional[int] = None,
+        targets_allowed: Optional[int] = None,
+        receptions_allowed: Optional[int] = None,
+        qb_rating_against: Optional[float] = None,
+        pass_break_ups: Optional[int] = None,
+        hits: Optional[int] = None,
+        hurries: Optional[int] = None,
+        batted_passes: Optional[int] = None,
+        pass_block_grade: Optional[float] = None,
+        run_block_grade: Optional[float] = None,
+        pressures_allowed: Optional[int] = None,
     ) -> float:
         """
-        Calculate performance multiplier based on PRODUCTION FIRST.
+        Calculate performance multiplier based on PRODUCTION FIRST + ELITE TRAITS.
 
         Philosophy: Stats are king. PFF grade is a modifier, not the foundation.
         A backup with 25 snaps and a 90 grade is NOT worth more than a
         productive starter with 800 snaps and a 75 grade.
+
+        NEW: Elite trait bonuses reward difference-makers beyond basic production.
         """
         if games == 0:
             return 0.3  # Minimal multiplier for no games
@@ -491,6 +535,123 @@ class CustomNILValuator:
             if tackles > 50:
                 mult += 0.3
                 has_production = True
+
+        elif position == "OL":
+            # O-line rarely get production stats, rely on grades
+            if pass_block_grade or run_block_grade:
+                has_production = True  # Grades count as production for OL
+
+        # =============================================================================
+        # STEP 1.5: ELITE TRAIT BONUSES (NEW - Comprehensive PFF Stats)
+        # Reward difference-makers beyond basic production
+        # =============================================================================
+
+        # RB ELITE TRAITS: Elusiveness + Explosiveness
+        if position == "RB":
+            if elusive_rating is not None:
+                if elusive_rating > 100:
+                    mult += 0.5  # Elite contact balance (top 10%)
+                    has_production = True
+                elif elusive_rating > 75:
+                    mult += 0.3  # Above average elusiveness
+                    has_production = True
+                elif elusive_rating > 50:
+                    mult += 0.15  # Solid elusiveness
+
+            if breakaway_percent is not None:
+                if breakaway_percent > 30:
+                    mult += 0.4  # Explosive home-run threat
+                    has_production = True
+                elif breakaway_percent > 20:
+                    mult += 0.2  # Good explosiveness
+
+            if missed_tackles_forced is not None and games > 0:
+                mtf_per_game = missed_tackles_forced / games
+                if mtf_per_game > 3:
+                    mult += 0.3  # Consistently breaks tackles
+                    has_production = True
+                elif mtf_per_game > 2:
+                    mult += 0.15
+
+        # DB ELITE TRAITS: Shutdown Coverage
+        elif position in ["CB", "S"]:
+            if qb_rating_against is not None:
+                if qb_rating_against < 50:
+                    mult += 0.6  # True shutdown corner/safety (elite)
+                    has_production = True
+                elif qb_rating_against < 70:
+                    mult += 0.4  # Excellent coverage
+                    has_production = True
+                elif qb_rating_against < 90:
+                    mult += 0.2  # Good coverage
+
+            if targets_allowed and receptions_allowed and targets_allowed > 0:
+                completion_pct = (receptions_allowed / targets_allowed) * 100
+                if completion_pct < 50:
+                    mult += 0.4  # Lockdown coverage
+                    has_production = True
+                elif completion_pct < 60:
+                    mult += 0.2  # Strong coverage
+
+            if pass_break_ups is not None:
+                if pass_break_ups > 8:
+                    mult += 0.3  # Ball hawk
+                    has_production = True
+                elif pass_break_ups > 5:
+                    mult += 0.15
+
+        # EDGE/DL ELITE TRAITS: Pass Rush Dominance
+        elif position in ["EDGE", "DL"]:
+            total_disruptions = 0
+            if hits is not None:
+                total_disruptions += hits
+            if hurries is not None:
+                total_disruptions += hurries
+
+            if total_disruptions > 0:
+                if total_disruptions > 50:
+                    mult += 0.7  # Pass rush terror (elite)
+                    has_production = True
+                elif total_disruptions > 35:
+                    mult += 0.5  # Consistent pressure
+                    has_production = True
+                elif total_disruptions > 20:
+                    mult += 0.3  # Good pass rusher
+
+            if batted_passes is not None:
+                if batted_passes > 5:
+                    mult += 0.2  # Length and awareness
+                    has_production = True
+
+        # O-LINE ELITE TRAITS: Protection Mastery
+        elif position == "OL":
+            if pass_block_grade is not None:
+                if pass_block_grade > 85:
+                    mult += 0.6  # Elite pass protector
+                    has_production = True
+                elif pass_block_grade > 75:
+                    mult += 0.4  # Excellent pass protection
+                    has_production = True
+                elif pass_block_grade > 65:
+                    mult += 0.2  # Good pass protection
+
+            if run_block_grade is not None:
+                if run_block_grade > 80:
+                    mult += 0.5  # Elite run blocker
+                    has_production = True
+                elif run_block_grade > 70:
+                    mult += 0.3  # Excellent run blocking
+                    has_production = True
+                elif run_block_grade > 60:
+                    mult += 0.15  # Good run blocking
+
+            if pressures_allowed is not None and games > 0:
+                pressures_per_game = pressures_allowed / games
+                if pressures_per_game < 0.5:
+                    mult += 0.4  # Clean sheets (elite)
+                    has_production = True
+                elif pressures_per_game < 1.0:
+                    mult += 0.2  # Good protection
 
         # =============================================================================
         # STEP 2: GAMES PLAYED SCALING (Guardrail for volume)
@@ -742,8 +903,26 @@ class CustomNILValuator:
                 receiving_tds=receiving_tds_val,
                 tackles=safe_int(row.get("tackles")),
                 sacks=safe_float(row.get("sacks")),
-                interceptions=0,  # Not available in CSV
+                interceptions=safe_int(row.get("interceptions")),
                 pff_grade=pff_grade_val,
+                # Advanced RB stats (comprehensive PFF)
+                elusive_rating=safe_float(row.get("elusive_rating")) if pd.notna(row.get("elusive_rating")) else None,
+                breakaway_yards=safe_int(row.get("breakaway_yards")) if pd.notna(row.get("breakaway_yards")) else None,
+                breakaway_percent=safe_float(row.get("breakaway_percent")) if pd.notna(row.get("breakaway_percent")) else None,
+                missed_tackles_forced=safe_int(row.get("missed_tackles_forced")) if pd.notna(row.get("missed_tackles_forced")) else None,
+                # DB coverage stats (comprehensive PFF)
+                targets_allowed=safe_int(row.get("targets_coverage")) if pd.notna(row.get("targets_coverage")) else None,
+                receptions_allowed=safe_int(row.get("receptions_coverage")) if pd.notna(row.get("receptions_coverage")) else None,
+                qb_rating_against=safe_float(row.get("qb_rating_against")) if pd.notna(row.get("qb_rating_against")) else None,
+                pass_break_ups=safe_int(row.get("pass_break_ups")) if pd.notna(row.get("pass_break_ups")) else None,
+                # Pass rush stats (comprehensive PFF)
+                hits=safe_int(row.get("hits")) if pd.notna(row.get("hits")) else None,
+                hurries=safe_int(row.get("hurries")) if pd.notna(row.get("hurries")) else None,
+                batted_passes=safe_int(row.get("batted_passes")) if pd.notna(row.get("batted_passes")) else None,
+                # Blocking grades (comprehensive PFF)
+                pass_block_grade=safe_float(row.get("grades_pass_block")) if pd.notna(row.get("grades_pass_block")) else None,
+                run_block_grade=safe_float(row.get("grades_run_block")) if pd.notna(row.get("grades_run_block")) else None,
+                pressures_allowed=safe_int(row.get("pressures_allowed")) if pd.notna(row.get("pressures_allowed")) else None,
                 instagram_followers=0,  # Not available in CSV
                 twitter_followers=0,
                 tiktok_followers=0,
