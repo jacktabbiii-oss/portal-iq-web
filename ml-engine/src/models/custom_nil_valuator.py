@@ -358,67 +358,185 @@ class CustomNILValuator:
         rec_yds: int, rec_tds: int, tackles: int, sacks: float, ints: int,
         pff_grade: Optional[float]
     ) -> float:
-        """Calculate performance multiplier based on stats."""
+        """
+        Calculate performance multiplier based on PRODUCTION FIRST.
+
+        Philosophy: Stats are king. PFF grade is a modifier, not the foundation.
+        A backup with 25 snaps and a 90 grade is NOT worth more than a
+        productive starter with 800 snaps and a 75 grade.
+        """
         if games == 0:
-            return 0.5  # Minimal multiplier for no games
+            return 0.3  # Minimal multiplier for no games
 
         mult = 1.0
+        has_production = False
 
-        # Position-specific performance scoring
+        # =============================================================================
+        # STEP 1: PRODUCTION-BASED MULTIPLIER (Primary Factor)
+        # =============================================================================
         if position == "QB":
             # QBs: yards, TDs, efficiency
-            if pass_yds > 3000: mult += 0.8
-            elif pass_yds > 2000: mult += 0.5
-            elif pass_yds > 1000: mult += 0.2
-            if pass_tds > 25: mult += 0.5
-            elif pass_tds > 15: mult += 0.3
+            if pass_yds > 3000:
+                mult += 1.2
+                has_production = True
+            elif pass_yds > 2000:
+                mult += 0.8
+                has_production = True
+            elif pass_yds > 1000:
+                mult += 0.4
+                has_production = True
+
+            if pass_tds > 25:
+                mult += 0.6
+                has_production = True
+            elif pass_tds > 15:
+                mult += 0.4
+                has_production = True
+            elif pass_tds > 10:
+                mult += 0.2
+                has_production = True
+
             # Dual threat bonus
-            if rush_yds > 500: mult += 0.3
+            if rush_yds > 500:
+                mult += 0.4
+                has_production = True
 
         elif position in ["RB"]:
-            if rush_yds > 1000: mult += 0.6
-            elif rush_yds > 500: mult += 0.3
-            if rush_tds > 10: mult += 0.4
-            elif rush_tds > 5: mult += 0.2
+            if rush_yds > 1000:
+                mult += 0.9
+                has_production = True
+            elif rush_yds > 500:
+                mult += 0.5
+                has_production = True
+            elif rush_yds > 250:
+                mult += 0.2
+                has_production = True
+
+            if rush_tds > 10:
+                mult += 0.5
+                has_production = True
+            elif rush_tds > 5:
+                mult += 0.3
+                has_production = True
+
             # Receiving bonus
-            if rec_yds > 300: mult += 0.2
+            if rec_yds > 300:
+                mult += 0.3
+                has_production = True
 
         elif position == "WR":
-            if rec_yds > 1000: mult += 0.7
-            elif rec_yds > 600: mult += 0.4
-            elif rec_yds > 300: mult += 0.2
-            if rec_tds > 10: mult += 0.4
-            elif rec_tds > 5: mult += 0.2
+            if rec_yds > 1000:
+                mult += 1.0
+                has_production = True
+            elif rec_yds > 600:
+                mult += 0.6
+                has_production = True
+            elif rec_yds > 300:
+                mult += 0.3
+                has_production = True
+
+            if rec_tds > 10:
+                mult += 0.5
+                has_production = True
+            elif rec_tds > 5:
+                mult += 0.3
+                has_production = True
 
         elif position == "TE":
-            if rec_yds > 600: mult += 0.5
-            elif rec_yds > 300: mult += 0.3
-            if rec_tds > 5: mult += 0.3
+            if rec_yds > 600:
+                mult += 0.7
+                has_production = True
+            elif rec_yds > 300:
+                mult += 0.4
+                has_production = True
+
+            if rec_tds > 5:
+                mult += 0.4
+                has_production = True
 
         elif position in ["EDGE", "DL"]:
-            if sacks > 10: mult += 0.7
-            elif sacks > 5: mult += 0.4
-            elif sacks > 2: mult += 0.2
+            if sacks > 10:
+                mult += 0.9
+                has_production = True
+            elif sacks > 5:
+                mult += 0.5
+                has_production = True
+            elif sacks > 2:
+                mult += 0.3
+                has_production = True
 
         elif position == "LB":
-            if tackles > 100: mult += 0.5
-            elif tackles > 70: mult += 0.3
-            if sacks > 3: mult += 0.2
+            if tackles > 100:
+                mult += 0.7
+                has_production = True
+            elif tackles > 70:
+                mult += 0.4
+                has_production = True
+            elif tackles > 40:
+                mult += 0.2
+                has_production = True
+
+            if sacks > 3:
+                mult += 0.3
+                has_production = True
 
         elif position in ["CB", "S"]:
-            if ints > 5: mult += 0.6
-            elif ints > 2: mult += 0.3
-            if tackles > 50: mult += 0.2
+            if ints > 5:
+                mult += 0.8
+                has_production = True
+            elif ints > 2:
+                mult += 0.4
+                has_production = True
 
-        # PFF grade bonus (applies to all)
-        if pff_grade:
-            if pff_grade > 90: mult += 0.5
-            elif pff_grade > 80: mult += 0.3
-            elif pff_grade > 70: mult += 0.1
+            if tackles > 50:
+                mult += 0.3
+                has_production = True
 
-        # Starter bonus already applied elsewhere, but games started matters
+        # =============================================================================
+        # STEP 2: GAMES PLAYED SCALING (Guardrail for volume)
+        # =============================================================================
+        games_scale = min(games / 10.0, 1.2)  # Scale up to 1.2x for 10+ games
+        if games < 6:
+            games_scale *= 0.6  # Heavy penalty for < 6 games
+        elif games < 8:
+            games_scale *= 0.8  # Moderate penalty for < 8 games
+
+        mult *= games_scale
+
+        # =============================================================================
+        # STEP 3: PFF GRADE MODIFIER (Secondary - Only Matters with Production)
+        # =============================================================================
+        if pff_grade and has_production:
+            # PFF grade only helps if you actually produced
+            # Scale bonus based on games played
+            pff_bonus = 0.0
+            if pff_grade > 90:
+                pff_bonus = 0.3
+            elif pff_grade > 80:
+                pff_bonus = 0.2
+            elif pff_grade > 70:
+                pff_bonus = 0.1
+
+            # Scale PFF bonus by games (no bonus for < 6 games)
+            if games >= 10:
+                mult += pff_bonus
+            elif games >= 8:
+                mult += pff_bonus * 0.7
+            elif games >= 6:
+                mult += pff_bonus * 0.4
+            # else: no PFF bonus for < 6 games
+
+        elif pff_grade and not has_production:
+            # High grade but no production? Small bonus only
+            if pff_grade > 85 and games >= 8:
+                mult += 0.1  # Minimal bonus for potential
+
+        # =============================================================================
+        # STEP 4: STARTER BONUS
+        # =============================================================================
         start_rate = starts / max(games, 1)
-        if start_rate > 0.8: mult += 0.2
+        if start_rate > 0.8:
+            mult += 0.2
 
         return max(mult, 0.3)  # Minimum multiplier
 

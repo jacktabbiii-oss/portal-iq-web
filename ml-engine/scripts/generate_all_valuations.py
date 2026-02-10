@@ -450,20 +450,37 @@ def generate_calibrated_valuations(all_players_df: pd.DataFrame, real_values: di
     on3_count = fbs_df["on3_nil_value"].notna().sum()
     print(f"  {on3_count} players have On3 real values for comparison")
 
-    # Apply custom algorithm to ALL FBS players (our main feature)
-    print(f"\nApplying custom algorithm to all {len(fbs_df)} FBS players...")
+    # Filter to current season (2025) only - exclude NFL draftees and graduates
+    print(f"\nFiltering to current season (2025) players only...")
+    current_season = 2025
+    fbs_current = fbs_df[fbs_df["season"] == current_season].copy()
+    fbs_old = fbs_df[fbs_df["season"] != current_season].copy()
+
+    print(f"  Current season (2025): {len(fbs_current)} players")
+    print(f"  Old seasons: {len(fbs_old)} players (will set NIL=NULL)")
+
+    # Apply custom algorithm to CURRENT FBS players only (our main feature)
+    print(f"\nApplying custom algorithm to {len(fbs_current)} current season players...")
     print("(Custom algorithm is primary - On3 values for comparison only)")
 
-    # Generate valuations for ALL FBS players using CustomNILValuator
-    predicted = model.valuate_dataframe(fbs_df)
-    # CRITICAL: Use .values to copy by position, not by index (avoids misalignment)
-    fbs_df["nil_value"] = predicted["custom_nil_value"].values
-    fbs_df["nil_tier"] = predicted["nil_tier"].values
-    fbs_df["confidence"] = predicted["valuation_confidence"].values
-    fbs_df["is_predicted"] = True
+    if not fbs_current.empty:
+        # Generate valuations for current season FBS players using CustomNILValuator
+        predicted = model.valuate_dataframe(fbs_current)
+        # CRITICAL: Use .values to copy by position, not by index (avoids misalignment)
+        fbs_current["nil_value"] = predicted["custom_nil_value"].values
+        fbs_current["nil_tier"] = predicted["nil_tier"].values
+        fbs_current["confidence"] = predicted["valuation_confidence"].values
+        fbs_current["is_predicted"] = True
 
-    # All FBS players now have custom algorithm values (with On3 for comparison)
-    fbs_with_nil = fbs_df
+    # Old season players get NULL valuations (they're not in college anymore)
+    if not fbs_old.empty:
+        fbs_old["nil_value"] = None
+        fbs_old["nil_tier"] = None
+        fbs_old["confidence"] = None
+        fbs_old["is_predicted"] = None
+
+    # Combine current and old season players
+    fbs_with_nil = pd.concat([fbs_current, fbs_old], ignore_index=True)
 
     # FCS/Unknown get NULL NIL values
     fcs_df["nil_value"] = None
