@@ -84,9 +84,6 @@ function getTierBadge(tier: string) {
     solid: "tier-solid",
     moderate: "tier-moderate",
     entry: "tier-entry",
-    established: "tier-premium",
-    emerging: "tier-solid",
-    developing: "tier-moderate",
   };
   return styles[tier] || "tier-entry";
 }
@@ -318,7 +315,7 @@ export default function NILValuatorPage() {
       const pffBonus = customForm.pffGrade ? (parseFloat(customForm.pffGrade) / 100) * 100000 : 0;
 
       const value = Math.round(baseValue * posMult * starMult + socialValue + pffBonus);
-      const tier = value >= 1000000 ? "mega" : value >= 500000 ? "premium" : value >= 200000 ? "established" : value >= 50000 ? "emerging" : "developing";
+      const tier = value >= 2000000 ? "mega" : value >= 500000 ? "premium" : value >= 100000 ? "solid" : value >= 25000 ? "moderate" : "entry";
 
       setCustomResult({
         value,
@@ -950,7 +947,7 @@ export default function NILValuatorPage() {
                               position: result.position,
                               school: result.school,
                               valuation: result.nil_value || 0,
-                              nil_tier: "emerging",
+                              nil_tier: "entry",
                               headshot_url: result.headshot_url,
                               stars: result.stars,
                               rank: 0,
@@ -1067,7 +1064,7 @@ export default function NILValuatorPage() {
                               position: result.position,
                               school: result.school,
                               valuation: result.nil_value || 0,
-                              nil_tier: "emerging",
+                              nil_tier: "entry",
                               headshot_url: result.headshot_url,
                               stars: result.stars,
                               rank: 0,

@@ -69,9 +69,6 @@ function getTierBadge(tier: string) {
     solid: "bg-gradient-to-r from-blue-500 to-cyan-500 text-white",
     moderate: "bg-gradient-to-r from-green-500 to-emerald-500 text-white",
     entry: "bg-gray-500 text-white",
-    established: "bg-gradient-to-r from-purple-500 to-pink-500 text-white",
-    emerging: "bg-gradient-to-r from-blue-500 to-cyan-500 text-white",
-    developing: "bg-gradient-to-r from-green-500 to-emerald-500 text-white",
   };
   return styles[tier?.toLowerCase()] || "bg-gray-500 text-white";
 }

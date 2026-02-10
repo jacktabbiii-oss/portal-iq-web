@@ -645,14 +645,37 @@ export default function PortalIntelligencePage() {
                             </Badge>
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <School className="h-3 w-3" />
+                            <span className="flex items-center gap-1.5">
+                              {(player as PortalPlayerWithMeasurables & { origin_logo?: string }).origin_logo ? (
+                                <Image
+                                  src={(player as PortalPlayerWithMeasurables & { origin_logo?: string }).origin_logo!}
+                                  alt={player.origin_school}
+                                  width={16}
+                                  height={16}
+                                  className="rounded-sm"
+                                  unoptimized
+                                />
+                              ) : (
+                                <School className="h-3 w-3" />
+                              )}
                               {player.origin_school}
                             </span>
                             {player.destination_school && (
                               <>
                                 <ChevronRight className="h-3 w-3" />
-                                <span className="text-primary font-medium">{player.destination_school}</span>
+                                <span className="flex items-center gap-1.5 text-primary font-medium">
+                                  {(player as PortalPlayerWithMeasurables & { destination_logo?: string }).destination_logo && (
+                                    <Image
+                                      src={(player as PortalPlayerWithMeasurables & { destination_logo?: string }).destination_logo!}
+                                      alt={player.destination_school!}
+                                      width={16}
+                                      height={16}
+                                      className="rounded-sm"
+                                      unoptimized
+                                    />
+                                  )}
+                                  {player.destination_school}
+                                </span>
                               </>
                             )}
                           </div>
@@ -774,6 +797,7 @@ export default function PortalIntelligencePage() {
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Transfers</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">WAR Added</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">NIL Invested</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">On3</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">Score</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -781,7 +805,21 @@ export default function PortalIntelligencePage() {
                     {teamRankings.map((team, index) => (
                       <TableRow key={team.team} className="border-border">
                         <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-semibold">{team.team}</TableCell>
+                        <TableCell className="font-semibold">
+                          <span className="flex items-center gap-2">
+                            {team.team_logo && (
+                              <Image
+                                src={team.team_logo}
+                                alt={team.team}
+                                width={24}
+                                height={24}
+                                className="rounded-sm"
+                                unoptimized
+                              />
+                            )}
+                            {team.team}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-center">
                           <Badge
                             className={cn(
@@ -804,6 +842,9 @@ export default function PortalIntelligencePage() {
                         </TableCell>
                         <TableCell className="text-right font-mono text-muted-foreground">
                           {formatCurrency(team.total_nil_invested)}
+                        </TableCell>
+                        <TableCell className="text-center text-muted-foreground font-mono text-sm">
+                          {team.on3_rank ? `#${team.on3_rank}` : "—"}
                         </TableCell>
                         <TableCell className="text-right font-bold text-primary">
                           {team.portal_score.toFixed(1)}

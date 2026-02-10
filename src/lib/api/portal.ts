@@ -21,6 +21,8 @@ export interface PortalPlayer {
   nil_tier?: string;
   days_in_portal?: number;
   headshot_url?: string;
+  origin_logo?: string;
+  destination_logo?: string;
 }
 
 export interface PortalPlayersParams {
@@ -228,6 +230,7 @@ export async function getPortalRecommendations(
 
 export interface TeamRanking {
   team: string;
+  team_logo?: string;
   grade: string;
   portal_score: number;
   war_added: number;
@@ -236,12 +239,19 @@ export interface TeamRanking {
     transfers_in: number;
     total_stars: number;
     avg_stars: number;
+    war_score?: number;
+    nil_score?: number;
+    talent_score?: number;
+    balance_score?: number;
   };
+  on3_rank?: number;
+  on3_score?: number;
   top_acquisitions: Array<{
     name: string;
     position: string;
     stars: number;
     nil_value: number;
+    war?: number;
   }>;
 }
 

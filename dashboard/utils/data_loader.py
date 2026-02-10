@@ -357,15 +357,15 @@ def get_nil_players() -> pd.DataFrame:
         def get_tier(value):
             if pd.isna(value) or value == 0:
                 return "unknown"
-            if value >= 1000000:
+            if value >= 2000000:
                 return "mega"
             if value >= 500000:
                 return "premium"
-            if value >= 200000:
-                return "established"
-            if value >= 50000:
-                return "emerging"
-            return "developing"
+            if value >= 100000:
+                return "solid"
+            if value >= 25000:
+                return "moderate"
+            return "entry"
 
         df["tier"] = df["nil_value"].apply(get_tier)
 
@@ -1061,7 +1061,7 @@ def get_class_years() -> List[str]:
 
 def get_tiers() -> List[str]:
     """Get list of NIL value tiers."""
-    return ["mega", "premium", "established", "emerging", "developing", "unknown"]
+    return ["mega", "premium", "solid", "moderate", "entry", "unknown"]
 
 
 def get_portal_statuses() -> List[str]:

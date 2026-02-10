@@ -257,16 +257,16 @@ def get_nil_market_signal(nil_value: float, position: str) -> float:
     if not nil_value or pd.isna(nil_value) or nil_value <= 0:
         return 0
 
-    # Position-adjusted thresholds (QBs naturally get more NIL)
+    # Position-adjusted thresholds (calibrated to real On3 market data)
     position_nil_baseline = {
-        "QB": 500000,
-        "WR": 200000,
-        "RB": 150000,
-        "EDGE": 150000,
-        "CB": 120000,
+        "QB": 50000,
+        "WR": 20000,
+        "RB": 15000,
+        "EDGE": 15000,
+        "CB": 12000,
     }
 
-    baseline = position_nil_baseline.get(position, 100000)
+    baseline = position_nil_baseline.get(position, 10000)
 
     # Calculate bonus based on how much above baseline
     ratio = nil_value / baseline
@@ -488,8 +488,8 @@ def calculate_team_portal_score(
         star_counts.get(2, 0) * 0.1
     ) / max(1, len(incoming_players))
 
-    # NIL efficiency (WAR per dollar spent)
-    nil_efficiency = (total_war_in / (total_nil / 100000)) if total_nil > 0 else 0
+    # NIL efficiency (WAR per $10K of NIL spent)
+    nil_efficiency = (total_war_in / (total_nil / 10000)) if total_nil > 0 else 0
 
     # Calculate composite score (0-100 scale)
     raw_score = (
@@ -564,21 +564,21 @@ def analyze_transfer_value(
 
     cost_per_war = nil_value / player_war
 
-    # Position-adjusted fair value per WAR
+    # Position-adjusted fair value per WAR (calibrated to real On3 market data)
     position_fair_value = {
-        "QB": 800000,
-        "WR": 400000,
-        "RB": 350000,
-        "EDGE": 450000,
-        "CB": 380000,
-        "OT": 350000,
-        "LB": 320000,
-        "S": 300000,
-        "TE": 320000,
-        "DT": 300000,
+        "QB": 80000,
+        "WR": 40000,
+        "RB": 35000,
+        "EDGE": 45000,
+        "CB": 38000,
+        "OT": 35000,
+        "LB": 32000,
+        "S": 30000,
+        "TE": 32000,
+        "DT": 30000,
     }
 
-    fair_value = position_fair_value.get(position, 300000)
+    fair_value = position_fair_value.get(position, 30000)
 
     # Determine value rating
     ratio = cost_per_war / fair_value

@@ -96,7 +96,10 @@ function TeamAnalysisContent() {
       <div className="text-right">
         <p className="text-[#D4AF37] font-bold">{player.war.toFixed(1)} WAR</p>
         <p className="text-gray-400 text-sm">
-          {"⭐".repeat(player.stars || 3)} ${(player.nil_valuation / 1000).toFixed(0)}K
+          {"⭐".repeat(player.stars || 3)}{" "}
+          {player.nil_valuation >= 1000000
+            ? `$${(player.nil_valuation / 1000000).toFixed(1)}M`
+            : `$${(player.nil_valuation / 1000).toFixed(0)}K`}
         </p>
       </div>
     </div>
@@ -180,7 +183,9 @@ function TeamAnalysisContent() {
             <div className="bg-[#1a2744] rounded-xl p-4">
               <p className="text-gray-400 text-xs uppercase mb-1">NIL Invested</p>
               <p className="text-3xl font-bold text-white">
-                ${(data.summary.total_nil / 1000000).toFixed(1)}M
+                {data.summary.total_nil >= 1000000
+                  ? `$${(data.summary.total_nil / 1000000).toFixed(1)}M`
+                  : `$${Math.round(data.summary.total_nil / 1000).toLocaleString()}K`}
               </p>
             </div>
           </div>

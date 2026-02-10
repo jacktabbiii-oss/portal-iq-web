@@ -14,7 +14,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState({
     emailAlerts: true,
     portalAlerts: true,
-    nilThreshold: 100000,
+    nilThreshold: 5000,
     preferredConference: "all",
   });
 
@@ -96,12 +96,12 @@ export default function SettingsPage() {
               onChange={(e) => updateSetting("nilThreshold", Number(e.target.value))}
               className="w-full bg-[#243354] border border-[#3a4d6e] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#D4AF37]"
             >
-              <option value={25000}>$25,000+</option>
-              <option value={50000}>$50,000+</option>
-              <option value={100000}>$100,000+</option>
-              <option value={250000}>$250,000+</option>
-              <option value={500000}>$500,000+</option>
-              <option value={1000000}>$1,000,000+</option>
+              <option value={1000}>$1,000+</option>
+              <option value={5000}>$5,000+</option>
+              <option value={10000}>$10,000+</option>
+              <option value={25000}>$25,000+ (Moderate)</option>
+              <option value={100000}>$100,000+ (Solid)</option>
+              <option value={500000}>$500,000+ (Premium)</option>
             </select>
           </div>
           <div>

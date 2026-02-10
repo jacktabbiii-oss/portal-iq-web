@@ -131,16 +131,16 @@ const POSITION_SCARCITY: Record<string, number> = {
 // These thresholds help estimate player tier from market value
 const NIL_STAR_THRESHOLDS: Record<string, { min: number; stars: number }[]> = {
   QB: [
-    { min: 2000000, stars: 5 },
-    { min: 800000, stars: 4 },
-    { min: 200000, stars: 3 },
-    { min: 50000, stars: 2 },
+    { min: 500000, stars: 5 },
+    { min: 150000, stars: 4 },
+    { min: 40000, stars: 3 },
+    { min: 10000, stars: 2 },
   ],
   DEFAULT: [
-    { min: 500000, stars: 5 },
-    { min: 200000, stars: 4 },
-    { min: 75000, stars: 3 },
-    { min: 25000, stars: 2 },
+    { min: 200000, stars: 5 },
+    { min: 60000, stars: 4 },
+    { min: 15000, stars: 3 },
+    { min: 5000, stars: 2 },
   ],
 };
 
@@ -170,16 +170,16 @@ function estimateStarsFromNIL(nilValue: number, position: string): number {
 function getNILMarketSignal(nilValue: number, position: string): number {
   if (!nilValue || nilValue <= 0) return 0;
 
-  // Position-adjusted baselines
+  // Position-adjusted baselines (calibrated to real On3 market data)
   const positionNILBaseline: Record<string, number> = {
-    QB: 500000,
-    WR: 200000,
-    RB: 150000,
-    EDGE: 150000,
-    CB: 120000,
+    QB: 50000,
+    WR: 20000,
+    RB: 15000,
+    EDGE: 15000,
+    CB: 12000,
   };
 
-  const baseline = positionNILBaseline[position.toUpperCase()] || 100000;
+  const baseline = positionNILBaseline[position.toUpperCase()] || 10000;
   const ratio = nilValue / baseline;
 
   if (ratio >= 10) return 0.5;      // 10x = superstar
@@ -244,6 +244,9 @@ function getGrade(war: number): "Elite" | "Premium" | "Solid" | "Average" {
 export async function getWARLeaderboard(
   params?: WARLeaderboardParams
 ): Promise<WARPlayer[]> {
+  // Ensure school tiers are loaded for WAR calculation
+  await loadSchoolTiers();
+
   // Fetch NIL leaderboard data
   const searchParams = new URLSearchParams();
   if (params?.position) searchParams.set("position", params.position);
@@ -341,51 +344,89 @@ export async function calculatePlayerWAR(input: {
 }
 
 // =============================================================================
-// School Tiers (matching Streamlit algorithm)
+// School Tiers (loaded from API, cached locally)
+// Multipliers match backend school_tiers.py TIER_DEFINITIONS
 // =============================================================================
 
-const SCHOOL_TIERS: Record<string, { schools: string[]; multiplier: number }> = {
-  elite: {
-    schools: ["Alabama", "Georgia", "Ohio State", "Michigan", "Texas",
-              "Oregon", "Penn State", "Notre Dame", "USC", "Clemson"],
-    multiplier: 1.3,
-  },
-  power: {
-    schools: ["LSU", "Oklahoma", "Florida", "Miami", "Tennessee", "Auburn",
-              "Texas A&M", "Wisconsin", "UCLA", "Washington", "Utah", "Ole Miss",
-              "Missouri", "Florida State", "Louisville", "Kentucky", "Arkansas"],
-    multiplier: 1.15,
-  },
-  rising: {
-    schools: ["Colorado", "Indiana", "Illinois", "Iowa State", "Kansas State",
-              "Arizona", "NC State", "Virginia Tech", "Baylor", "Pittsburgh",
-              "SMU", "Syracuse", "Duke", "Cal", "Nebraska"],
-    multiplier: 1.0,
-  },
-  developmental: {
-    schools: [],
-    multiplier: 0.85,
-  }
+const TIER_MULTIPLIERS: Record<string, number> = {
+  blue_blood: 3.0,
+  elite: 2.3,
+  power_strong: 1.8,
+  power_mid: 1.4,
+  power_low: 1.1,
+  g5_strong: 1.0,
+  g5_mid: 0.8,
+  fcs: 0.5,
 };
 
+// Cache of school → { tier, multiplier } loaded from API
+let _schoolTierCache: Record<string, { tier: string; multiplier: number }> | null = null;
+let _cacheLoading = false;
+
 /**
- * Get school tier and multiplier
+ * Load school tiers from the API and cache them.
+ * Called on first use; subsequent calls return from cache.
+ */
+export async function loadSchoolTiers(): Promise<void> {
+  if (_schoolTierCache || _cacheLoading) return;
+  _cacheLoading = true;
+
+  try {
+    const response = await apiClient.get("/api/schools/tiers");
+    const data = response as unknown as {
+      tiers: Record<string, Array<{ school: string; tier: string; multiplier: number }>>;
+      all_schools?: Array<{ school: string; tier: string; multiplier: number }>;
+    };
+
+    const cache: Record<string, { tier: string; multiplier: number }> = {};
+
+    // Build cache from all_schools or from tiers buckets
+    if (data.all_schools) {
+      for (const s of data.all_schools) {
+        cache[s.school.toLowerCase()] = { tier: s.tier, multiplier: s.multiplier };
+      }
+    } else if (data.tiers) {
+      for (const [, schools] of Object.entries(data.tiers)) {
+        for (const s of schools) {
+          cache[s.school.toLowerCase()] = { tier: s.tier, multiplier: s.multiplier };
+        }
+      }
+    }
+
+    if (Object.keys(cache).length > 0) {
+      _schoolTierCache = cache;
+    }
+  } catch {
+    // Silently fail — getSchoolTier will use default multiplier
+  } finally {
+    _cacheLoading = false;
+  }
+}
+
+/**
+ * Get school tier and multiplier.
+ * Uses API-cached data when available, defaults to 1.0 multiplier otherwise.
  */
 export function getSchoolTier(school: string): { tier: string; multiplier: number } {
-  if (!school) return { tier: "developmental", multiplier: 0.85 };
+  if (!school) return { tier: "g5_mid", multiplier: 0.8 };
 
-  const schoolLower = school.toLowerCase();
+  const schoolLower = school.toLowerCase().trim();
 
-  for (const [tierName, tierData] of Object.entries(SCHOOL_TIERS)) {
-    if (tierName === "developmental") continue;
-    for (const s of tierData.schools) {
-      if (s.toLowerCase().includes(schoolLower) || schoolLower.includes(s.toLowerCase())) {
-        return { tier: tierName, multiplier: tierData.multiplier };
+  // Check API cache first
+  if (_schoolTierCache) {
+    const cached = _schoolTierCache[schoolLower];
+    if (cached) return cached;
+
+    // Try partial match (e.g. "Alabama" matching "alabama")
+    for (const [key, info] of Object.entries(_schoolTierCache)) {
+      if (key.includes(schoolLower) || schoolLower.includes(key)) {
+        return info;
       }
     }
   }
 
-  return { tier: "developmental", multiplier: 0.85 };
+  // Default for unknown/uncached schools
+  return { tier: "g5_mid", multiplier: 0.8 };
 }
 
 /**
@@ -488,7 +529,7 @@ export function analyzeTransferValue(
   if (!nilValue || nilValue <= 0 || !playerWAR || playerWAR <= 0) {
     return {
       cost_per_war: 0,
-      fair_value_per_war: 300000,
+      fair_value_per_war: 30000,
       value_ratio: 0,
       value_rating: "unknown",
       roi_projection: "Insufficient data",
@@ -498,13 +539,13 @@ export function analyzeTransferValue(
 
   const costPerWAR = nilValue / playerWAR;
 
-  // Position-adjusted fair value per WAR
+  // Position-adjusted fair value per WAR (calibrated to real On3 market data)
   const positionFairValue: Record<string, number> = {
-    QB: 800000, WR: 400000, RB: 350000, EDGE: 450000, CB: 380000,
-    OT: 350000, LB: 320000, S: 300000, TE: 320000, DT: 300000,
+    QB: 80000, WR: 40000, RB: 35000, EDGE: 45000, CB: 38000,
+    OT: 35000, LB: 32000, S: 30000, TE: 32000, DT: 30000,
   };
 
-  const fairValue = positionFairValue[position.toUpperCase()] || 300000;
+  const fairValue = positionFairValue[position.toUpperCase()] || 30000;
   const ratio = costPerWAR / fairValue;
 
   let valueRating: string;
@@ -632,8 +673,8 @@ export function calculateTeamPortalScores(players: WARPlayer[]): TeamPortalScore
       starCounts[2] * 0.1
     ) / incoming.length;
 
-    // NIL efficiency
-    const nilEfficiency = totalNIL > 0 ? totalWAR / (totalNIL / 100000) : 0;
+    // NIL efficiency (WAR per $10K of NIL spent)
+    const nilEfficiency = totalNIL > 0 ? totalWAR / (totalNIL / 10000) : 0;
 
     // Calculate composite score (0-100 scale)
     const rawScore = (
@@ -683,12 +724,15 @@ export function calculateTeamPortalScores(players: WARPlayer[]): TeamPortalScore
 }
 
 /**
- * Get list of schools for dropdown
+ * Get list of schools for dropdown.
+ * Returns cached schools from API if available, empty array otherwise.
+ * Use SCHOOL_LIST from team.ts for a complete static fallback list.
  */
 export function getSchoolList(): string[] {
-  const allSchools: string[] = [];
-  for (const tierData of Object.values(SCHOOL_TIERS)) {
-    allSchools.push(...tierData.schools);
+  if (_schoolTierCache) {
+    return Object.values(_schoolTierCache)
+      .map((_, i) => Object.keys(_schoolTierCache!)[i])
+      .sort();
   }
-  return allSchools.sort();
+  return [];
 }

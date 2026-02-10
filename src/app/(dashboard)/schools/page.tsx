@@ -1,45 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { School, Search, Trophy, TrendingUp, Zap, Building2 } from "lucide-react";
+import { School, Search, Trophy, TrendingUp, Zap, Building2, Loader2, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SCHOOL_LIST } from "@/lib/api/team";
+import { getSchoolTiers, type SchoolTierInfo, type SchoolTiersResponse } from "@/lib/api/team";
 
-// School tiers for display
-const SCHOOL_TIERS: Record<string, { schools: string[]; color: string; bgColor: string; label: string }> = {
-  elite: {
-    schools: ["Alabama", "Georgia", "Ohio State", "Michigan", "Texas", "Oregon", "Penn State", "Notre Dame", "USC", "Clemson"],
-    color: "text-primary",
-    bgColor: "bg-primary/10 border-primary/20",
-    label: "Elite",
-  },
-  power: {
-    schools: ["LSU", "Oklahoma", "Florida", "Miami", "Tennessee", "Auburn", "Texas A&M", "Wisconsin", "UCLA", "Washington", "Utah", "Ole Miss", "Missouri", "Florida State", "Louisville", "Kentucky", "Arkansas"],
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10 border-blue-500/20",
-    label: "Power",
-  },
-  rising: {
-    schools: ["Colorado", "Indiana", "Illinois", "Iowa State", "Kansas State", "Arizona", "NC State", "Virginia Tech", "Baylor", "Pittsburgh", "SMU", "Syracuse", "Duke", "California", "Nebraska"],
-    color: "text-green-500",
-    bgColor: "bg-green-500/10 border-green-500/20",
-    label: "Rising",
-  },
+// Tier display configuration
+const TIER_DISPLAY: Record<string, { color: string; bgColor: string; label: string; icon: typeof Trophy }> = {
+  blue_blood: { color: "text-primary", bgColor: "bg-primary/10 border-primary/20", label: "Blue Blood", icon: Trophy },
+  elite: { color: "text-primary", bgColor: "bg-primary/10 border-primary/20", label: "Elite", icon: Trophy },
+  power_strong: { color: "text-blue-500", bgColor: "bg-blue-500/10 border-blue-500/20", label: "Strong P4", icon: TrendingUp },
+  power_mid: { color: "text-blue-400", bgColor: "bg-blue-400/10 border-blue-400/20", label: "Mid P4", icon: TrendingUp },
+  power_low: { color: "text-cyan-500", bgColor: "bg-cyan-500/10 border-cyan-500/20", label: "Lower P4", icon: TrendingUp },
+  g5_strong: { color: "text-green-500", bgColor: "bg-green-500/10 border-green-500/20", label: "Strong G5", icon: Zap },
+  g5_mid: { color: "text-green-400", bgColor: "bg-green-400/10 border-green-400/20", label: "Mid G5", icon: Zap },
+  fcs: { color: "text-muted-foreground", bgColor: "bg-muted/10 border-border", label: "FCS", icon: Building2 },
 };
 
-function getSchoolTier(school: string): { tier: string; color: string; bgColor: string; label: string } {
-  for (const [tierName, tierData] of Object.entries(SCHOOL_TIERS)) {
-    if (tierData.schools.some((s) => s.toLowerCase() === school.toLowerCase())) {
-      return { tier: tierName, ...tierData };
-    }
-  }
-  return { tier: "other", color: "text-muted-foreground", bgColor: "bg-muted/10 border-border", label: "Other" };
-}
+// Display groups (combine similar tiers for UI)
+const DISPLAY_GROUPS = [
+  { key: "elite", label: "Elite Programs", tiers: ["blue_blood", "elite"], icon: Trophy, color: "text-primary", bg: "bg-primary/20" },
+  { key: "power", label: "Power Programs", tiers: ["power_strong", "power_mid"], icon: TrendingUp, color: "text-blue-500", bg: "bg-blue-500/20" },
+  { key: "rising", label: "Rising Programs", tiers: ["power_low", "g5_strong"], icon: Zap, color: "text-green-500", bg: "bg-green-500/20" },
+  { key: "other", label: "Other Programs", tiers: ["g5_mid", "fcs"], icon: Building2, color: "text-muted-foreground", bg: "bg-muted/20" },
+];
 
 const conferences: Record<string, string> = {
   all: "All Schools",
@@ -47,53 +37,101 @@ const conferences: Record<string, string> = {
   bigten: "Big Ten",
   acc: "ACC",
   big12: "Big 12",
+  g5: "Group of 5",
 };
 
-const conferenceSchools: Record<string, string[]> = {
-  sec: ["Alabama", "Arkansas", "Auburn", "Florida", "Georgia", "Kentucky", "LSU", "Mississippi State", "Missouri", "Oklahoma", "Ole Miss", "South Carolina", "Tennessee", "Texas", "Texas A&M", "Vanderbilt"],
-  bigten: ["Illinois", "Indiana", "Iowa", "Maryland", "Michigan", "Michigan State", "Minnesota", "Nebraska", "Northwestern", "Ohio State", "Oregon", "Penn State", "Purdue", "Rutgers", "UCLA", "USC", "Washington", "Wisconsin"],
-  acc: ["Boston College", "California", "Clemson", "Duke", "Florida State", "Georgia Tech", "Louisville", "Miami", "NC State", "North Carolina", "Notre Dame", "Pittsburgh", "SMU", "Stanford", "Syracuse", "Virginia", "Virginia Tech", "Wake Forest"],
-  big12: ["Arizona", "Arizona State", "Baylor", "BYU", "Cincinnati", "Colorado", "Houston", "Iowa State", "Kansas", "Kansas State", "Oklahoma State", "TCU", "Texas Tech", "UCF", "Utah", "West Virginia"],
-};
+const G5_CONFERENCES = new Set(["American", "Mountain West", "Sun Belt", "MAC", "Conference USA"]);
 
-const tierIcons = {
-  elite: Trophy,
-  power: TrendingUp,
-  rising: Zap,
-  other: Building2,
-};
+function formatRecord(wins?: number | null, losses?: number | null): string {
+  if (wins == null && losses == null) return "";
+  return `${wins ?? "?"}-${losses ?? "?"}`;
+}
 
-const tierLabels = {
-  elite: "Elite Programs",
-  power: "Power Programs",
-  rising: "Rising Programs",
-  other: "Other Programs",
-};
+function formatSPPlus(sp?: number | null): string {
+  if (sp == null) return "";
+  const sign = sp >= 0 ? "+" : "";
+  return `SP${sign}${sp.toFixed(1)}`;
+}
 
 export default function SchoolsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedConference, setSelectedConference] = useState("all");
+  const [tiersData, setTiersData] = useState<SchoolTiersResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const filteredSchools = SCHOOL_LIST.filter((school) => {
-    const matchesSearch = school.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesConference =
-      selectedConference === "all" ||
-      conferenceSchools[selectedConference]?.includes(school);
-    return matchesSearch && matchesConference;
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTiers() {
+      try {
+        const data = await getSchoolTiers();
+        if (!cancelled) {
+          setTiersData(data);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      }
+    }
+    loadTiers();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Build flat list of all schools from API data (or fallback to SCHOOL_LIST)
+  const allSchools: SchoolTierInfo[] = tiersData?.all_schools
+    ? tiersData.all_schools
+    : SCHOOL_LIST.map((name) => ({
+        school: name,
+        tier: "g5_mid",
+        multiplier: 1.0,
+        label: "Unknown",
+        score: 0,
+      }));
+
+  // Filter schools
+  const filteredSchools = allSchools.filter((s) => {
+    const matchesSearch = s.school.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+    if (selectedConference === "all") return true;
+    if (selectedConference === "g5") return G5_CONFERENCES.has(s.conference || "");
+    const confMap: Record<string, string> = {
+      sec: "SEC",
+      bigten: "Big Ten",
+      acc: "ACC",
+      big12: "Big 12",
+    };
+    return s.conference === confMap[selectedConference];
   });
 
-  // Group by tier
-  const groupedSchools = {
-    elite: filteredSchools.filter((s) => SCHOOL_TIERS.elite.schools.includes(s)),
-    power: filteredSchools.filter((s) => SCHOOL_TIERS.power.schools.includes(s)),
-    rising: filteredSchools.filter((s) => SCHOOL_TIERS.rising.schools.includes(s)),
-    other: filteredSchools.filter(
-      (s) =>
-        !SCHOOL_TIERS.elite.schools.includes(s) &&
-        !SCHOOL_TIERS.power.schools.includes(s) &&
-        !SCHOOL_TIERS.rising.schools.includes(s)
-    ),
+  // Group filtered schools by display group
+  const groupedSchools = DISPLAY_GROUPS.map((group) => ({
+    ...group,
+    schools: filteredSchools
+      .filter((s) => group.tiers.includes(s.tier))
+      .sort((a, b) => b.score - a.score),
+  }));
+
+  // Count stats from real data
+  const tierCounts = {
+    elite: allSchools.filter((s) => s.tier === "blue_blood" || s.tier === "elite").length,
+    power: allSchools.filter((s) => s.tier === "power_strong" || s.tier === "power_mid").length,
+    rising: allSchools.filter((s) => s.tier === "power_low" || s.tier === "g5_strong").length,
+    total: allSchools.length,
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto" />
+          <p className="text-muted-foreground">Loading school tiers from CFBD data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -105,9 +143,16 @@ export default function SchoolsPage() {
             Schools
           </h1>
           <p className="text-muted-foreground mt-1">
-            Browse {SCHOOL_LIST.length} schools and analyze their transfer portal activity
+            {tiersData
+              ? `${tiersData.total_schools} FBS schools ranked by wins, SP+, talent, and conference strength`
+              : `Browse ${SCHOOL_LIST.length} schools and analyze their transfer portal activity`}
           </p>
         </div>
+        {error && (
+          <Badge variant="outline" className="text-yellow-500 border-yellow-500/30">
+            Using fallback data
+          </Badge>
+        )}
       </div>
 
       {/* Stats */}
@@ -120,7 +165,7 @@ export default function SchoolsPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Elite</p>
-                <p className="text-2xl font-bold">{SCHOOL_TIERS.elite.schools.length}</p>
+                <p className="text-2xl font-bold">{tierCounts.elite}</p>
               </div>
             </div>
           </CardContent>
@@ -133,7 +178,7 @@ export default function SchoolsPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Power</p>
-                <p className="text-2xl font-bold">{SCHOOL_TIERS.power.schools.length}</p>
+                <p className="text-2xl font-bold">{tierCounts.power}</p>
               </div>
             </div>
           </CardContent>
@@ -146,7 +191,7 @@ export default function SchoolsPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Rising</p>
-                <p className="text-2xl font-bold">{SCHOOL_TIERS.rising.schools.length}</p>
+                <p className="text-2xl font-bold">{tierCounts.rising}</p>
               </div>
             </div>
           </CardContent>
@@ -159,7 +204,7 @@ export default function SchoolsPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase">Total</p>
-                <p className="text-2xl font-bold">{SCHOOL_LIST.length}</p>
+                <p className="text-2xl font-bold">{tierCounts.total}</p>
               </div>
             </div>
           </CardContent>
@@ -201,70 +246,78 @@ export default function SchoolsPage() {
         </CardContent>
       </Card>
 
-      {/* Schools Grid by Tier */}
-      {(Object.entries(groupedSchools) as [keyof typeof tierLabels, string[]][]).map(
-        ([tier, schools]) =>
-          schools.length > 0 && (
-            <div key={tier} className="space-y-4">
+      {/* Schools Grid by Tier Group */}
+      {groupedSchools.map(
+        (group) =>
+          group.schools.length > 0 && (
+            <div key={group.key} className="space-y-4">
               <div className="flex items-center gap-3">
-                {(() => {
-                  const Icon = tierIcons[tier];
-                  return (
-                    <>
-                      <div className={cn(
-                        "w-8 h-8 rounded-lg flex items-center justify-center",
-                        tier === "elite" && "bg-primary/20",
-                        tier === "power" && "bg-blue-500/20",
-                        tier === "rising" && "bg-green-500/20",
-                        tier === "other" && "bg-muted/20"
-                      )}>
-                        <Icon className={cn(
-                          "h-4 w-4",
-                          tier === "elite" && "text-primary",
-                          tier === "power" && "text-blue-500",
-                          tier === "rising" && "text-green-500",
-                          tier === "other" && "text-muted-foreground"
-                        )} />
-                      </div>
-                      <h2 className={cn(
-                        "text-lg font-bold",
-                        tier === "elite" && "text-primary",
-                        tier === "power" && "text-blue-500",
-                        tier === "rising" && "text-green-500",
-                        tier === "other" && "text-muted-foreground"
-                      )}>
-                        {tierLabels[tier]}
-                      </h2>
-                      <Badge variant="secondary" className="text-xs">
-                        {schools.length}
-                      </Badge>
-                    </>
-                  );
-                })()}
+                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", group.bg)}>
+                  <group.icon className={cn("h-4 w-4", group.color)} />
+                </div>
+                <h2 className={cn("text-lg font-bold", group.color)}>
+                  {group.label}
+                </h2>
+                <Badge variant="secondary" className="text-xs">
+                  {group.schools.length}
+                </Badge>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {schools.map((school) => {
-                  const tierInfo = getSchoolTier(school);
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {group.schools.map((school) => {
+                  const display = TIER_DISPLAY[school.tier] || TIER_DISPLAY.g5_mid;
+                  const record = formatRecord(school.wins, school.losses);
+                  const sp = formatSPPlus(school.sp_plus);
                   return (
                     <Link
-                      key={school}
-                      href={`/team-analysis?school=${encodeURIComponent(school)}`}
+                      key={school.school}
+                      href={`/team-analysis?school=${encodeURIComponent(school.school)}`}
                     >
-                      <Card className={cn(
-                        "glass cursor-pointer transition-all hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5 group h-full",
-                        "border",
-                        tierInfo.bgColor
-                      )}>
+                      <Card
+                        className={cn(
+                          "glass cursor-pointer transition-all hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5 group h-full",
+                          "border",
+                          display.bgColor
+                        )}
+                      >
                         <CardContent className="p-4">
-                          <p className="font-medium group-hover:text-primary transition-colors truncate">
-                            {school}
-                          </p>
-                          <Badge
-                            variant="outline"
-                            className={cn("text-xs mt-2", tierInfo.color)}
-                          >
-                            {tierInfo.label}
-                          </Badge>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium group-hover:text-primary transition-colors truncate">
+                                {school.school}
+                              </p>
+                              {school.conference && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{school.conference}</p>
+                              )}
+                            </div>
+                            <Badge variant="outline" className={cn("text-xs shrink-0", display.color)}>
+                              {display.label}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+                            {record && <span className="font-mono">{record}</span>}
+                            {sp && <span className="font-mono">{sp}</span>}
+                            {school.multiplier > 0 && (
+                              <span className={cn("font-mono", display.color)}>
+                                {school.multiplier.toFixed(1)}x
+                              </span>
+                            )}
+                          </div>
+                          {school.score > 0 && (
+                            <div className="mt-2">
+                              <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                                <div
+                                  className={cn(
+                                    "h-full rounded-full transition-all",
+                                    school.score >= 65 ? "bg-primary" :
+                                    school.score >= 38 ? "bg-blue-500" :
+                                    school.score >= 15 ? "bg-green-500" :
+                                    "bg-muted-foreground"
+                                  )}
+                                  style={{ width: `${Math.min(100, school.score)}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     </Link>

@@ -180,22 +180,22 @@ export const CONFERENCES = [
  * NIL tiers with labels and colors
  */
 export const NIL_TIERS = {
-  mega: { label: "Mega", color: "text-purple-500", min: 1000000 },
+  mega: { label: "Mega", color: "text-purple-500", min: 2000000 },
   premium: { label: "Premium", color: "text-primary", min: 500000 },
-  established: { label: "Established", color: "text-green-500", min: 200000 },
-  emerging: { label: "Emerging", color: "text-blue-500", min: 50000 },
-  developing: { label: "Developing", color: "text-muted-foreground", min: 0 },
+  solid: { label: "Solid", color: "text-green-500", min: 100000 },
+  moderate: { label: "Moderate", color: "text-blue-500", min: 25000 },
+  entry: { label: "Entry", color: "text-muted-foreground", min: 0 },
 };
 
 /**
- * Get NIL tier from value
+ * Get NIL tier from value. Must match backend calibrated_valuator.py thresholds.
  */
 export function getNILTier(
   value: number
 ): keyof typeof NIL_TIERS {
-  if (value >= 1000000) return "mega";
+  if (value >= 2000000) return "mega";
   if (value >= 500000) return "premium";
-  if (value >= 200000) return "established";
-  if (value >= 50000) return "emerging";
-  return "developing";
+  if (value >= 100000) return "solid";
+  if (value >= 25000) return "moderate";
+  return "entry";
 }

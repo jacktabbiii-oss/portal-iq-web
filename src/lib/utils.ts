@@ -71,10 +71,10 @@ export const tierConfig: Record<
 };
 
 export function getTierFromValue(value: number): NILTier {
-  if (value >= 1_000_000) return "mega";
-  if (value >= 250_000) return "premium";
-  if (value >= 50_000) return "solid";
-  if (value >= 10_000) return "moderate";
+  if (value >= 2_000_000) return "mega";
+  if (value >= 500_000) return "premium";
+  if (value >= 100_000) return "solid";
+  if (value >= 25_000) return "moderate";
   return "entry";
 }
 

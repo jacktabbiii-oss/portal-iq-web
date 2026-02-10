@@ -110,6 +110,49 @@ export async function getTeamOutlook(team: string, season: number = 2025) {
 }
 
 // =============================================================================
+// School Tiers (data-driven from CFBD)
+// =============================================================================
+
+export interface SchoolTierInfo {
+  school: string;
+  tier: string;
+  multiplier: number;
+  label: string;
+  score: number;
+  wins?: number | null;
+  losses?: number | null;
+  sp_plus?: number | null;
+  talent?: number | null;
+  conference?: string | null;
+  logo_url?: string | null;
+}
+
+export interface SchoolTiersResponse {
+  tiers: Record<string, SchoolTierInfo[]>;
+  tier_definitions: Record<string, { multiplier: number; label: string }>;
+  total_schools: number;
+  all_schools: SchoolTierInfo[];
+}
+
+/**
+ * Get all school tiers from real CFBD data
+ */
+export async function getSchoolTiers(): Promise<SchoolTiersResponse> {
+  const response = await apiClient.get("/api/schools/tiers");
+  const data = response as unknown as SchoolTiersResponse;
+  return data;
+}
+
+/**
+ * Get tier info for a specific school
+ */
+export async function getSchoolTier(school: string): Promise<SchoolTierInfo> {
+  const response = await apiClient.get(`/api/schools/${encodeURIComponent(school)}/tier`);
+  const data = response as unknown as SchoolTierInfo;
+  return data;
+}
+
+// =============================================================================
 // School List (for dropdowns)
 // =============================================================================
 
