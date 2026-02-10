@@ -16,6 +16,8 @@ import logging
 import warnings
 import os
 
+from .school_tiers import get_school_tier, get_school_tiers
+
 # ML imports
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -108,7 +110,9 @@ RETENTION_RECOMMENDATIONS = {
     'grad_eligible': "Offer graduate assistant or other post-eligibility opportunities if applicable",
 }
 
-# School data for fit analysis
+# DEPRECATED: School data for fit analysis
+# This hardcoded dict is kept for reference only.
+# Use get_dynamic_school_data(school) for real-time CFBD data.
 SCHOOL_DATA = {
     'Alabama': {'tier': 6, 'conference_tier': 3, 'market_size': 260, 'wins': 11, 'nil_tier': 5, 'style': 'pro'},
     'Ohio State': {'tier': 6, 'conference_tier': 3, 'market_size': 2150, 'wins': 12, 'nil_tier': 5, 'style': 'spread'},
@@ -162,6 +166,84 @@ POSITION_WIN_IMPACT = {
     'DL': 0.6,
     'S': 0.5,
 }
+
+
+def get_dynamic_school_data(school: str) -> Dict:
+    """
+    Get school data dynamically from CFBD sources.
+    Replaces hardcoded SCHOOL_DATA with real data.
+
+    Returns dict with: tier (numeric), conference_tier, market_size, wins, nil_tier, style
+    """
+    try:
+        # Get tier from dynamic CFBD system
+        tier_name, tier_info = get_school_tier(school)
+
+        # Map tier name to numeric (for backward compat with ML model)
+        tier_mapping = {
+            "blue_blood": 6,
+            "elite": 5,
+            "power_strong": 4,
+            "power_mid": 3,
+            "power_low": 2,
+            "g5_strong": 2,
+            "g5_mid": 1,
+            "fcs": 0,
+        }
+        numeric_tier = tier_mapping.get(tier_name, 3)
+
+        # Map to NIL tier (simplified from numeric tier)
+        nil_tier_mapping = {6: 5, 5: 4, 4: 3, 3: 2, 2: 1, 1: 1, 0: 0}
+        nil_tier = nil_tier_mapping.get(numeric_tier, 2)
+
+        # Get wins and conference from tier_info (comes from CFBD data)
+        wins = int(tier_info.get('wins', 7))
+        conference = tier_info.get('conference', '').lower()
+
+        # Map conference to tier
+        if conference in ['sec', 'big ten']:
+            conference_tier = 3
+        elif conference in ['acc', 'big 12']:
+            conference_tier = 2
+        else:
+            conference_tier = 1
+
+        # Estimate market size based on school (rough estimates - could enhance with data)
+        # For now, default to 500k (median)
+        market_size = 500
+
+        # Style defaults to spread (modern trend)
+        style = 'spread'
+
+        return {
+            'tier': numeric_tier,
+            'conference_tier': conference_tier,
+            'market_size': market_size,
+            'wins': wins,
+            'nil_tier': nil_tier,
+            'style': style,
+        }
+    except Exception as e:
+        logging.warning(f"Could not get dynamic data for {school}: {e}, using defaults")
+        # Fallback to defaults
+        return {
+            'tier': 3,
+            'conference_tier': 2,
+            'market_size': 500,
+            'wins': 7,
+            'nil_tier': 2,
+            'style': 'spread',
+        }
+
+
+def get_all_schools_for_portal() -> List[str]:
+    """Get list of all schools from dynamic CFBD data."""
+    try:
+        tiers = get_school_tiers()
+        return list(tiers.keys())
+    except Exception as e:
+        logging.warning(f"Could not get schools from CFBD: {e}, using hardcoded list")
+        return list(SCHOOL_DATA.keys())
 
 
 class PortalPredictor:
@@ -1316,11 +1398,8 @@ class PortalPredictor:
         """
         logger.info(f"Ranking portal targets for {school}...")
 
-        # Get school data
-        school_data = SCHOOL_DATA.get(school, {
-            'tier': 3, 'conference_tier': 2, 'market_size': 500,
-            'wins': 7, 'nil_tier': 2, 'style': 'spread'
-        })
+        # Get school data dynamically from CFBD
+        school_data = get_dynamic_school_data(school)
         school_features = pd.Series(school_data)
 
         # Calculate roster needs
@@ -1478,17 +1557,15 @@ class PortalPredictor:
 
         logger.info(f"Ranking destinations for {player_name}...")
 
-        # Default to all known schools
+        # Default to all known schools from dynamic CFBD data
         if schools_list is None:
-            schools_list = list(SCHOOL_DATA.keys())
+            schools_list = get_all_schools_for_portal()
 
         results = []
 
         for school in schools_list:
-            school_data = SCHOOL_DATA.get(school)
-            if school_data is None:
-                continue
-
+            # Get dynamic school data from CFBD
+            school_data = get_dynamic_school_data(school)
             school_features = pd.Series(school_data)
 
             try:

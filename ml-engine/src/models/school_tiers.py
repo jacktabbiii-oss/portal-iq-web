@@ -59,37 +59,94 @@ MANUAL_OVERRIDES = {
 
 
 def load_team_data() -> Optional[pd.DataFrame]:
-    """Load the most recent CFBD team data from cache or R2."""
+    """Load and merge CFBD team data from separate CSV files."""
     try:
-        # Try to load from R2 via data_loader
-        from ..utils.data_loader import _load_csv
+        # Determine data directory
+        data_dir = Path(__file__).parent.parent.parent / "data" / "processed"
 
-        # Look for team data file
-        team_df = _load_csv("cfbd_team_data.csv")
-        if team_df is not None and not team_df.empty:
-            return team_df
-    except Exception as e:
-        logger.debug(f"Could not load team data from R2: {e}")
+        if not data_dir.exists():
+            logger.warning(f"Data directory not found: {data_dir}")
+            return None
 
-    # Try local cache
-    try:
-        cache_paths = [
-            Path(__file__).parent.parent.parent / "data" / "cache",
-            Path(__file__).parent.parent.parent / "data" / "processed",
+        # Load the three CFBD files
+        records_file = data_dir / "cfbd_team_records.csv"
+        sp_file = data_dir / "cfbd_sp_ratings.csv"
+        talent_file = data_dir / "cfbd_team_talent.csv"
+
+        # Load team records (wins, losses, conference)
+        if not records_file.exists():
+            logger.warning(f"Team records file not found: {records_file}")
+            return None
+
+        records_df = pd.read_csv(records_file)
+        logger.info(f"Loaded {len(records_df)} team records")
+
+        # Filter to latest season and FBS only (skip FCS/D2/D3)
+        if "year" in records_df.columns:
+            latest_year = records_df["year"].max()
+            records_df = records_df[records_df["year"] == latest_year]
+            logger.info(f"Using latest season: {latest_year}")
+
+        # Filter to major conferences for FBS
+        fbs_conferences = [
+            "SEC", "Big Ten", "ACC", "Big 12", "Pac-12",
+            "American Athletic", "Mountain West", "Sun Belt",
+            "Conference USA", "MAC", "FBS Independents"
         ]
+        if "conference" in records_df.columns:
+            records_df = records_df[records_df["conference"].isin(fbs_conferences)]
 
-        for cache_dir in cache_paths:
-            if cache_dir.exists():
-                # Find most recent team data file
-                team_files = list(cache_dir.glob("cfb_team_data*.csv"))
-                if team_files:
-                    most_recent = max(team_files, key=lambda p: p.stat().st_mtime)
-                    logger.info(f"Loading team data from {most_recent}")
-                    return pd.read_csv(most_recent)
+        logger.info(f"Filtered to {len(records_df)} FBS teams")
+
+        # Rename columns for clarity (keep total_wins for compatibility)
+        records_df = records_df.rename(columns={
+            "school": "team",
+        })
+
+        # Load SP+ ratings
+        team_df = records_df.copy()
+        if sp_file.exists():
+            sp_df = pd.read_csv(sp_file)
+            if "year" in sp_df.columns:
+                latest_sp_year = sp_df["year"].max()
+                sp_df = sp_df[sp_df["year"] == latest_sp_year]
+
+            sp_df = sp_df.rename(columns={"school": "team"})
+
+            # Merge SP+ data
+            team_df = team_df.merge(
+                sp_df[["team", "sp_overall", "sp_offense", "sp_defense"]],
+                on="team",
+                how="left"
+            )
+            logger.info(f"Merged SP+ data: {sp_df['sp_overall'].notna().sum()} teams")
+
+        # Load talent composite
+        if talent_file.exists():
+            talent_df = pd.read_csv(talent_file)
+            if "year" in talent_df.columns:
+                talent_df = talent_df[talent_df["year"] == 2024]
+
+            # Note: talent file is missing school names, so we can't merge it
+            # This is a known data issue - talent composite will be NaN for now
+            logger.warning("Talent composite file exists but missing school names - skipping merge")
+
+        # Add season column (use the latest year from records)
+        if "year" in team_df.columns:
+            team_df["season"] = team_df["year"]
+        else:
+            team_df["season"] = latest_year
+
+        # Keep column names as-is (sp_overall, sp_offense, sp_defense) for compatibility
+
+        logger.info(f"Final merged team data: {len(team_df)} schools")
+        return team_df
+
     except Exception as e:
-        logger.debug(f"Could not load local team data: {e}")
-
-    return None
+        logger.error(f"Error loading team data: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def calculate_school_score(row: pd.Series) -> float:
@@ -236,9 +293,16 @@ def get_school_tiers() -> Dict[str, Dict]:
                 "multiplier": TIER_DEFINITIONS[tier]["multiplier"],
                 "label": TIER_DEFINITIONS[tier]["label"],
                 "score": round(score, 1),
-                "wins": row.get("total_wins", 0),
-                "sp_plus": row.get("sp_overall", 0),
-                "talent": row.get("talent_composite", 0),
+                # Core metrics
+                "wins": int(row.get("total_wins", 0)) if pd.notna(row.get("total_wins")) else 0,
+                "losses": int(row.get("total_losses", 0)) if pd.notna(row.get("total_losses")) else 0,
+                "conference": str(row.get("conference", "")),
+                # SP+ ratings
+                "sp_plus_overall": float(row.get("sp_overall", 0)) if pd.notna(row.get("sp_overall")) else 0,
+                "sp_plus_offense": float(row.get("sp_offense", 0)) if pd.notna(row.get("sp_offense")) else 0,
+                "sp_plus_defense": float(row.get("sp_defense", 0)) if pd.notna(row.get("sp_defense")) else 0,
+                # Talent & recruiting
+                "talent_composite": float(row.get("talent_composite", 0)) if pd.notna(row.get("talent_composite")) else 0,
                 "recruiting_rank": row.get("recruiting_rank", None),
             }
 

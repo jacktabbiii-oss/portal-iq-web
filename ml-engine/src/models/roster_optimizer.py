@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from .school_tiers import get_school_tier
+
 try:
     from pulp import (
         LpMaximize,
@@ -102,16 +104,8 @@ class RosterOptimizer:
                'CB': 12000, 'S': 8000, 'K': 3000},
     }
 
-    # School tier mapping (subset - full list in nil_features.py)
-    SCHOOL_TIERS = {
-        'Alabama': 'blue_blood', 'Ohio State': 'blue_blood', 'Georgia': 'blue_blood',
-        'Texas': 'blue_blood', 'USC': 'blue_blood', 'Michigan': 'blue_blood',
-        'Notre Dame': 'blue_blood', 'Oklahoma': 'blue_blood', 'LSU': 'elite',
-        'Florida': 'elite', 'Penn State': 'elite', 'Oregon': 'elite',
-        'Clemson': 'elite', 'Tennessee': 'elite', 'Texas A&M': 'elite',
-        'Miami': 'power_brand', 'Florida State': 'power_brand', 'Auburn': 'power_brand',
-        'Wisconsin': 'power_brand', 'Iowa': 'power_brand', 'UCLA': 'power_brand',
-    }
+    # School tier mapping - now uses dynamic CFBD data via school_tiers.py
+    # Removed hardcoded SCHOOL_TIERS dict
 
     def __init__(
         self,
@@ -145,8 +139,13 @@ class RosterOptimizer:
         return 'OTHER'
 
     def _get_school_tier(self, school: str) -> str:
-        """Get school tier for budget estimation."""
-        return self.SCHOOL_TIERS.get(school, 'p4_mid')
+        """Get school tier for budget estimation using dynamic CFBD data."""
+        try:
+            tier_name, tier_info = get_school_tier(school)
+            return tier_name
+        except Exception as e:
+            logger.warning(f"Could not get tier for {school}: {e}")
+            return 'power_mid'  # Default fallback
 
     def _estimate_player_value(
         self,
