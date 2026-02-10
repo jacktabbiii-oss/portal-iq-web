@@ -391,17 +391,27 @@ export async function getWARLeaderboard(
     pff_overall?: number;
   }>; total: number };
 
-  // Transform NIL data to WAR metrics using Portal IQ's proprietary algorithm
+  // Transform NIL data to WAR metrics
+  // Use pre-computed WAR from API when available (unified cache), fallback to client-side calculation
   const warPlayers: WARPlayer[] = data.players.map((player, index) => {
     const nilValue = player.valuation || 0;
-    // Pass school for school tier adjustment in WAR calculation
-    // Pass PFF data from leaderboard response for performance-first WAR
-    const pffData: PFFData | undefined = player.pff_overall ? {
-      pff_overall: player.pff_overall,
-      pff_offense: (player as Record<string, unknown>).pff_offense as number | undefined,
-      pff_defense: (player as Record<string, unknown>).pff_defense as number | undefined,
-    } : undefined;
-    const war = calculateWAR(nilValue, player.position, player.stars, player.school, pffData);
+    const playerWithWAR = player as Record<string, unknown>;
+
+    // Check if API provided pre-computed WAR (from unified_players.csv)
+    let war: number;
+    if (typeof playerWithWAR.war === "number" && playerWithWAR.war > 0) {
+      // Use pre-computed WAR from backend
+      war = playerWithWAR.war;
+    } else {
+      // Fallback: calculate WAR client-side (legacy behavior)
+      const pffData: PFFData | undefined = player.pff_overall ? {
+        pff_overall: player.pff_overall,
+        pff_offense: playerWithWAR.pff_offense as number | undefined,
+        pff_defense: playerWithWAR.pff_defense as number | undefined,
+      } : undefined;
+      war = calculateWAR(nilValue, player.position, player.stars, player.school, pffData);
+    }
+
     const winProbAdded = calculateWinProbAdded(war);
     const valuePerWin = war > 0 ? nilValue / war : 0;
 

@@ -247,6 +247,104 @@ export interface CareerStats {
   total_seasons: number;
 }
 
+/**
+ * Unified Player Profile - comprehensive data from /api/players/{name}/profile
+ * Replaces multiple API calls with single unified response
+ */
+export interface UnifiedPlayer {
+  // Core identity
+  name: string;
+  position: string;
+  school: string;
+  headshot_url?: string;
+  height?: number;
+  weight?: number;
+  stars?: number;
+  class_year?: string;
+  conference?: string;
+
+  // NIL
+  nil_value?: number;
+  nil_tier?: string;
+  is_predicted?: boolean;
+  confidence?: string;
+  valuation_source?: string;
+
+  // PFF (all available grades + advanced stats)
+  pff?: {
+    pff_overall?: number;
+    pff_offense?: number;
+    pff_defense?: number;
+    pff_passing?: number;
+    pff_rushing?: number;
+    pff_receiving?: number;
+    pff_pass_block?: number;
+    pff_run_block?: number;
+    pff_pass_rush?: number;
+    pff_coverage?: number;
+    pff_run_defense?: number;
+    pff_tackling?: number;
+    games_played?: number;
+    completion_pct?: number;
+    passer_rating?: number;
+    big_time_throw_pct?: number;
+    turnover_worthy_play_pct?: number;
+    elusive_rating?: number;
+    yaco_per_attempt?: number;
+    breakaway_pct?: number;
+    yards_per_route_run?: number;
+    drop_rate?: number;
+    contested_catch_rate?: number;
+    targeted_qb_rating?: number;
+    pass_rush_win_rate?: number;
+    pass_rushing_productivity?: number;
+    pressures?: number;
+    sacks?: number;
+    forced_incompletion_rate?: number;
+    passer_rating_allowed?: number;
+    yards_per_coverage_snap?: number;
+    man_grades_coverage_defense?: number;
+    zone_grades_coverage_defense?: number;
+    pass_blocking_efficiency?: number;
+    pressures_allowed?: number;
+    tackles?: number;
+    missed_tackle_rate?: number;
+    targets?: number;
+    receptions?: number;
+    rec_yards?: number;
+    yards?: number;
+    touchdowns?: number;
+    [key: string]: number | undefined;
+  };
+
+  // WAR (pre-computed)
+  war?: number;
+  war_low?: number;
+  war_high?: number;
+  war_confidence?: string;
+
+  // Portal status
+  in_portal: boolean;
+  portal_status?: string;
+  origin_school?: string;
+  destination_school?: string;
+  portal_year?: string;
+
+  // School context
+  school_tier?: string;
+  school_multiplier?: number;
+
+  // Stats
+  passing_yards?: number;
+  passing_tds?: number;
+  rushing_yards?: number;
+  rushing_tds?: number;
+  receiving_yards?: number;
+  receiving_tds?: number;
+  tackles?: number;
+  sacks?: number;
+}
+
 // =============================================================================
 // API Functions
 // =============================================================================
@@ -288,6 +386,19 @@ export async function searchPlayers(
   }));
 
   return { players, total: raw.total, query: raw.query };
+}
+
+/**
+ * Get unified player profile with all data merged.
+ * Replaces multiple API calls (getPlayerStats + getEliteProfile + basic NIL/portal data).
+ */
+export async function getPlayerProfile(
+  playerName: string
+): Promise<UnifiedPlayer> {
+  const response = await apiClient.get(
+    `/api/players/${encodeURIComponent(playerName)}/profile`
+  );
+  return response as unknown as UnifiedPlayer;
 }
 
 /**

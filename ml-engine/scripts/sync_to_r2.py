@@ -50,6 +50,7 @@ CORE_FILES = [
     "cfbd_team_records.csv",          # Team win/loss records
     "on3_transfer_portal_current.csv",# Current transfer portal cycle
     "espn_rosters.csv",               # ESPN rosters (headshots)
+    "unified_players.csv",             # Unified player table (all data merged)
 ]
 
 # Additional files to sync
