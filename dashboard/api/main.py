@@ -288,40 +288,187 @@ async def search_players_endpoint(
     return response
 
 
-@app.get("/api/v1/players/{player_name}/profile", response_model=PlayerProfile)
+@app.get("/api/v1/players/{player_name}/profile")
 async def get_player_profile(
     player_name: str,
     api_key: str = Depends(verify_api_key)
 ):
-    """Get full player profile.
+    """Get comprehensive player profile matching UnifiedPlayer interface.
 
     Args:
         player_name: Player name (URL encoded)
 
     Returns:
-        Player profile with NIL, performance, and physical data
+        Comprehensive player data including NIL, PFF grades/stats, portal status, career data
     """
     name = sanitize_player_name(player_name)
 
-    # Try NIL data first
+    # Try NIL data first (most comprehensive)
     nil_df = get_nil_players()
     if not nil_df.empty:
         match = nil_df[nil_df["name"].str.lower() == name.lower()]
         if not match.empty:
             player = match.iloc[0]
-            return PlayerProfile(
-                name=player.get("name", name),
-                position=player.get("position"),
-                team=player.get("team") or player.get("school"),
-                nil_value=player.get("nil_value"),
-                portaliq_value=player.get("portaliq_value"),
-                stars=player.get("stars"),
-                pff_overall=player.get("pff_overall"),
-                school=player.get("school"),
-                headshot_url=player.get("headshot_url"),
-                height_display=player.get("height_display"),
-                weight=player.get("weight"),
-            )
+
+            # Build comprehensive PFF object
+            pff_data = {
+                # All PFF grades
+                "pff_overall": safe_float(player.get("pff_overall")),
+                "pff_offense": safe_float(player.get("pff_offense")),
+                "pff_defense": safe_float(player.get("pff_defense")),
+                "pff_passing": safe_float(player.get("pff_passing")),
+                "pff_rushing": safe_float(player.get("pff_rushing")),
+                "pff_receiving": safe_float(player.get("pff_receiving")),
+                "pff_pass_block": safe_float(player.get("pff_pass_block") or player.get("grades_pass_block")),
+                "pff_run_block": safe_float(player.get("pff_run_block") or player.get("grades_run_block")),
+                "pff_pass_rush": safe_float(player.get("pff_pass_rush")),
+                "pff_coverage": safe_float(player.get("pff_coverage")),
+                "pff_run_defense": safe_float(player.get("pff_run_defense")),
+                "pff_tackling": safe_float(player.get("pff_tackling")),
+
+                # Volume
+                "games_played": safe_int(player.get("games_played")),
+
+                # QB stats
+                "completion_pct": safe_float(player.get("completion_pct")),
+                "passer_rating": safe_float(player.get("passer_rating")),
+                "big_time_throw_pct": safe_float(player.get("big_time_throw_pct")),
+                "turnover_worthy_play_pct": safe_float(player.get("turnover_worthy_play_pct")),
+                "avg_depth_of_target": safe_float(player.get("avg_depth_of_target")),
+
+                # RB stats
+                "elusive_rating": safe_float(player.get("elusive_rating")),
+                "yaco_per_attempt": safe_float(player.get("yaco_per_attempt")),
+                "breakaway_pct": safe_float(player.get("breakaway_pct") or player.get("breakaway_percent")),
+                "missed_tackles_forced": safe_int(player.get("missed_tackles_forced")),
+                "breakaway_yards": safe_int(player.get("breakaway_yards")),
+
+                # WR/TE stats
+                "yards_per_route_run": safe_float(player.get("yards_per_route_run")),
+                "drop_rate": safe_float(player.get("drop_rate")),
+                "contested_catch_rate": safe_float(player.get("contested_catch_rate")),
+                "targeted_qb_rating": safe_float(player.get("targeted_qb_rating")),
+                "targets": safe_int(player.get("targets")),
+                "receptions": safe_int(player.get("receptions")),
+                "rec_yards": safe_int(player.get("receiving_yards")),
+
+                # Pass rush stats (Edge/DL)
+                "pass_rush_win_rate": safe_float(player.get("pass_rush_win_rate")),
+                "pass_rushing_productivity": safe_float(player.get("pass_rushing_productivity")),
+                "pressures": safe_int(player.get("pressures")),
+                "hits": safe_int(player.get("hits")),
+                "hurries": safe_int(player.get("hurries")),
+                "batted_passes": safe_int(player.get("batted_passes")),
+                "sacks": safe_int(player.get("sacks")),
+
+                # Coverage stats (DB)
+                "targets_coverage": safe_int(player.get("targets_coverage")),
+                "receptions_coverage": safe_int(player.get("receptions_coverage")),
+                "interceptions_coverage": safe_int(player.get("interceptions_coverage")),
+                "pass_break_ups": safe_int(player.get("pass_break_ups")),
+                "forced_incompletion_rate": safe_float(player.get("forced_incompletion_rate")),
+                "passer_rating_allowed": safe_float(player.get("qb_rating_against")),
+                "yards_per_coverage_snap": safe_float(player.get("yards_per_coverage_snap")),
+                "man_grades_coverage_defense": safe_float(player.get("man_grades_coverage_defense")),
+                "zone_grades_coverage_defense": safe_float(player.get("zone_grades_coverage_defense")),
+
+                # Blocking stats
+                "pass_blocking_efficiency": safe_float(player.get("pass_blocking_efficiency")),
+                "pressures_allowed": safe_int(player.get("pressures_allowed")),
+
+                # Defense stats
+                "tackles": safe_int(player.get("tackles")),
+                "assists": safe_int(player.get("assists")),
+                "interceptions": safe_int(player.get("interceptions")),
+                "missed_tackle_rate": safe_float(player.get("missed_tackle_rate")),
+
+                # Special teams - Kicking
+                "total_made": safe_int(player.get("total_made")),
+                "pat_made": safe_int(player.get("pat_made")),
+                "twenty_made": safe_int(player.get("twenty_made")),
+                "thirty_made": safe_int(player.get("thirty_made")),
+                "forty_made": safe_int(player.get("forty_made")),
+                "fifty_made": safe_int(player.get("fifty_made")),
+                "touchbacks": safe_int(player.get("touchbacks")),
+
+                # Special teams - Punting
+                "attempts_punt": safe_int(player.get("attempts_punt")),
+                "punt_avg_yards": safe_float(player.get("average_yards_per_attempt")),
+                "punt_net_avg": safe_float(player.get("average_net_yards")),
+                "inside_twenties": safe_int(player.get("inside_twenties")),
+                "average_hangtime": safe_float(player.get("average_hangtime")),
+
+                # Special teams - Returns
+                "kickoff_attempts": safe_int(player.get("kickoff_attempts")),
+                "kickoff_yards": safe_int(player.get("kickoff_yards")),
+                "kickoff_touchdowns": safe_int(player.get("kickoff_touchdowns")),
+                "punt_attempts": safe_int(player.get("punt_attempts")),
+                "punt_yards": safe_int(player.get("punt_yards")),
+                "punt_touchdowns": safe_int(player.get("punt_touchdowns")),
+
+                # Production stats (generic)
+                "yards": safe_int(player.get("yards")),
+                "touchdowns": safe_int(player.get("touchdowns")),
+            }
+
+            # Remove None values
+            pff_data = {k: v for k, v in pff_data.items() if v is not None}
+
+            return {
+                # Core identity
+                "name": player.get("name", name),
+                "position": player.get("position"),
+                "school": player.get("school") or player.get("team"),
+                "headshot_url": player.get("headshot_url"),
+                "height": safe_int(player.get("height")),
+                "weight": safe_int(player.get("weight")),
+                "stars": safe_int(player.get("stars")),
+                "class_year": player.get("class_year") or player.get("year"),
+                "conference": player.get("conference"),
+                "division": player.get("division"),
+                "jersey": player.get("jersey"),
+
+                # NIL
+                "nil_value": safe_int(player.get("nil_value")),
+                "nil_tier": player.get("nil_tier"),
+                "is_predicted": bool(player.get("is_predicted", False)),
+                "confidence": player.get("confidence"),
+                "valuation_source": player.get("valuation_source") or "CustomNILValuator",
+
+                # PFF (comprehensive)
+                "pff": pff_data if pff_data else None,
+
+                # WAR
+                "war": safe_float(player.get("war")),
+                "war_low": safe_float(player.get("war_low")),
+                "war_high": safe_float(player.get("war_high")),
+                "war_confidence": player.get("war_confidence"),
+
+                # Portal status
+                "in_portal": bool(player.get("in_portal", False)),
+                "portal_status": player.get("portal_status"),
+                "origin_school": player.get("origin_school"),
+                "destination_school": player.get("destination_school"),
+                "portal_year": player.get("portal_year"),
+
+                # School context
+                "school_tier": player.get("school_tier"),
+                "school_multiplier": safe_float(player.get("school_multiplier")),
+
+                # Career stats
+                "passing_yards": safe_int(player.get("passing_yards")),
+                "passing_tds": safe_int(player.get("passing_tds")),
+                "passing_ints": safe_int(player.get("passing_ints")),
+                "rushing_yards": safe_int(player.get("rushing_yards")),
+                "rushing_tds": safe_int(player.get("rushing_tds")),
+                "rushing_attempts": safe_int(player.get("rushing_attempts")),
+                "receiving_yards": safe_int(player.get("receiving_yards")),
+                "receiving_tds": safe_int(player.get("receiving_tds")),
+                "tackles": safe_int(player.get("tackles")),
+                "assists": safe_int(player.get("assists")),
+                "sacks": safe_int(player.get("sacks")),
+                "interceptions": safe_int(player.get("interceptions")),
+            }
 
     # Try portal data
     portal_df = get_portal_players()
@@ -329,19 +476,40 @@ async def get_player_profile(
         match = portal_df[portal_df["name"].str.lower() == name.lower()]
         if not match.empty:
             player = match.iloc[0]
-            return PlayerProfile(
-                name=player.get("name", name),
-                position=player.get("position"),
-                team=player.get("destination_school") or player.get("origin_school"),
-                nil_value=player.get("nil_value"),
-                portaliq_value=player.get("portaliq_value"),
-                stars=player.get("stars"),
-                pff_overall=player.get("pff_overall"),
-                school=player.get("destination_school"),
-                headshot_url=player.get("headshot_url"),
-                height_display=player.get("height_display"),
-                weight=player.get("weight"),
-            )
+
+            # Build PFF object from portal data
+            pff_data = {
+                "pff_overall": safe_float(player.get("pff_overall")),
+                "pff_offense": safe_float(player.get("pff_offense")),
+                "pff_defense": safe_float(player.get("pff_defense")),
+            }
+            pff_data = {k: v for k, v in pff_data.items() if v is not None}
+
+            return {
+                # Core identity
+                "name": player.get("name", name),
+                "position": player.get("position"),
+                "school": player.get("destination_school") or player.get("origin_school"),
+                "headshot_url": player.get("headshot_url"),
+                "height": safe_int(player.get("height")),
+                "weight": safe_int(player.get("weight")),
+                "stars": safe_int(player.get("stars")),
+                "class_year": player.get("class_year") or player.get("year"),
+
+                # NIL
+                "nil_value": safe_int(player.get("nil_value")),
+                "nil_tier": player.get("nil_tier"),
+
+                # PFF
+                "pff": pff_data if pff_data else None,
+
+                # Portal status
+                "in_portal": True,  # Always true if found in portal data
+                "portal_status": player.get("portal_status"),
+                "origin_school": player.get("origin_school"),
+                "destination_school": player.get("destination_school"),
+                "portal_year": player.get("portal_year"),
+            }
 
     raise HTTPException(status_code=404, detail="Player not found")
 
