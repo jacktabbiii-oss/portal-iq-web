@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -14,7 +14,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRightLeft, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowRightLeft, TrendingUp, Loader2 } from "lucide-react";
+import { getSchoolTiers, type SchoolTierInfo } from "@/lib/api/team";
 
 interface TransferValueChartProps {
   currentSchool: string;
@@ -22,29 +23,16 @@ interface TransferValueChartProps {
   position: string;
 }
 
-// School multipliers based on brand value
-const SCHOOL_MULTIPLIERS: Record<string, { multiplier: number; tier: string }> = {
-  "Alabama": { multiplier: 2.5, tier: "Blue Blood" },
-  "Ohio State": { multiplier: 2.5, tier: "Blue Blood" },
-  "Georgia": { multiplier: 2.4, tier: "Blue Blood" },
-  "Texas": { multiplier: 2.3, tier: "Blue Blood" },
-  "USC": { multiplier: 2.2, tier: "Blue Blood" },
-  "Michigan": { multiplier: 2.2, tier: "Blue Blood" },
-  "Notre Dame": { multiplier: 2.1, tier: "Blue Blood" },
-  "Oklahoma": { multiplier: 2.0, tier: "Blue Blood" },
-  "LSU": { multiplier: 1.9, tier: "Elite" },
-  "Florida": { multiplier: 1.8, tier: "Elite" },
-  "Penn State": { multiplier: 1.8, tier: "Elite" },
-  "Oregon": { multiplier: 1.8, tier: "Elite" },
-  "Clemson": { multiplier: 1.7, tier: "Elite" },
-  "Tennessee": { multiplier: 1.7, tier: "Elite" },
-  "Texas A&M": { multiplier: 1.7, tier: "Elite" },
-  "Miami": { multiplier: 1.5, tier: "Power" },
-  "Florida State": { multiplier: 1.5, tier: "Power" },
-  "Auburn": { multiplier: 1.4, tier: "Power" },
-  "Wisconsin": { multiplier: 1.3, tier: "Power" },
-  "Iowa": { multiplier: 1.2, tier: "Power" },
-  "UCLA": { multiplier: 1.4, tier: "Power" },
+// Tier display labels
+const TIER_LABELS: Record<string, string> = {
+  blue_blood: "Blue Blood",
+  elite: "Elite",
+  power_strong: "Strong P4",
+  power_mid: "Mid P4",
+  power_low: "Lower P4",
+  g5_strong: "Strong G5",
+  g5_mid: "Mid G5",
+  fcs: "FCS",
 };
 
 function formatCurrency(value: number): string {
@@ -58,43 +46,69 @@ function formatCurrency(value: number): string {
   return `$${value.toLocaleString()}`;
 }
 
-function getSchoolMultiplier(school: string): number {
-  return SCHOOL_MULTIPLIERS[school]?.multiplier || 1.0;
-}
-
 export function TransferValueChart({
   currentSchool,
   currentValue,
   position,
 }: TransferValueChartProps) {
-  const currentMultiplier = getSchoolMultiplier(currentSchool);
-  // Calculate base value (normalized)
+  const [allSchools, setAllSchools] = useState<SchoolTierInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await getSchoolTiers();
+        if (!cancelled && data.all_schools) {
+          setAllSchools(data.all_schools);
+        }
+      } catch {
+        // Will use empty list — chart won't render comparison schools
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Find current school multiplier from API data
+  const currentMultiplier = useMemo(() => {
+    const match = allSchools.find(
+      (s) => s.school.toLowerCase() === currentSchool.toLowerCase()
+    );
+    return match?.multiplier || 1.0;
+  }, [allSchools, currentSchool]);
+
   const baseValue = currentValue / currentMultiplier;
 
-  // Generate comparison data for top schools
+  // Generate comparison data from top schools by score
   const comparisonData = useMemo(() => {
-    const schools = Object.entries(SCHOOL_MULTIPLIERS)
-      .sort((a, b) => b[1].multiplier - a[1].multiplier)
-      .slice(0, 12)
-      .map(([school, { multiplier, tier }]) => {
-        const projectedValue = baseValue * multiplier;
+    if (allSchools.length === 0) return [];
+
+    // Take top 12 schools by score (these are the most relevant comparisons)
+    const topSchools = allSchools
+      .slice(0, 15)
+      .map((s) => {
+        const projectedValue = baseValue * s.multiplier;
         const difference = projectedValue - currentValue;
-        const percentChange = ((projectedValue - currentValue) / currentValue) * 100;
+        const percentChange = currentValue > 0 ? ((projectedValue - currentValue) / currentValue) * 100 : 0;
 
         return {
-          school,
+          school: s.school,
           value: projectedValue,
-          multiplier,
-          tier,
+          multiplier: s.multiplier,
+          tier: TIER_LABELS[s.tier] || s.tier,
           difference,
           percentChange,
-          isCurrent: school === currentSchool,
+          isCurrent: s.school.toLowerCase() === currentSchool.toLowerCase(),
         };
-      });
+      })
+      .slice(0, 12);
 
     // Add current school if not in top 12
-    if (!schools.some((s) => s.school === currentSchool)) {
-      schools.push({
+    if (!topSchools.some((s) => s.isCurrent)) {
+      topSchools.push({
         school: currentSchool,
         value: currentValue,
         multiplier: currentMultiplier,
@@ -105,8 +119,20 @@ export function TransferValueChart({
       });
     }
 
-    return schools.sort((a, b) => b.value - a.value);
-  }, [baseValue, currentValue, currentSchool, currentMultiplier]);
+    return topSchools.sort((a, b) => b.value - a.value);
+  }, [allSchools, baseValue, currentValue, currentSchool, currentMultiplier]);
+
+  if (loading) {
+    return (
+      <Card className="glass">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (comparisonData.length === 0) return null;
 
   const bestOption = comparisonData[0];
   const potentialGain = bestOption.value - currentValue;
@@ -143,7 +169,7 @@ export function TransferValueChart({
           Transfer Value Calculator
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Compare NIL value at different schools based on market size and brand
+          Compare NIL value at different schools based on CFBD performance tiers
         </p>
       </CardHeader>
       <CardContent className="space-y-6">

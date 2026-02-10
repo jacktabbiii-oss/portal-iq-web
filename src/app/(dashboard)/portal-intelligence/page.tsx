@@ -179,7 +179,7 @@ export default function PortalIntelligencePage() {
 
     const transferValue = analyzeTransferValue(
       warResult.war,
-      selectedPlayer.nil_valuation || 50000,
+      selectedPlayer.nil_valuation || 0,
       selectedPlayer.position
     );
 

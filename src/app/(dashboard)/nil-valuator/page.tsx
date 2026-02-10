@@ -1019,7 +1019,7 @@ export default function NILValuatorPage() {
             {selectedPlayer && (
               <SocialGrowthSimulator
                 currentNILValue={selectedPlayer.valuation}
-                currentFollowers={50000}
+                currentFollowers={selectedPlayer.social_followers || Math.round(selectedPlayer.valuation / 2)}
                 playerName={selectedPlayer.player_name}
               />
             )}

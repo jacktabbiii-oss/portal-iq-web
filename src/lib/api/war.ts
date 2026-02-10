@@ -348,17 +348,6 @@ export async function calculatePlayerWAR(input: {
 // Multipliers match backend school_tiers.py TIER_DEFINITIONS
 // =============================================================================
 
-const TIER_MULTIPLIERS: Record<string, number> = {
-  blue_blood: 3.0,
-  elite: 2.3,
-  power_strong: 1.8,
-  power_mid: 1.4,
-  power_low: 1.1,
-  g5_strong: 1.0,
-  g5_mid: 0.8,
-  fcs: 0.5,
-};
-
 // Cache of school → { tier, multiplier } loaded from API
 let _schoolTierCache: Record<string, { tier: string; multiplier: number }> | null = null;
 let _cacheLoading = false;
