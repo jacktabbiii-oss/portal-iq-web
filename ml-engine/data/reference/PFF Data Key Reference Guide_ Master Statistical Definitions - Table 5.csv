@@ -1,0 +1,9 @@
+Key,Definition
+BLK,Total Blocking Snaps : Combined count of pass and run blocking snaps.
+RBLK / PBLK,Run/Pass Block Snaps : Snaps specifically in a run or pass blocking role.
+OPP,"Allowed Pressure Opportunities : A PFF Signature Stat count. Non-spike, non-penalty snaps where the player functioned as a pass blocker."
+SK / HIT / HUR,Sacks / Hits / Hurries Allowed : Defensive pressure events attributed to the blocker.
+PR,"Total Pressures Allowed : The sum of sacks, hits, and hurries allowed."
+EFF,"Pass Blocking Efficiency : A PFF Signature Stat measuring pressure allowed per snap, with a heavier mathematical weighting assigned to sacks allowed."
+LT / LG / C,"Snaps at Left Tackle, Left Guard, and Center."
+RG / RT / ITE,"Snaps at Right Guard, Right Tackle, and Inline Tight End."

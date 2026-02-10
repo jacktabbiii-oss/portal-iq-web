@@ -1,0 +1,15 @@
+Grade Abbrev.,Measurement Area
+OFF,Overall Offensive Grade
+PASS,Passing Performance
+RUN,Rushing Performance
+RECV,Receiving / Route Running Performance
+DROP,Hands Grade: Specifically measuring catching and drop frequency.
+FUM,Hands Grade: Specifically measuring ball security and fumbles.
+PBLK,Pass Blocking Grade
+RBLK,Run Blocking Grade
+DEF,Overall Defensive Grade
+RDEF,Run Defense Grade
+TACK,Tackling Grade
+PRSH,Pass Rush Grade
+COV,Defensive Coverage Grade
+SPEC,Miscellaneous Special Teams Grade

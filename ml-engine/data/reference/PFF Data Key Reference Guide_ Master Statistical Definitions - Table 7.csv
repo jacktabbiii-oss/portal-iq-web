@@ -1,0 +1,9 @@
+Key,Alignment Role,Technical Definition
+DL,Defensive Line,Snaps on the LOS (Interior or Edge).
+Box,Linebacker / Box,"Snaps in the second level or ""box"" area."
+FS,Free Safety,Snaps in a deep safety alignment.
+Slot / Cnr,Nickel / Corner,Snaps aligned over slot or outside receivers.
+AGP,A-Gap,Alignment as a Nose Tackle (Gap between Center and Guard).
+BGP,B-Gap,Alignment as a Defensive Tackle (Gap between Guard and Tackle).
+OVT,Over Tackle,Alignment directly over the Offensive Tackle.
+OUT,Outside Tackle,Alignment as an Edge defender outside the Tackle's frame.

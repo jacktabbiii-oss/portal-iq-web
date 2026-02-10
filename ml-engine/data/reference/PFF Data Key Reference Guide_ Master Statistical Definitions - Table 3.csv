@@ -1,0 +1,21 @@
+Key,Category,Definition
+TGT,Volume,Targets : Total passing attempts aimed at the receiver.
+REC,Volume,Receptions : Total successful catches.
+REC%,Efficiency,Catch Rate : Percentage of targets resulting in a reception.
+YDS,Volume,Receiving Yards : Total yardage accumulated.
+Y/REC,Efficiency,Yards per Reception : Average yardage gained per catch.
+YAC,Efficiency,Yards After Catch : Yardage gained by the receiver after securing the ball.
+YAC/REC,Efficiency,YAC per Reception : Average post-catch yardage.
+Y/RR,Efficiency,Yards per Route Run : Total receiving yards divided by total routes run.
+aDoT,Efficiency,Average Depth of Target : Mean depth of targeted throws.
+LNG,Volume,Longest : The yardage of the player's longest single reception.
+RTG,Efficiency,Passer Rating when Targeted : The QB's passer rating on throws to this receiver.
+RT%,Volume,Route Percentage : Frequency of snaps where the player ran a route.
+PB%,Volume,Pass Block % : Percentage of pass snaps where the player was used as a blocker.
+CTT,Contested,Contested Targets : Targets where the defender has a legitimate chance to play the ball.
+CTC,Contested,Contested Catches : Total catches made in contested situations.
+CTC%,Contested,Contested Catch Rate : Efficiency in securing contested targets.
+MTF,Efficiency,Missed Tackles Forced : Defensive tackles evaded after the catch.
+SLOT / SLT%,Alignment,Total snaps and percentage of snaps lined up in the slot.
+WIDE / WID%,Alignment,Total snaps and percentage of snaps lined up as an outside receiver.
+INL / INL%,Alignment,Total snaps and percentage of snaps lined up as an inline (TE) position.

@@ -1,0 +1,9 @@
+Phase,Key,Definition
+Return,KRET / PRET,Kickoff Return Snaps / Punt Return Snaps.
+Coverage,KCOV / PCOV,Kickoff Coverage Snaps / Punt Coverage Snaps.
+Specialist,FGBLK,Field Goal / PAT Block or Rush Snaps.
+Specialist,FGK,Field Goal / PAT Kicking Snaps.
+Grades,SPEC,PFF Grade for Miscellaneous Special Teams.
+Grades,KOFF,PFF Grade for the Kicker (kickoffs) or Returner.
+Grades,PUNT,PFF Grade for the Punter or Returner.
+Grades,FG,PFF Grade for the Kicker (Field Goals).

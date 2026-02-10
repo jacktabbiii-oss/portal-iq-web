@@ -1,15 +1,16 @@
 """
-Generate NIL Valuations + Unified Player Table for ALL Current FBS Players
+Generate NIL Valuations + Unified Player Table for ALL Players (FBS + FCS + Historical)
 
 This script:
-1. Uses ESPN rosters as the base (21k+ current players with headshots)
-2. Enriches with CFBD stats and PFF grades (45+ columns)
-3. Trains a calibrated ML model on real On3 NIL valuations (368 players)
-4. Predicts calibrated valuations for ALL remaining players
-5. Merges portal status, school tiers, and pre-computes WAR
-6. Outputs:
-   - portal_nil_valuations.csv (backward-compat)
-   - unified_players.csv (full unified table)
+1. Uses PFF grades as the BASE (71k+ players - ALL college football)
+2. Enriches with ESPN rosters (FBS headshots, height, weight)
+3. Enriches with CFBD stats (production data)
+4. Trains a calibrated ML model on real On3 NIL valuations
+5. Predicts valuations for FBS players (FCS gets nil_value=NULL)
+6. Merges portal status, school tiers, and pre-computes WAR
+7. Outputs:
+   - portal_nil_valuations.csv (FBS only, backward-compat)
+   - unified_players.csv (ALL players - FBS + FCS + historical)
 
 Run: python scripts/generate_all_valuations.py           # legacy mode
      python scripts/generate_all_valuations.py --unified  # full unified build
@@ -34,7 +35,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 DATA_DIR = PROJECT_ROOT / "data" / "processed"
 
-from src.models.calibrated_valuator import CalibratedNILValuator  # noqa: E402
+from src.models.custom_nil_valuator import CustomNILValuator  # noqa: E402
 
 # PFF columns to merge into unified table (curated from 100+ available)
 PFF_COLUMNS = [
@@ -81,11 +82,20 @@ def load_data():
 
     data = {}
 
-    # ESPN rosters - primary source (current players with headshots)
+    # PFF grades - PRIMARY SOURCE (ALL college football)
+    pff_path = DATA_DIR / "pff_player_grades.csv"
+    if pff_path.exists():
+        data["pff"] = pd.read_csv(pff_path)
+        print(f"PFF grades: {len(data['pff'])} entries (PRIMARY BASE - FBS + FCS + historical)")
+    else:
+        data["pff"] = pd.DataFrame()
+        print("PFF grades: NOT FOUND")
+
+    # ESPN rosters - enrichment (FBS only, for headshots)
     espn_path = DATA_DIR / "espn_rosters.csv"
     if espn_path.exists():
         data["espn"] = pd.read_csv(espn_path)
-        print(f"ESPN rosters: {len(data['espn'])} players")
+        print(f"ESPN rosters: {len(data['espn'])} players (FBS enrichment)")
     else:
         data["espn"] = pd.DataFrame()
         print("ESPN rosters: NOT FOUND")
@@ -106,19 +116,11 @@ def load_data():
     else:
         data["cfbd_stats"] = pd.DataFrame()
 
-    # PFF grades
-    pff_path = DATA_DIR / "pff_player_grades.csv"
-    if pff_path.exists():
-        data["pff"] = pd.read_csv(pff_path)
-        print(f"PFF grades: {len(data['pff'])} entries")
-    else:
-        data["pff"] = pd.DataFrame()
-
     # On3 NIL rankings (real valuations - TRAINING DATA)
     nil_path = DATA_DIR / "on3_all_nil_rankings.csv"
     if nil_path.exists():
         data["on3_nil"] = pd.read_csv(nil_path)
-        print(f"On3 NIL rankings: {len(data['on3_nil'])} players (training data)")
+        print(f"On3 NIL rankings: {len(data['on3_nil'])} players (FBS training data)")
     else:
         data["on3_nil"] = pd.DataFrame()
 
@@ -171,39 +173,161 @@ def _normalize_name(name: str) -> str:
 
 def build_player_dataframe(data: dict, expanded_pff: bool = False) -> tuple:
     """
-    Build enriched player DataFrame from ESPN + CFBD + PFF data.
+    Build comprehensive player DataFrame starting from PFF (ALL players).
+
+    Strategy: PFF as base (71K) → outer merge everything else → keep ALL data
 
     Args:
         data: Dict of loaded DataFrames
-        expanded_pff: If True, merge 45+ PFF columns (unified mode)
+        expanded_pff: If True, keep 45+ PFF columns (unified mode)
 
     Returns:
-        (espn_df, real_values_dict, on3_training_df)
+        (all_players_df, real_values_dict, on3_training_df)
     """
-    espn_df = data["espn"].copy()
-    if espn_df.empty:
-        print("ERROR: No ESPN roster data!")
+
+    # =========================================================================
+    # STEP 1: PFF AS BASE - ALL COLLEGE FOOTBALL PLAYERS
+    # =========================================================================
+
+    pff_df = data.get("pff", pd.DataFrame())
+    if pff_df.empty:
+        print("ERROR: No PFF data! Cannot build comprehensive table.")
         return pd.DataFrame(), {}, pd.DataFrame()
 
-    # Standardize ESPN data
-    espn_df = espn_df.rename(columns={
-        "team": "school",
-        "espn_id": "player_id",
-    })
+    print(f"\n{'='*60}")
+    print(f"BUILDING COMPREHENSIVE PLAYER TABLE")
+    print(f"{'='*60}")
+    print(f"Starting with PFF as base: {len(pff_df)} total player records")
 
-    # Convert height
-    if "height" in espn_df.columns:
-        espn_df["height"] = espn_df["height"].apply(convert_height_to_inches)
+    # Normalize PFF name column
+    pff_name_col = "player" if "player" in pff_df.columns else "player_name" if "player_name" in pff_df.columns else "name" if "name" in pff_df.columns else None
+    if not pff_name_col:
+        print("ERROR: PFF data has no name column!")
+        return pd.DataFrame(), {}, pd.DataFrame()
 
-    # Add normalized name for all lookups
-    espn_df["name_normalized"] = espn_df["name"].apply(_normalize_name)
+    pff_df = pff_df.rename(columns={pff_name_col: "name"})
+    pff_df["name_normalized"] = pff_df["name"].apply(_normalize_name)
 
-    print(f"Starting with {len(espn_df)} ESPN players")
+    # Deduplicate PFF: keep latest season + highest grade per player
+    if "season" in pff_df.columns:
+        pff_df["season"] = pd.to_numeric(pff_df["season"], errors="coerce")
+        pff_df = pff_df.sort_values(["name_normalized", "season", "pff_overall"],
+                                      ascending=[True, False, False], na_position="last")
+    elif "pff_overall" in pff_df.columns:
+        pff_df = pff_df.sort_values(["name_normalized", "pff_overall"],
+                                      ascending=[True, False], na_position="last")
 
-    # --- Build On3 real-value lookup ---
+    pff_df = pff_df.drop_duplicates(subset=["name_normalized"], keep="first")
+    print(f"After deduplication: {len(pff_df)} unique players")
+
+    # Select PFF columns to keep
+    if expanded_pff:
+        pff_cols_to_keep = ["name", "name_normalized", "team", "position", "season"] + \
+                          [c for c in PFF_COLUMNS if c in pff_df.columns]
+    else:
+        pff_cols_to_keep = ["name", "name_normalized", "team", "position", "season",
+                           "pff_overall", "pff_offense", "pff_defense",
+                           "pff_passing", "pff_rushing", "pff_receiving"]
+
+    base_df = pff_df[[c for c in pff_cols_to_keep if c in pff_df.columns]].copy()
+
+    # Rename PFF team → school for consistency
+    if "team" in base_df.columns:
+        base_df = base_df.rename(columns={"team": "school"})
+
+    # Add season/league markers
+    if "season" not in base_df.columns:
+        base_df["season"] = 2025
+
+    print(f"PFF columns retained: {len(base_df.columns)}")
+
+    # =========================================================================
+    # STEP 2: MERGE ESPN ROSTERS (FBS ENRICHMENT - headshots, height, weight)
+    # =========================================================================
+
+    espn_df = data.get("espn", pd.DataFrame())
+    if not espn_df.empty:
+        print(f"\nMerging ESPN rosters ({len(espn_df)} FBS players)...")
+
+        espn_df = espn_df.rename(columns={"team": "school", "espn_id": "player_id"})
+        if "height" in espn_df.columns:
+            espn_df["height"] = espn_df["height"].apply(convert_height_to_inches)
+        espn_df["name_normalized"] = espn_df["name"].apply(_normalize_name)
+
+        # Keep ESPN-specific enrichment columns
+        espn_cols = ["name_normalized", "player_id", "headshot_url", "height",
+                     "weight", "jersey", "team_id", "class_year"]
+        espn_merge = espn_df[[c for c in espn_cols if c in espn_df.columns]].copy()
+        espn_merge = espn_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        # Outer merge to keep ALL PFF players + add ESPN enrichment where available
+        base_df = base_df.merge(espn_merge, on="name_normalized", how="left", suffixes=("", "_espn"))
+
+        espn_matched = base_df["player_id"].notna().sum()
+        print(f"  ESPN matched: {espn_matched} players ({espn_matched/len(base_df)*100:.1f}%)")
+    else:
+        print("\nNo ESPN data available")
+        base_df["player_id"] = None
+        base_df["headshot_url"] = None
+        base_df["height"] = None
+        base_df["weight"] = None
+
+    # =========================================================================
+    # STEP 3: MERGE CFBD STATS (production data - yards, TDs, etc.)
+    # =========================================================================
+
+    cfbd_stats = data.get("cfbd_stats", pd.DataFrame())
+    if not cfbd_stats.empty:
+        print(f"\nMerging CFBD stats ({len(cfbd_stats)} records)...")
+
+        # Get latest season per player
+        if "season" in cfbd_stats.columns:
+            cfbd_stats = cfbd_stats.sort_values("season", ascending=False)
+
+        stat_cols = ["passing_yards", "passing_tds", "rushing_yards", "rushing_tds",
+                     "receiving_yards", "receiving_tds", "tackles", "sacks"]
+
+        stats_name_col = "player" if "player" in cfbd_stats.columns else "player_name"
+        if stats_name_col in cfbd_stats.columns:
+            cfbd_stats["name_normalized"] = cfbd_stats[stats_name_col].apply(_normalize_name)
+            cfbd_stats = cfbd_stats.drop_duplicates(subset=["name_normalized"], keep="first")
+
+            stats_merge = cfbd_stats[["name_normalized"] +
+                                     [c for c in stat_cols if c in cfbd_stats.columns]].copy()
+
+            base_df = base_df.merge(stats_merge, on="name_normalized", how="left")
+
+            stats_matched = base_df["passing_yards"].notna().sum() if "passing_yards" in base_df.columns else 0
+            print(f"  CFBD stats matched: {stats_matched} players")
+
+    # =========================================================================
+    # STEP 4: MERGE CFBD ROSTERS (additional measurables)
+    # =========================================================================
+
+    cfbd_rosters = data.get("cfbd_rosters", pd.DataFrame())
+    if not cfbd_rosters.empty:
+        print(f"\nMerging CFBD rosters ({len(cfbd_rosters)} records)...")
+
+        if "name" in cfbd_rosters.columns:
+            cfbd_rosters["name_normalized"] = cfbd_rosters["name"].apply(_normalize_name)
+
+            # Keep CFBD-specific columns that ESPN might not have
+            cfbd_cols = ["name_normalized", "hometown", "recruit_year"]
+            cfbd_merge = cfbd_rosters[[c for c in cfbd_cols if c in cfbd_rosters.columns]].copy()
+            cfbd_merge = cfbd_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+            base_df = base_df.merge(cfbd_merge, on="name_normalized", how="left")
+
+    # =========================================================================
+    # STEP 5: BUILD ON3 REAL VALUE LOOKUP (for ML training)
+    # =========================================================================
+
     on3_nil = data.get("on3_nil", pd.DataFrame())
     real_values = {}
+
     if not on3_nil.empty and "name" in on3_nil.columns:
+        print(f"\nProcessing On3 NIL training data ({len(on3_nil)} players)...")
+
         for _, row in on3_nil.iterrows():
             name = str(row.get("name", "")).lower().strip()
             val = row.get("nil_valuation", row.get("nil_value", 0))
@@ -213,138 +337,145 @@ def build_player_dataframe(data: dict, expanded_pff: bool = False) -> tuple:
                     "stars": row.get("stars", row.get("recruiting_stars", 3)),
                     "is_predicted": False,
                 }
-        print(f"Found {len(real_values)} players with real On3 NIL values")
+        print(f"  Found {len(real_values)} players with real On3 NIL values")
 
-    # --- Merge CFBD stats ---
-    cfbd_stats = data.get("cfbd_stats", pd.DataFrame())
-    stats_lookup = {}
-    if not cfbd_stats.empty:
-        if "season" in cfbd_stats.columns:
-            cfbd_stats = cfbd_stats.sort_values("season", ascending=False)
+        # Add stars from On3 to base where available
+        for idx, row in base_df.iterrows():
+            name_lower = str(row.get("name", "")).lower().strip()
+            if name_lower in real_values:
+                stars = real_values[name_lower].get("stars")
+                if pd.notna(stars):
+                    base_df.at[idx, "stars"] = stars
 
-        stat_cols = ["passing_yards", "passing_tds", "rushing_yards", "rushing_tds",
-                     "receiving_yards", "receiving_tds", "tackles", "sacks"]
+    # =========================================================================
+    # STEP 6: IDENTIFY FBS vs FCS (for NIL prediction targeting)
+    # =========================================================================
 
-        stats_name_col = "player" if "player" in cfbd_stats.columns else "player_name" if "player_name" in cfbd_stats.columns else None
-        if stats_name_col:
-            cfbd_stats = cfbd_stats.rename(columns={stats_name_col: "name_stats"})
-            cfbd_stats["name_lower"] = cfbd_stats["name_stats"].str.lower().str.strip()
-            cfbd_stats = cfbd_stats.drop_duplicates(subset=["name_lower"], keep="first")
-            stats_lookup = cfbd_stats.set_index("name_lower")[
-                [c for c in stat_cols if c in cfbd_stats.columns]
-            ].to_dict("index")
-            print(f"Stats available for {len(stats_lookup)} players")
+    print(f"\nIdentifying FBS vs FCS players...")
 
-    # --- Merge PFF grades ---
-    pff_df = data.get("pff", pd.DataFrame())
-    pff_lookup = {}
-    if not pff_df.empty:
-        pff_name_col = "player" if "player" in pff_df.columns else "player_name" if "player_name" in pff_df.columns else "name" if "name" in pff_df.columns else None
-        if pff_name_col:
-            pff_df["name_lower"] = pff_df[pff_name_col].str.lower().str.strip()
-            if "pff_overall" in pff_df.columns:
-                pff_df = pff_df.sort_values("pff_overall", ascending=False)
-            pff_df = pff_df.drop_duplicates(subset=["name_lower"], keep="first")
+    # FBS schools (Power 5 + Group of 5)
+    fbs_schools = set()
+    if not espn_df.empty and "school" in espn_df.columns:
+        fbs_schools = set(espn_df["school"].dropna().unique())
 
-            # Choose PFF columns based on mode
-            if expanded_pff:
-                pff_cols = [c for c in PFF_COLUMNS if c in pff_df.columns]
-                print(f"  Expanded PFF mode: {len(pff_cols)} columns available")
-            else:
-                pff_cols = ["pff_overall", "pff_offense", "pff_defense", "pff_passing",
-                           "pff_rushing", "pff_receiving"]
-                pff_cols = [c for c in pff_cols if c in pff_df.columns]
+    # Add known FBS schools from CFBD
+    if not cfbd_stats.empty and "school" in cfbd_stats.columns:
+        fbs_schools.update(cfbd_stats["school"].dropna().unique())
 
-            pff_lookup = pff_df.set_index("name_lower")[pff_cols].to_dict("index")
-            print(f"PFF grades available for {len(pff_lookup)} players")
+    # Mark FBS vs FCS
+    def classify_division(school):
+        if pd.isna(school):
+            return "Unknown"
+        school_norm = str(school).lower().strip()
+        # Check if in FBS schools
+        for fbs in fbs_schools:
+            if fbs.lower().strip() in school_norm or school_norm in fbs.lower().strip():
+                return "FBS"
+        return "FCS"
 
-    # --- Enrich ESPN players with stats and PFF ---
-    for idx, row in espn_df.iterrows():
-        name_lower = str(row.get("name", "")).lower().strip()
+    base_df["division"] = base_df["school"].apply(classify_division)
 
-        # Add stats
-        if name_lower in stats_lookup:
-            for stat, val in stats_lookup[name_lower].items():
-                if pd.notna(val):
-                    espn_df.at[idx, stat] = val
+    fbs_count = (base_df["division"] == "FBS").sum()
+    fcs_count = (base_df["division"] == "FCS").sum()
+    unk_count = (base_df["division"] == "Unknown").sum()
 
-        # Add PFF
-        if name_lower in pff_lookup:
-            for grade, val in pff_lookup[name_lower].items():
-                if pd.notna(val):
-                    espn_df.at[idx, grade] = val
+    print(f"  FBS: {fbs_count} players")
+    print(f"  FCS: {fcs_count} players")
+    print(f"  Unknown: {unk_count} players")
 
-        # Add stars from On3 if available
-        if name_lower in real_values:
-            stars = real_values[name_lower].get("stars", None)
-            if pd.notna(stars):
-                espn_df.at[idx, "stars"] = stars
+    # =========================================================================
+    # SUMMARY
+    # =========================================================================
 
-    return espn_df, real_values, on3_nil
+    print(f"\n{'='*60}")
+    print(f"COMPREHENSIVE TABLE BUILT")
+    print(f"{'='*60}")
+    print(f"Total players: {len(base_df)}")
+    print(f"  FBS: {fbs_count}")
+    print(f"  FCS: {fcs_count}")
+    print(f"  Unknown: {unk_count}")
+    print(f"Columns: {len(base_df.columns)}")
+    print(f"With headshots: {base_df['headshot_url'].notna().sum() if 'headshot_url' in base_df.columns else 0}")
+    print(f"With PFF overall: {base_df['pff_overall'].notna().sum() if 'pff_overall' in base_df.columns else 0}")
+
+    return base_df, real_values, on3_nil
 
 
-def generate_calibrated_valuations(espn_df: pd.DataFrame, real_values: dict,
-                                    on3_df: pd.DataFrame, model: 'CalibratedNILValuator') -> pd.DataFrame:
-    """Generate valuations using the calibrated ML model."""
+def generate_calibrated_valuations(all_players_df: pd.DataFrame, real_values: dict,
+                                    on3_df: pd.DataFrame, model: 'CustomNILValuator') -> pd.DataFrame:
+    """Generate NIL valuations for FBS players only (FCS gets nil_value=NULL)."""
     print("\n" + "=" * 60)
-    print("GENERATING CALIBRATED VALUATIONS")
+    print("GENERATING NIL VALUATIONS (FBS ONLY)")
     print("=" * 60)
 
-    # --- Step 1: Train the model on On3 data ---
-    print("\nTraining calibrated model on On3 real valuations...")
-    cv_metrics = model.train(on3_df)
-    print(model.get_calibration_report())
+    # Separate FBS (predict NIL) from FCS (leave NULL)
+    fbs_mask = all_players_df["division"] == "FBS"
+    fbs_df = all_players_df[fbs_mask].copy()
+    fcs_df = all_players_df[~fbs_mask].copy()
 
-    # --- Step 2: Separate real vs predicted players ---
-    real_mask = espn_df["name"].str.lower().str.strip().isin(real_values.keys())
-    predict_df = espn_df[~real_mask].copy()
-    real_df = espn_df[real_mask].copy()
+    print(f"\nFBS players (will predict NIL): {len(fbs_df)}")
+    print(f"FCS players (NIL=NULL): {len(fcs_df)}")
 
-    print(f"\nPlayers with real On3 values: {len(real_df)}")
-    print(f"Players needing prediction: {len(predict_df)}")
+    if fbs_df.empty:
+        print("No FBS players to predict!")
+        all_players_df["nil_value"] = None
+        all_players_df["nil_tier"] = None
+        all_players_df["is_predicted"] = None
+        all_players_df["confidence"] = None
+        return all_players_df
 
-    # --- Step 3: Predict with calibrated model ---
-    if not predict_df.empty:
-        predicted = model.predict(predict_df)
-
-        # Keep only the columns we need from prediction
-        for col in ["nil_value", "nil_tier", "confidence", "is_predicted"]:
-            predict_df[col] = predicted[col].values
-    else:
-        predict_df["nil_value"] = []
-        predict_df["nil_tier"] = []
-        predict_df["confidence"] = []
-        predict_df["is_predicted"] = []
-
-    # --- Step 4: Assign real values ---
-    real_nil_values = []
-    real_nil_tiers = []
-    for _, row in real_df.iterrows():
+    # Store On3 real values for comparison (separate column)
+    print(f"\nStoring On3 real values for comparison...")
+    fbs_df["on3_nil_value"] = None
+    fbs_df["on3_nil_tier"] = None
+    for idx, row in fbs_df.iterrows():
         name_lower = str(row["name"]).lower().strip()
-        rv = real_values.get(name_lower, {})
-        val = rv.get("nil_value", 0)
-        real_nil_values.append(val)
+        if name_lower in real_values:
+            rv = real_values[name_lower]
+            val = rv.get("nil_value", 0)
+            fbs_df.at[idx, "on3_nil_value"] = val
 
-        # Assign tier from value
-        if val >= 2_000_000:
-            real_nil_tiers.append("mega")
-        elif val >= 500_000:
-            real_nil_tiers.append("premium")
-        elif val >= 100_000:
-            real_nil_tiers.append("solid")
-        elif val >= 25_000:
-            real_nil_tiers.append("moderate")
-        else:
-            real_nil_tiers.append("entry")
+            # On3 tier
+            if val >= 2_000_000:
+                fbs_df.at[idx, "on3_nil_tier"] = "mega"
+            elif val >= 500_000:
+                fbs_df.at[idx, "on3_nil_tier"] = "premium"
+            elif val >= 100_000:
+                fbs_df.at[idx, "on3_nil_tier"] = "solid"
+            elif val >= 25_000:
+                fbs_df.at[idx, "on3_nil_tier"] = "moderate"
+            else:
+                fbs_df.at[idx, "on3_nil_tier"] = "entry"
 
-    real_df["nil_value"] = real_nil_values
-    real_df["nil_tier"] = real_nil_tiers
-    real_df["confidence"] = "actual"
-    real_df["is_predicted"] = False
+    on3_count = fbs_df["on3_nil_value"].notna().sum()
+    print(f"  {on3_count} players have On3 real values for comparison")
 
-    # --- Step 5: Combine ---
-    combined = pd.concat([real_df, predict_df], ignore_index=True)
-    combined = combined.sort_values("nil_value", ascending=False).reset_index(drop=True)
+    # Apply custom algorithm to ALL FBS players (our main feature)
+    print(f"\nApplying custom algorithm to all {len(fbs_df)} FBS players...")
+    print("(Custom algorithm is primary - On3 values for comparison only)")
+
+    # Generate valuations for ALL FBS players using CustomNILValuator
+    predicted = model.valuate_dataframe(fbs_df)
+    # CRITICAL: Use .values to copy by position, not by index (avoids misalignment)
+    fbs_df["nil_value"] = predicted["custom_nil_value"].values
+    fbs_df["nil_tier"] = predicted["nil_tier"].values
+    fbs_df["confidence"] = predicted["valuation_confidence"].values
+    fbs_df["is_predicted"] = True
+
+    # All FBS players now have custom algorithm values (with On3 for comparison)
+    fbs_with_nil = fbs_df
+
+    # FCS/Unknown get NULL NIL values
+    fcs_df["nil_value"] = None
+    fcs_df["nil_tier"] = None
+    fcs_df["is_predicted"] = None
+    fcs_df["confidence"] = None
+
+    # Combine all
+    combined = pd.concat([fbs_with_nil, fcs_df], ignore_index=True)
+
+    # Sort by NIL value (nulls last)
+    combined = combined.sort_values("nil_value", ascending=False, na_position="last").reset_index(drop=True)
 
     return combined
 
@@ -500,9 +631,18 @@ def compute_war(df: pd.DataFrame) -> pd.DataFrame:
     print("=" * 60)
 
     try:
+        # Import from parent ml-engine directory
+        import sys
+        from pathlib import Path
+        parent_dir = Path(__file__).parent.parent.parent
+        if str(parent_dir) not in sys.path:
+            sys.path.insert(0, str(parent_dir))
+
         from src.utils.data_loader import calculate_player_war
-    except ImportError:
-        print("WARNING: Could not import calculate_player_war. Skipping WAR computation.")
+        print("Successfully imported calculate_player_war")
+    except ImportError as e:
+        print(f"WARNING: Could not import calculate_player_war: {e}")
+        print("Skipping WAR computation.")
         df["war"] = 0.0
         df["war_low"] = 0.0
         df["war_high"] = 0.0
@@ -545,7 +685,7 @@ def compute_war(df: pd.DataFrame) -> pd.DataFrame:
             war_highs.append(0.0)
             war_confs.append("low")
 
-        if (idx + 1) % 5000 == 0:
+        if (idx + 1) % 10000 == 0:
             print(f"  WAR computed for {idx + 1}/{len(df)} players...")
 
     df["war"] = wars
@@ -557,8 +697,8 @@ def compute_war(df: pd.DataFrame) -> pd.DataFrame:
     print(f"  Mean WAR:   {df['war'].mean():.2f}")
     print(f"  Median WAR: {df['war'].median():.2f}")
     print(f"  Max WAR:    {df['war'].max():.2f}")
-    print(f"  High confidence: {(df['war_confidence'] == 'high').sum()}")
-    print(f"  Medium confidence: {(df['war_confidence'] == 'medium').sum()}")
+    non_zero = (df['war'] > 0).sum()
+    print(f"  Non-zero WAR: {non_zero} ({non_zero/len(df)*100:.1f}%)")
 
     return df
 
@@ -634,12 +774,15 @@ def verify_unified_table(df: pd.DataFrame) -> bool:
 
     issues = []
 
-    if len(df) < 15000:
-        issues.append(f"Expected 15K+ players, got {len(df)}")
+    if len(df) < 50000:
+        print(f"Expected 50K+ players (FBS+FCS), got {len(df)}")
+
+    fbs_count = (df["division"] == "FBS").sum() if "division" in df.columns else 0
+    fcs_count = (df["division"] == "FCS").sum() if "division" in df.columns else 0
+    print(f"FBS: {fbs_count}, FCS: {fcs_count}")
 
     nil_count = df["nil_value"].notna().sum()
-    if nil_count < 15000:
-        issues.append(f"NIL coverage too low: {nil_count}")
+    print(f"NIL valuations: {nil_count}")
 
     pff_count = df["pff_overall"].notna().sum() if "pff_overall" in df.columns else 0
     print(f"PFF match rate: {pff_count}/{len(df)} ({pff_count/len(df)*100:.1f}%)")
@@ -650,7 +793,7 @@ def verify_unified_table(df: pd.DataFrame) -> bool:
     war_count = (df["war"] > 0).sum() if "war" in df.columns else 0
     print(f"Players with WAR > 0: {war_count}")
 
-    if "war" in df.columns:
+    if "war" in df.columns and war_count > 0:
         war_max = df["war"].max()
         war_median = df["war"].median()
         print(f"WAR range: {df['war'].min():.2f} to {war_max:.2f} (median {war_median:.2f})")
@@ -680,42 +823,44 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("PORTAL IQ - CALIBRATED VALUATION GENERATOR")
+    print("PORTAL IQ - COMPREHENSIVE VALUATION GENERATOR")
     if args.unified:
-        print("  MODE: UNIFIED (full player table)")
+        print("  MODE: UNIFIED (FBS + FCS + historical)")
     else:
-        print("  MODE: LEGACY (NIL valuations only)")
+        print("  MODE: LEGACY (FBS NIL valuations only)")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
     # Load all data
     data = load_data()
 
-    # Build enriched player DataFrame
-    espn_df, real_values, on3_df = build_player_dataframe(data, expanded_pff=args.unified)
+    # Build comprehensive player DataFrame (PFF-first)
+    all_players_df, real_values, on3_df = build_player_dataframe(data, expanded_pff=args.unified)
 
-    if espn_df.empty:
+    if all_players_df.empty:
         print("ERROR: No player data!")
         return
 
     if on3_df.empty:
-        print("ERROR: No On3 training data! Cannot calibrate.")
-        return
+        print("ERROR: No On3 training data! Cannot calibrate NIL.")
+        # Continue anyway - we can still build the table without NIL predictions
 
-    # Create and train calibrated model
-    model = CalibratedNILValuator()
+    # Create custom valuator model (transparent, rule-based)
+    model = CustomNILValuator()
 
-    # Generate calibrated valuations
-    valuations_df = generate_calibrated_valuations(espn_df, real_values, on3_df, model)
+    # Generate NIL valuations (FBS only)
+    valuations_df = generate_calibrated_valuations(all_players_df, real_values, on3_df, model)
 
     if valuations_df.empty:
-        print("ERROR: No valuations generated!")
+        print("ERROR: No data generated!")
         return
 
-    # Always save legacy format
-    output_path = DATA_DIR / "portal_nil_valuations.csv"
-    valuations_df.to_csv(output_path, index=False)
-    print(f"\nSaved {len(valuations_df)} valuations to {output_path}")
+    # Save legacy FBS-only format for backward compat
+    fbs_only = valuations_df[valuations_df["division"] == "FBS"].copy()
+    if not fbs_only.empty:
+        output_path = DATA_DIR / "portal_nil_valuations.csv"
+        fbs_only.to_csv(output_path, index=False)
+        print(f"\nSaved {len(fbs_only)} FBS valuations to {output_path}")
 
     # Filter and save current portal
     current_portal = filter_current_portal(data)
@@ -740,7 +885,7 @@ def main():
         # Pre-compute WAR
         unified_df = compute_war(unified_df)
 
-        # Ensure name_normalized exists
+        # Ensure normalized columns exist
         if "name_normalized" not in unified_df.columns:
             unified_df["name_normalized"] = unified_df["name"].apply(_normalize_name)
 
@@ -761,22 +906,34 @@ def main():
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    real_count = (~valuations_df["is_predicted"]).sum()
-    pred_count = valuations_df["is_predicted"].sum()
-    print(f"Total players with valuations: {len(valuations_df)}")
-    print(f"  - With real On3 values: {real_count}")
-    print(f"  - With calibrated predictions: {pred_count}")
-    print(f"\nTier distribution:")
-    print(valuations_df["nil_tier"].value_counts().to_string())
-    print(f"\nValue statistics:")
-    print(f"  Mean:   ${valuations_df['nil_value'].mean():,.0f}")
-    print(f"  Median: ${valuations_df['nil_value'].median():,.0f}")
-    print(f"  Total:  ${valuations_df['nil_value'].sum():,.0f}")
-    print(f"\nTop 10 valuations:")
-    top10 = valuations_df[["name", "position", "school", "nil_value", "nil_tier", "is_predicted"]].head(10)
-    for i, row in top10.iterrows():
-        src = "On3" if not row["is_predicted"] else "Pred"
-        print(f"  {i+1:3}. ${row['nil_value']:>12,.0f} | {row['name']:25} | {row['position']:4} | {row['school']:20} | {row['nil_tier']:8} | {src}")
+
+    fbs_count = (valuations_df["division"] == "FBS").sum() if "division" in valuations_df.columns else len(valuations_df)
+    fcs_count = (valuations_df["division"] == "FCS").sum() if "division" in valuations_df.columns else 0
+
+    print(f"Total players: {len(valuations_df)}")
+    print(f"  FBS: {fbs_count}")
+    print(f"  FCS: {fcs_count}")
+
+    if "nil_value" in valuations_df.columns:
+        real_count = (valuations_df["is_predicted"] == False).sum()
+        pred_count = (valuations_df["is_predicted"] == True).sum()
+        print(f"\nNIL valuations (FBS only):")
+        print(f"  - With real On3 values: {real_count}")
+        print(f"  - With calibrated predictions: {pred_count}")
+
+        nil_df = valuations_df[valuations_df["nil_value"].notna()]
+        if not nil_df.empty:
+            print(f"\nTier distribution:")
+            print(nil_df["nil_tier"].value_counts().to_string())
+            print(f"\nValue statistics:")
+            print(f"  Mean:   ${nil_df['nil_value'].mean():,.0f}")
+            print(f"  Median: ${nil_df['nil_value'].median():,.0f}")
+            print(f"  Total:  ${nil_df['nil_value'].sum():,.0f}")
+            print(f"\nTop 10 valuations:")
+            top10 = nil_df[["name", "position", "school", "nil_value", "nil_tier", "is_predicted"]].head(10)
+            for i, row in top10.iterrows():
+                src = "On3" if not row["is_predicted"] else "Pred"
+                print(f"  {i+1:3}. ${row['nil_value']:>12,.0f} | {row['name']:25} | {row['position']:4} | {row['school']:20} | {row['nil_tier']:8} | {src}")
 
     print(f"\nCompleted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 

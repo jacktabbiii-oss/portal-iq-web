@@ -1,0 +1,7 @@
+Key,Definition
+#,Player jersey number (assigned per game/season).
+POS,Primary season position based on snap plurality.
+#G,Games Played: Total number of games in which the player recorded at least one snap.
+SNP,Total Snaps: Cumulative count of plays where the player was on the field.
+TOT,Total Snaps: Foundational volume metric for participation across all tabs.
+PEN,"Total Penalties: The aggregate of all accepted, declined, and offsetting penalties."

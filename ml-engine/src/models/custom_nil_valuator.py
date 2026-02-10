@@ -247,7 +247,9 @@ class CustomNILValuator:
         # ==========================================================================
         # 3. SCHOOL/MARKET MULTIPLIER
         # ==========================================================================
-        school_mult = self.SCHOOL_MULTIPLIERS.get(school, None)
+        # Normalize school name to title case for lookup (data is ALL CAPS)
+        school_normalized = school.title() if school else "Unknown"
+        school_mult = self.SCHOOL_MULTIPLIERS.get(school_normalized, None)
         if school_mult is None:
             school_mult = self.CONFERENCE_MULTIPLIERS.get(
                 conference, self.DEFAULT_CONFERENCE_MULTIPLIER
@@ -539,34 +541,99 @@ class CustomNILValuator:
         Expected columns: player_name, position, school, and various stats.
         Returns DataFrame with valuation columns added.
         """
+        def safe_int(val, default=0):
+            """Convert value to int, handling NaN."""
+            if pd.isna(val) or val is None:
+                return default
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return default
+
+        def safe_float(val, default=0.0):
+            """Convert value to float, handling NaN."""
+            if pd.isna(val) or val is None:
+                return default
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return default
+
         valuations = []
 
         for _, row in df.iterrows():
+            # Map CSV column names to parameter names
+            # CSV has: pff_overall, pff_offense, pff_defense, rec_yards, yards, touchdowns
+            # Function expects: pff_grade, position-specific yards/TDs
+
+            position = row.get("position", "ATH")
+
+            # Use position-specific PFF grade when available
+            pff_grade_val = None
+            if position in ["QB"]:
+                pff_grade_val = row.get("pff_passing") or row.get("pff_offense") or row.get("pff_overall")
+            elif position in ["RB", "HB", "FB"]:
+                pff_grade_val = row.get("pff_rushing") or row.get("pff_offense") or row.get("pff_overall")
+            elif position in ["WR", "TE"]:
+                pff_grade_val = row.get("pff_receiving") or row.get("pff_offense") or row.get("pff_overall")
+            elif position in ["OL", "OT", "OG", "C", "T", "G"]:
+                pff_grade_val = row.get("pff_pass_block") or row.get("pff_run_block") or row.get("pff_offense") or row.get("pff_overall")
+            elif position in ["ED", "DL", "DT", "DE", "NT"]:
+                pff_grade_val = row.get("pff_pass_rush") or row.get("pff_defense") or row.get("pff_overall")
+            elif position in ["LB", "OLB", "ILB", "MLB"]:
+                pff_grade_val = row.get("pff_run_defense") or row.get("pff_tackling") or row.get("pff_defense") or row.get("pff_overall")
+            elif position in ["CB", "S", "FS", "SS", "DB"]:
+                pff_grade_val = row.get("pff_coverage") or row.get("pff_defense") or row.get("pff_overall")
+            else:
+                pff_grade_val = row.get("pff_overall")
+
+            if pd.notna(pff_grade_val):
+                pff_grade_val = float(pff_grade_val)
+            else:
+                pff_grade_val = None
+
+            # Infer position-specific stats from generic columns
+            # "yards" and "touchdowns" are position-dependent
+            yards_val = safe_int(row.get("yards"))
+            tds_val = safe_int(row.get("touchdowns"))
+
+            # For QB: yards = passing yards, TDs = passing TDs
+            passing_yards_val = yards_val if position == "QB" else 0
+            passing_tds_val = tds_val if position == "QB" else 0
+
+            # For RB: yards = rushing yards, TDs = rushing TDs
+            rushing_yards_val = yards_val if position in ["RB", "HB", "FB"] else 0
+            rushing_tds_val = tds_val if position in ["RB", "HB", "FB"] else 0
+
+            # For WR/TE: use rec_yards explicitly, TDs = receiving TDs
+            receiving_yards_val = safe_int(row.get("rec_yards"))
+            receiving_tds_val = tds_val if position in ["WR", "TE"] else 0
+
             val = self.calculate_valuation(
                 player_name=row.get("player_name", row.get("name", "Unknown")),
-                position=row.get("position", "ATH"),
+                position=position,
                 school=row.get("school", "Unknown"),
                 conference=row.get("conference"),
-                games_played=int(row.get("games_played", 0) or 0),
-                games_started=int(row.get("games_started", 0) or 0),
-                passing_yards=int(row.get("passing_yards", 0) or 0),
-                passing_tds=int(row.get("passing_tds", 0) or 0),
-                rushing_yards=int(row.get("rushing_yards", 0) or 0),
-                rushing_tds=int(row.get("rushing_tds", 0) or 0),
-                receiving_yards=int(row.get("receiving_yards", 0) or 0),
-                receiving_tds=int(row.get("receiving_tds", 0) or 0),
-                tackles=int(row.get("tackles", 0) or 0),
-                sacks=float(row.get("sacks", 0) or 0),
-                interceptions=int(row.get("interceptions", 0) or 0),
-                pff_grade=row.get("pff_grade"),
-                instagram_followers=int(row.get("instagram_followers", 0) or 0),
-                twitter_followers=int(row.get("twitter_followers", 0) or 0),
-                tiktok_followers=int(row.get("tiktok_followers", 0) or 0),
-                youtube_subscribers=int(row.get("youtube_subscribers", 0) or 0),
-                recruiting_stars=int(row.get("recruiting_stars", 0) or 0),
-                national_rank=row.get("national_rank") or row.get("recruiting_rank"),
-                is_starter=row.get("is_starter", False),
-                years_remaining=int(row.get("years_remaining", 1) or 1),
+                games_played=safe_int(row.get("games_played")),
+                games_started=safe_int(row.get("games_started")),
+                passing_yards=passing_yards_val,
+                passing_tds=passing_tds_val,
+                rushing_yards=rushing_yards_val,
+                rushing_tds=rushing_tds_val,
+                receiving_yards=receiving_yards_val,
+                receiving_tds=receiving_tds_val,
+                tackles=safe_int(row.get("tackles")),
+                sacks=safe_float(row.get("sacks")),
+                interceptions=0,  # Not available in CSV
+                pff_grade=pff_grade_val,
+                instagram_followers=0,  # Not available in CSV
+                twitter_followers=0,
+                tiktok_followers=0,
+                youtube_subscribers=0,
+                recruiting_stars=safe_int(row.get("stars")),
+                national_rank=None,  # Not available in CSV
+                is_starter=False,  # Not available in CSV
+                years_remaining=1,
             )
             valuations.append({
                 "custom_nil_value": val.total_valuation,

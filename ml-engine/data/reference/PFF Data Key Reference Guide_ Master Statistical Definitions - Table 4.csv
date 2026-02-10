@@ -1,0 +1,14 @@
+Key,Definition
+ATT,Designed Attempts : Rushing attempts scripted by the play call.
+YDS,Rushing Yards : Total yardage gained on rushing attempts.
+YPA,Yards per Attempt : Mean yardage per rush.
+YCO,Yards After Contact : Total yardage gained after the first contact by a defender.
+YCO/A,Yards After Contact per Attempt : Mean yardage generated post-contact.
+MTF,Missed Tackles Forced : Number of tackles evaded by the runner.
+LNG,Longest : The yardage of the player's longest single run.
+10+,Explosive Runs : The first tier of big plays; rushing attempts gaining 10+ yards.
+D15+,Breakaway Attempts : The second tier of big plays; runs of 15+ yards.
+BAY,Breakaway Yardage : Total rushing yardage gained specifically on runs of 15+ yards.
+BAY%,Breakaway Percentage : The portion of a runner's total yardage derived from 15+ yard runs.
+ELU,"Elusive Rating : A PFF Signature Stat measuring the success of a runner with the ball independently of the blocking, factoring in missed tackles forced and yards after contact."
+ZONE / GAP,Count of designed rushing attempts within specific blocking schemes.
