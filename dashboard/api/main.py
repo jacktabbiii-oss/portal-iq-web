@@ -388,6 +388,149 @@ async def get_player_nil(
     )
 
 
+@app.get("/api/v1/players/{player_name}/stats")
+async def get_player_stats(
+    player_name: str,
+    season: int = Query(2025, description="Season year"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get comprehensive player statistics with all PFF data.
+
+    Returns detailed stats in the format expected by the frontend:
+    - PFF grades (overall, offense, defense, position-specific)
+    - Passing stats (yards, TDs, completion %, passer rating, etc.)
+    - Rushing stats (yards, TDs, elusive rating, breakaway %, etc.)
+    - Receiving stats (yards, TDs, targets, catch rate, etc.)
+    - Pass rush stats (sacks, pressures, hits, hurries, etc.)
+    - Coverage stats (QB rating against, targets allowed, etc.)
+    - Blocking stats (pass/run block grades, pressures allowed, etc.)
+    - Tackling stats (tackles, assists, missed tackle rate, etc.)
+
+    Args:
+        player_name: Player name
+        season: Season year (default: 2025)
+
+    Returns:
+        Comprehensive player statistics
+    """
+    name = sanitize_player_name(player_name)
+
+    # Load from NIL data (has all comprehensive stats)
+    nil_df = get_nil_players()
+    if nil_df.empty:
+        raise HTTPException(status_code=404, detail="Player data not available")
+
+    match = nil_df[nil_df["name"].str.lower() == name.lower()]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found")
+
+    player = match.iloc[0]
+
+    def safe_float(val, default=None):
+        """Convert to float, return None if NaN."""
+        if pd.isna(val):
+            return default
+        return float(val)
+
+    def safe_int(val, default=None):
+        """Convert to int, return None if NaN."""
+        if pd.isna(val):
+            return default
+        return int(val)
+
+    # Build response matching frontend PlayerStats interface
+    return {
+        "name": player.get("name"),
+        "position": player.get("position"),
+        "school": player.get("school"),
+        "headshot_url": player.get("headshot_url"),
+        "season": season,
+        "nil_value": safe_float(player.get("nil_value")),
+        "nil_tier": player.get("nil_tier"),
+        "stars": safe_int(player.get("stars")),
+        "height": safe_float(player.get("height")),
+        "weight": safe_float(player.get("weight")),
+        "games_played": safe_int(player.get("games_played")),
+
+        # PFF Grades
+        "pff": {
+            "overall": safe_float(player.get("pff_overall")),
+            "offense": safe_float(player.get("pff_offense")),
+            "defense": safe_float(player.get("pff_defense")),
+            "passing": safe_float(player.get("pff_passing")),
+            "rushing": safe_float(player.get("pff_rushing")),
+            "receiving": safe_float(player.get("pff_receiving")),
+            "pass_block": safe_float(player.get("grades_pass_block")),
+            "run_block": safe_float(player.get("grades_run_block")),
+            "pass_rush": safe_float(player.get("pff_pass_rush")),
+            "coverage": safe_float(player.get("pff_coverage")),
+        },
+
+        # Passing Stats
+        "passing": {
+            "yards": safe_int(player.get("passing_yards")),
+            "touchdowns": safe_int(player.get("passing_tds")),
+            "passer_rating": safe_float(player.get("passer_rating")),
+            "completion_pct": safe_float(player.get("completion_pct")),
+            "big_time_throw_pct": safe_float(player.get("big_time_throw_pct")),
+        },
+
+        # Rushing Stats
+        "rushing": {
+            "yards": safe_int(player.get("rushing_yards")),
+            "touchdowns": safe_int(player.get("rushing_tds")),
+            "yards_per_carry": safe_float(player.get("ypc")),
+            "attempts": safe_int(player.get("rushing_attempts")),
+            "elusive_rating": safe_float(player.get("elusive_rating")),
+            "breakaway_yards": safe_int(player.get("breakaway_yards")),
+            "breakaway_pct": safe_float(player.get("breakaway_percent")),
+            "missed_tackles_forced": safe_int(player.get("missed_tackles_forced")),
+            "yards_after_contact": safe_int(player.get("yaco")),
+            "yaco_per_attempt": safe_float(player.get("yaco_per_attempt")),
+        },
+
+        # Receiving Stats
+        "receiving": {
+            "yards": safe_int(player.get("receiving_yards")),
+            "touchdowns": safe_int(player.get("receiving_tds")),
+            "receptions": safe_int(player.get("receptions")),
+            "targets": safe_int(player.get("targets")),
+            "drop_rate": safe_float(player.get("drop_rate")),
+            "yards_per_route_run": safe_float(player.get("yards_per_route_run")),
+        },
+
+        # Pass Rush Stats
+        "pass_rush": {
+            "sacks": safe_float(player.get("sacks")),
+            "pressures": safe_int(player.get("pressures")),
+            "hits": safe_int(player.get("hits")),
+            "hurries": safe_int(player.get("hurries")),
+            "batted_passes": safe_int(player.get("batted_passes")),
+        },
+
+        # Coverage Stats
+        "coverage": {
+            "passer_rating_allowed": safe_float(player.get("qb_rating_against")),
+            "targets_allowed": safe_int(player.get("targets_coverage")),
+            "completions_allowed": safe_int(player.get("receptions_coverage")),
+            "interceptions": safe_int(player.get("interceptions")),
+            "pass_breakups": safe_int(player.get("pass_break_ups")),
+        },
+
+        # Blocking Stats
+        "blocking": {
+            "pressures_allowed": safe_int(player.get("pressures_allowed")),
+            "sacks_allowed": safe_int(player.get("sacks_allowed")),
+        },
+
+        # Tackling Stats
+        "tackling": {
+            "tackles": safe_int(player.get("tackles")),
+            "assists": safe_int(player.get("assists")),
+        },
+    }
+
+
 @app.get("/api/v1/players/{player_name}/similar")
 async def get_similar_players(
     player_name: str,

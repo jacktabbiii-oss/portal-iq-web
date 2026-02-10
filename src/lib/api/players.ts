@@ -364,7 +364,7 @@ export async function searchPlayers(
     limit: limit.toString(),
   });
 
-  const response = await apiClient.get(`/api/players/search?${params}`);
+  const response = await apiClient.get(`/api/v1/players/search?${params}`);
   const raw = response as unknown as {
     players: Record<string, unknown>[];
     total: number;
@@ -396,7 +396,7 @@ export async function getPlayerProfile(
   playerName: string
 ): Promise<UnifiedPlayer> {
   const response = await apiClient.get(
-    `/api/players/${encodeURIComponent(playerName)}/profile`
+    `/api/v1/players/${encodeURIComponent(playerName)}/profile`
   );
   return response as unknown as UnifiedPlayer;
 }
@@ -410,7 +410,7 @@ export async function getPlayerStats(
 ): Promise<PlayerStats> {
   const encodedName = encodeURIComponent(playerName);
   const response = await apiClient.get(
-    `/api/players/${encodedName}/stats?season=${season}`
+    `/api/v1/players/${encodedName}/stats?season=${season}`
   );
   return response as unknown as PlayerStats;
 }
@@ -482,7 +482,7 @@ export async function getPlayerComparisons(
   });
 
   const response = await apiClient.get(
-    `/api/players/${encodedName}/comparisons?${params}`
+    `/api/v1/players/${encodedName}/comparisons?${params}`
   );
   return response as unknown as PlayerComparisonsResponse;
 }
@@ -495,7 +495,7 @@ export async function getPlayerEliteProfile(
 ): Promise<EliteProfile> {
   const encodedName = encodeURIComponent(playerName);
   const response = await apiClient.get(
-    `/api/players/${encodedName}/elite-profile`
+    `/api/v1/players/${encodedName}/elite-profile`
   );
   return response as unknown as EliteProfile;
 }
@@ -505,7 +505,7 @@ export async function getPlayerEliteProfile(
  */
 export async function getPlayerCareer(playerName: string): Promise<CareerStats> {
   const encodedName = encodeURIComponent(playerName);
-  const response = await apiClient.get(`/api/players/${encodedName}/career`);
+  const response = await apiClient.get(`/api/v1/players/${encodedName}/career`);
   return response as unknown as CareerStats;
 }
 
@@ -579,7 +579,7 @@ export async function getDraftProjection(
 ): Promise<DraftProjection> {
   const encodedName = encodeURIComponent(playerName);
   const response = await apiClient.get(
-    `/api/draft/project/${encodedName}`
+    `/api/v1/draft/project/${encodedName}`
   );
   return response as unknown as DraftProjection;
 }
@@ -594,7 +594,7 @@ export async function getDraftComparables(
   const encodedName = encodeURIComponent(playerName);
   const params = new URLSearchParams({ limit: limit.toString() });
   const response = await apiClient.get(
-    `/api/draft/comparables/${encodedName}?${params}`
+    `/api/v1/draft/comparables/${encodedName}?${params}`
   );
   return (response as unknown as { comparables: DraftComparable[] }).comparables || [];
 }
