@@ -131,6 +131,36 @@ def load_team_data() -> Optional[pd.DataFrame]:
             # This is a known data issue - talent composite will be NaN for now
             logger.warning("Talent composite file exists but missing school names - skipping merge")
 
+        # Load On3 team portal rankings (portal performance + NIL changes)
+        portal_rankings_file = data_dir / "on3_team_portal_rankings.csv"
+        if portal_rankings_file.exists():
+            portal_df = pd.read_csv(portal_rankings_file)
+
+            # Filter to latest year (2026 cycle)
+            if "year" in portal_df.columns:
+                latest_portal_year = portal_df["year"].max()
+                portal_df = portal_df[portal_df["year"] == latest_portal_year]
+
+            # Rename for merge
+            portal_df = portal_df.rename(columns={"team": "team_full_portal"})
+
+            # Create normalized names for matching
+            portal_df["team"] = portal_df["team_full_portal"].str.replace(" Hoosiers", "").str.replace(" Tigers", "").str.replace(" Longhorns", "").str.replace(" Crimson Tide", "").str.replace(" Buckeyes", "").str.replace(" Bulldogs", "").str.replace(" Aggies", "").str.replace(" Volunteers", "").str.replace(" Fighting Irish", "").str.replace(" Trojans", "").str.replace(" Wolverines", "").str.replace(" Sooners", "").str.replace(" Cardinals", "").str.replace(" Hurricanes", "").str.replace(" Gators", "").str.replace(" Seminoles", "").str.replace(" Badgers", "").str.replace(" Commodores", "").str.replace(" Rebels", "").str.replace(" Wildcats", "").str.replace(" Sun Devils", "").str.replace(" Red Raiders", "").str.replace(" Ducks", "").str.replace(" Cougars", "").str.replace(" Bruins", "").str.replace(" Razorbacks", "").str.replace(" Knights", "").str.strip()
+
+            # Merge portal rankings data
+            team_df = team_df.merge(
+                portal_df[[
+                    "team", "overall_rank", "overall_score",
+                    "transfers_in", "transfers_out",
+                    "avg_rating_in", "avg_rating_out",
+                    "five_stars_net", "four_stars_net", "three_stars_net",
+                    "adjusted_nil_valuation", "nil_valuation_change"
+                ]],
+                on="team",
+                how="left"
+            )
+            logger.info(f"Merged On3 portal rankings: {portal_df['overall_rank'].notna().sum()} teams")
+
         # Add season column (use the latest year from records)
         if "year" in team_df.columns:
             team_df["season"] = team_df["year"]
@@ -304,6 +334,20 @@ def get_school_tiers() -> Dict[str, Dict]:
                 # Talent & recruiting
                 "talent_composite": float(row.get("talent_composite", 0)) if pd.notna(row.get("talent_composite")) else 0,
                 "recruiting_rank": row.get("recruiting_rank", None),
+                # Portal performance (On3)
+                "portal_rank": int(row.get("overall_rank", 0)) if pd.notna(row.get("overall_rank")) else None,
+                "portal_score": float(row.get("overall_score", 0)) if pd.notna(row.get("overall_score")) else None,
+                "transfers_in": int(row.get("transfers_in", 0)) if pd.notna(row.get("transfers_in")) else 0,
+                "transfers_out": int(row.get("transfers_out", 0)) if pd.notna(row.get("transfers_out")) else 0,
+                "portal_net": int(row.get("transfers_in", 0) - row.get("transfers_out", 0)) if pd.notna(row.get("transfers_in")) and pd.notna(row.get("transfers_out")) else 0,
+                "avg_rating_in": float(row.get("avg_rating_in", 0)) if pd.notna(row.get("avg_rating_in")) else None,
+                "avg_rating_out": float(row.get("avg_rating_out", 0)) if pd.notna(row.get("avg_rating_out")) else None,
+                "five_stars_net": int(row.get("five_stars_net", 0)) if pd.notna(row.get("five_stars_net")) else 0,
+                "four_stars_net": int(row.get("four_stars_net", 0)) if pd.notna(row.get("four_stars_net")) else 0,
+                "three_stars_net": int(row.get("three_stars_net", 0)) if pd.notna(row.get("three_stars_net")) else 0,
+                # NIL spending (On3)
+                "nil_valuation": float(row.get("adjusted_nil_valuation", 0)) if pd.notna(row.get("adjusted_nil_valuation")) else None,
+                "nil_valuation_change": float(row.get("nil_valuation_change", 0)) if pd.notna(row.get("nil_valuation_change")) else None,
             }
 
     # Add manual overrides that might not be in data

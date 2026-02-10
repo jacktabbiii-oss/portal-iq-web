@@ -2550,24 +2550,20 @@ async def team_rankings(
                 "talent_composite": tier_info.get("talent_composite", 0),
             }
 
-            # Calculate portal activity
-            try:
-                portal_df = cache.get_players_by_school(school)
-                if not portal_df.empty and "in_portal" in portal_df.columns:
-                    portal_out = int(portal_df["in_portal"].sum()) if "in_portal" in portal_df.columns else 0
-                    # Note: portal incoming would need destination_school column
-                    portal_in = 0  # Placeholder - would need portal destinations
-                    portal_net = portal_in - portal_out
-                else:
-                    portal_out, portal_in, portal_net = 0, 0, 0
-
-                school_data["portal_outgoing"] = portal_out
-                school_data["portal_incoming"] = portal_in
-                school_data["portal_net"] = portal_net
-            except Exception:
-                school_data["portal_outgoing"] = 0
-                school_data["portal_incoming"] = 0
-                school_data["portal_net"] = 0
+            # Portal performance (On3 data with NIL changes)
+            school_data["portal_rank"] = tier_info.get("portal_rank")
+            school_data["portal_score"] = tier_info.get("portal_score")
+            school_data["transfers_in"] = tier_info.get("transfers_in", 0)
+            school_data["transfers_out"] = tier_info.get("transfers_out", 0)
+            school_data["portal_net"] = tier_info.get("portal_net", 0)
+            school_data["avg_rating_in"] = tier_info.get("avg_rating_in")
+            school_data["avg_rating_out"] = tier_info.get("avg_rating_out")
+            school_data["five_stars_net"] = tier_info.get("five_stars_net", 0)
+            school_data["four_stars_net"] = tier_info.get("four_stars_net", 0)
+            school_data["three_stars_net"] = tier_info.get("three_stars_net", 0)
+            # NIL spending from On3
+            school_data["nil_valuation"] = tier_info.get("nil_valuation")
+            school_data["nil_valuation_change"] = tier_info.get("nil_valuation_change")
 
             # Calculate PFF team averages
             try:
@@ -2608,12 +2604,16 @@ async def team_rankings(
             "sp_plus": lambda x: x["sp_plus_overall"],
             "wins": lambda x: x["wins"],
             "portal_net": lambda x: x["portal_net"],
+            "portal_rank": lambda x: x["portal_rank"] if x["portal_rank"] else 999,  # Lower rank = better
+            "nil_change": lambda x: x["nil_valuation_change"] if x["nil_valuation_change"] else 0,
             "pff_avg": lambda x: x["pff_avg"],
             "tier": lambda x: x["tier_multiplier"],
         }
 
         sort_key = sort_keys.get(sort_by, sort_keys["power_score"])
-        rankings.sort(key=sort_key, reverse=True)
+        # Portal rank sorts ascending (lower is better), others descending
+        reverse_sort = True if sort_by != "portal_rank" else False
+        rankings.sort(key=sort_key, reverse=reverse_sort)
 
         # Apply limit
         rankings = rankings[:limit]
