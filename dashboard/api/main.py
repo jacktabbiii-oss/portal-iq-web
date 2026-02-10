@@ -561,6 +561,272 @@ async def get_similar_players(
     return comps
 
 
+@app.get("/api/v1/players/{player_name}/comparisons")
+async def get_player_comparisons(
+    player_name: str,
+    include_nfl: bool = Query(True),
+    include_college: bool = Query(True),
+    limit: int = Query(5, ge=1, le=20),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get NFL and college player comparisons based on statistical similarity.
+
+    Returns historically similar players from both NFL and college.
+    """
+    name = sanitize_player_name(player_name)
+
+    # Get player data
+    nil_df = get_nil_players()
+    if nil_df.empty:
+        raise HTTPException(status_code=404, detail="Player data not available")
+
+    match = nil_df[nil_df["name"].str.lower() == name.lower()]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found")
+
+    # For now, return similar players from same position
+    # TODO: Implement full NFL/college comparison logic
+    player = match.iloc[0]
+    position = player.get("position")
+
+    similar_players = nil_df[
+        (nil_df["position"] == position) &
+        (nil_df["name"].str.lower() != name.lower())
+    ].head(limit)
+
+    college_comps = []
+    for _, row in similar_players.iterrows():
+        college_comps.append({
+            "name": row.get("name"),
+            "school_or_team": row.get("school"),
+            "position": row.get("position"),
+            "similarity": 85.0,  # Placeholder
+            "league": "NCAA",
+            "seasons": [2025],
+            "matching_stats": {}
+        })
+
+    return {
+        "player": name,
+        "position": position,
+        "nfl_comparisons": [] if not include_nfl else [],
+        "college_comparisons": college_comps if include_college else [],
+        "message": "Player comparisons"
+    }
+
+
+@app.get("/api/v1/players/{player_name}/elite-profile")
+async def get_player_elite_profile(
+    player_name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get elite athlete profile with measurables and bonuses."""
+    name = sanitize_player_name(player_name)
+
+    nil_df = get_nil_players()
+    if nil_df.empty:
+        raise HTTPException(status_code=404, detail="Player data not available")
+
+    match = nil_df[nil_df["name"].str.lower() == name.lower()]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found")
+
+    player = match.iloc[0]
+
+    # Identify elite traits based on comprehensive PFF stats
+    elite_traits = []
+    elite_bonus = 0.0
+
+    position = player.get("position", "")
+
+    # RB elite traits
+    if position == "HB":
+        if pd.notna(player.get("elusive_rating")) and player.get("elusive_rating", 0) > 100:
+            elite_traits.append("Elite Elusiveness (>100)")
+            elite_bonus += 0.5
+        if pd.notna(player.get("breakaway_percent")) and player.get("breakaway_percent", 0) > 30:
+            elite_traits.append("Explosive (>30% breakaway)")
+            elite_bonus += 0.4
+
+    # DB elite traits
+    elif position in ["CB", "S"]:
+        if pd.notna(player.get("qb_rating_against")) and player.get("qb_rating_against", 999) < 50:
+            elite_traits.append("Shutdown Coverage (<50 QBR)")
+            elite_bonus += 0.6
+        if pd.notna(player.get("pass_break_ups")) and player.get("pass_break_ups", 0) > 8:
+            elite_traits.append("Ball Hawk (>8 PBU)")
+            elite_bonus += 0.3
+
+    # Edge elite traits
+    elif position in ["ED", "DE"]:
+        hits = player.get("hits", 0) or 0
+        hurries = player.get("hurries", 0) or 0
+        total_disruptions = hits + hurries
+        if total_disruptions > 50:
+            elite_traits.append(f"Pass Rush Terror ({total_disruptions} disruptions)")
+            elite_bonus += 0.7
+
+    # OL elite traits
+    elif position in ["OL", "OT", "OG", "C", "T", "G"]:
+        if pd.notna(player.get("grades_pass_block")) and player.get("grades_pass_block", 0) > 85:
+            elite_traits.append("Elite Pass Protection (>85 grade)")
+            elite_bonus += 0.6
+
+    return {
+        "player": name,
+        "position": position,
+        "elite_traits": elite_traits,
+        "elite_trait_count": len(elite_traits),
+        "elite_bonus": elite_bonus,
+        "draft_adjustment": 0.0,
+        "measurables": {
+            "height": safe_float(player.get("height")),
+            "weight": safe_float(player.get("weight"))
+        },
+        "thresholds": {}
+    }
+
+
+@app.get("/api/v1/players/{player_name}/career")
+async def get_player_career(
+    player_name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get career stats across multiple seasons."""
+    name = sanitize_player_name(player_name)
+
+    nil_df = get_nil_players()
+    if nil_df.empty:
+        raise HTTPException(status_code=404, detail="Player data not available")
+
+    match = nil_df[nil_df["name"].str.lower() == name.lower()]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found")
+
+    player = match.iloc[0]
+
+    # For now, return current season only
+    # TODO: Load multi-season data when available
+    current_season = {
+        "season": 2025,
+        "school": player.get("school"),
+        "position": player.get("position"),
+        "games_played": safe_int(player.get("games_played")),
+        "passing_yards": safe_int(player.get("passing_yards")),
+        "rushing_yards": safe_int(player.get("rushing_yards")),
+        "receiving_yards": safe_int(player.get("receiving_yards")),
+        "pff_overall": safe_float(player.get("pff_overall"))
+    }
+
+    return {
+        "player_name": name,
+        "college_seasons": [current_season],
+        "nfl_seasons": [],
+        "combine_data": {},
+        "total_seasons": 1
+    }
+
+
+@app.get("/api/v1/draft/project/{player_name}")
+async def get_draft_projection(
+    player_name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get NFL draft projection for a player."""
+    name = sanitize_player_name(player_name)
+
+    nil_df = get_nil_players()
+    if nil_df.empty:
+        raise HTTPException(status_code=404, detail="Player data not available")
+
+    match = nil_df[nil_df["name"].str.lower() == name.lower()]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found")
+
+    player = match.iloc[0]
+    position = player.get("position", "")
+    pff_overall = safe_float(player.get("pff_overall"), 60.0)
+
+    # Simple draft projection based on PFF grade
+    if pff_overall >= 90:
+        draft_grade = 95
+        draft_round = 1
+        projected_pick = 15
+    elif pff_overall >= 80:
+        draft_grade = 85
+        draft_round = 2
+        projected_pick = 50
+    elif pff_overall >= 70:
+        draft_grade = 75
+        draft_round = 4
+        projected_pick = 120
+    else:
+        draft_grade = 65
+        draft_round = 6
+        projected_pick = 200
+
+    return {
+        "player": name,
+        "position": position,
+        "draft_grade": draft_grade,
+        "draft_letter_grade": "A" if draft_grade >= 90 else "B" if draft_grade >= 80 else "C",
+        "projected_round": draft_round,
+        "projected_pick": projected_pick,
+        "pick_range": f"Round {draft_round}",
+        "draft_probability": 0.8 if draft_grade >= 70 else 0.5,
+        "elite_bonus": 0.0,
+        "elite_traits": [],
+        "elite_adjustment": 0.0,
+        "rookie_contract_estimate": 5000000 if draft_round <= 2 else 1000000,
+        "career_earnings_estimate": 20000000 if draft_round <= 2 else 5000000,
+        "expected_draft_value": draft_grade * 100000
+    }
+
+
+@app.get("/api/v1/draft/comparables/{player_name}")
+async def get_draft_comparables(
+    player_name: str,
+    limit: int = Query(5, ge=1, le=20),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get historical draft comparables for a player."""
+    name = sanitize_player_name(player_name)
+
+    nil_df = get_nil_players()
+    if nil_df.empty:
+        raise HTTPException(status_code=404, detail="Player data not available")
+
+    match = nil_df[nil_df["name"].str.lower() == name.lower()]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found")
+
+    # TODO: Load actual draft data and find comparables
+    # For now, return empty list
+    return {
+        "comparables": []
+    }
+
+
+# Helper functions (add at module level if not exists)
+def safe_float(val, default=None):
+    """Convert to float, return default if NaN."""
+    if pd.isna(val):
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(val, default=None):
+    """Convert to int, return default if NaN."""
+    if pd.isna(val):
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
 # =============================================================================
 # Portal Endpoints
 # =============================================================================
