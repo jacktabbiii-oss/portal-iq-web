@@ -188,31 +188,39 @@ interface WARBreakdownProps {
   breakdown: {
     base_war: number;
     position_scarcity: number;
-    star_multiplier: number;
+    performance_multiplier?: number;
+    star_adjustment?: number;
+    star_multiplier?: number;
     school_tier: string;
     school_multiplier: number;
     nil_bonus: number;
+    confidence_type?: "measured" | "projected";
   };
 }
 
 export function WARBreakdown({ breakdown }: WARBreakdownProps) {
+  const perfMult = breakdown.performance_multiplier ?? 1.0;
+  const starAdj = breakdown.star_adjustment ?? breakdown.star_multiplier ?? 1.0;
+  const confType = breakdown.confidence_type ?? "projected";
+
   const items = [
     { label: "Base WAR", value: breakdown.base_war.toFixed(2), icon: Target },
     { label: "Position Scarcity", value: `${breakdown.position_scarcity.toFixed(2)}x`, icon: Zap },
-    { label: "Star Multiplier", value: `${breakdown.star_multiplier.toFixed(2)}x`, icon: TrendingUp },
+    { label: `Performance (${confType === "measured" ? "PFF" : "Est."})`, value: `${perfMult.toFixed(2)}x`, icon: TrendingUp, highlight: true },
     { label: `School (${breakdown.school_tier})`, value: `${breakdown.school_multiplier.toFixed(2)}x`, icon: Target },
-    { label: "NIL Bonus", value: `+${breakdown.nil_bonus.toFixed(2)}`, icon: DollarSign },
+    { label: "Star Adj.", value: `${starAdj.toFixed(2)}x`, icon: Zap },
+    { label: "NIL Signal", value: `+${breakdown.nil_bonus.toFixed(2)}`, icon: DollarSign },
   ];
 
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <div key={item.label} className="flex items-center justify-between text-sm">
-          <span className="flex items-center gap-2 text-muted-foreground">
+        <div key={item.label} className={`flex items-center justify-between text-sm ${(item as { highlight?: boolean }).highlight ? "bg-primary/10 rounded px-2 py-1" : ""}`}>
+          <span className={`flex items-center gap-2 ${(item as { highlight?: boolean }).highlight ? "text-primary font-medium" : "text-muted-foreground"}`}>
             <item.icon className="h-3 w-3" />
             {item.label}
           </span>
-          <span className="font-mono text-foreground">{item.value}</span>
+          <span className={`font-mono ${(item as { highlight?: boolean }).highlight ? "text-primary font-bold" : "text-foreground"}`}>{item.value}</span>
         </div>
       ))}
     </div>

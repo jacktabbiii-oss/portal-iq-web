@@ -174,7 +174,6 @@ export default function PortalIntelligencePage() {
       stars: selectedPlayer.stars,
       nil_value: selectedPlayer.nil_valuation,
       destination_school: targetSchool,
-      is_predicted_nil: true,
     });
 
     const transferValue = analyzeTransferValue(

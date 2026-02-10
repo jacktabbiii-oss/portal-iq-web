@@ -251,11 +251,11 @@ function ValueBreakdown({ breakdown }: { breakdown?: { position: number; perform
 }
 
 // Factor Breakdown Card Component
-function FactorCard({ label, value, isBonus = false }: { label: string; value: string; isBonus?: boolean }) {
+function FactorCard({ label, value, isBonus = false, isPrimary = false }: { label: string; value: string; isBonus?: boolean; isPrimary?: boolean }) {
   return (
-    <div className="bg-card p-3 rounded-lg border border-border">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className={cn("text-lg font-bold", isBonus ? "text-primary" : "text-foreground")}>
+    <div className={cn("p-3 rounded-lg border", isPrimary ? "bg-primary/10 border-primary/30" : "bg-card border-border")}>
+      <p className={cn("text-xs mb-1", isPrimary ? "text-primary font-medium" : "text-muted-foreground")}>{label}</p>
+      <p className={cn("text-lg font-bold", isPrimary ? "text-primary" : isBonus ? "text-primary" : "text-foreground")}>
         {isBonus ? "+" : ""}{value}
       </p>
     </div>
@@ -498,7 +498,6 @@ export default function WinImpactPage() {
       stars: player.stars || 3,
       nil_value: player.nil_valuation,
       destination_school: player.school,
-      is_predicted_nil: true,
     });
     setPlayerWARResult(warResult);
 
@@ -533,7 +532,7 @@ export default function WinImpactPage() {
         position: calcPosition,
         school: calcSchool,
         nil_valuation: parseFloat(calcNIL),
-        pff_grade: calcPFF ? parseFloat(calcPFF) : undefined,
+        pffData: calcPFF ? { pff_overall: parseFloat(calcPFF) } : undefined,
       });
       setCalcResult(result);
     } catch (err) {
@@ -598,16 +597,38 @@ export default function WinImpactPage() {
 
       // Recalculate WAR with actual PFF data if available
       if (stats.pff?.overall) {
+        const pffData = {
+          pff_overall: stats.pff.overall,
+          pff_passing: stats.pff.passing,
+          pff_rushing: stats.pff.rushing,
+          pff_receiving: stats.pff.receiving,
+          pff_offense: stats.pff.offense,
+          pff_defense: stats.pff.defense,
+          pff_pass_rush: stats.pff.pass_rush,
+          pff_coverage: stats.pff.coverage,
+          pff_pass_block: stats.pff.pass_block,
+          pff_run_block: stats.pff.run_block,
+        };
         const updatedWAR = await calculatePlayerWAR({
           name: result.name,
           position: result.position,
           school: result.school,
           nil_valuation: stats.nil_value || result.nil_value || 0,
-          pff_grade: stats.pff.overall,
+          stars: stats.stars || result.stars,
+          pffData,
         });
-        updatedWAR.stars = stats.stars || result.stars;
         updatedWAR.headshot_url = stats.headshot_url;
         setSelectedPlayer(updatedWAR);
+
+        // Recalculate detailed WAR with PFF data
+        const updatedDetailed = calculateDetailedWAR({
+          position: result.position,
+          stars: stats.stars || result.stars || 3,
+          nil_value: stats.nil_value || result.nil_value || 0,
+          destination_school: result.school,
+          pffData,
+        });
+        setPlayerWARResult(updatedDetailed);
       }
     } catch (err) {
       console.error("Failed to fetch player stats:", err);
@@ -615,13 +636,12 @@ export default function WinImpactPage() {
       setIsLoadingStats(false);
     }
 
-    // Calculate detailed WAR
+    // Calculate detailed WAR (initial — will be updated with PFF data when loaded)
     const detailedWAR = calculateDetailedWAR({
       position: result.position,
       stars: result.stars || 3,
       nil_value: result.nil_value || 0,
       destination_school: result.school,
-      is_predicted_nil: true,
     });
     setPlayerWARResult(detailedWAR);
 
@@ -1560,10 +1580,10 @@ export default function WinImpactPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <FactorCard label="Base WAR (Position)" value={playerWARResult.breakdown.base_war.toFixed(2)} />
                       <FactorCard label="Position Scarcity" value={`×${playerWARResult.breakdown.position_scarcity.toFixed(2)}`} />
-                      <FactorCard label="Star Multiplier" value={`×${playerWARResult.breakdown.star_multiplier.toFixed(2)}`} />
+                      <FactorCard label="Performance (PFF)" value={`×${(playerWARResult.breakdown.performance_multiplier ?? 1.0).toFixed(2)}`} isPrimary />
                       <FactorCard label="School Multiplier" value={`×${playerWARResult.breakdown.school_multiplier.toFixed(2)}`} />
-                      <FactorCard label="Measurables Factor" value={`×${playerWARResult.breakdown.measurables_factor.toFixed(2)}`} />
-                      <FactorCard label="NIL Market Bonus" value={playerWARResult.breakdown.nil_bonus.toFixed(2)} isBonus />
+                      <FactorCard label="Star Adjustment" value={`×${(playerWARResult.breakdown.star_adjustment ?? 1.0).toFixed(2)}`} />
+                      <FactorCard label="NIL Signal" value={`+${playerWARResult.breakdown.nil_bonus.toFixed(2)}`} isBonus />
                     </div>
                   </CardContent>
                 </Card>

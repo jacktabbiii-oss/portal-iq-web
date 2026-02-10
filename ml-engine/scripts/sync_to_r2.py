@@ -47,6 +47,8 @@ CORE_FILES = [
     "cfbd_player_stats.csv",          # CFBD player stats
     "cfbd_sp_ratings.csv",            # SP+ ratings
     "cfbd_team_talent.csv",           # Team talent
+    "cfbd_team_records.csv",          # Team win/loss records
+    "on3_transfer_portal_current.csv",# Current transfer portal cycle
     "espn_rosters.csv",               # ESPN rosters (headshots)
 ]
 

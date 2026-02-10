@@ -26,13 +26,12 @@ export interface WARPlayer {
 export interface WARBreakdown {
   base_war: number;
   position_scarcity: number;
-  star_multiplier: number;
-  rating_bonus: number;
+  performance_multiplier: number;
+  star_adjustment: number;
   school_tier: string;
   school_multiplier: number;
-  measurables_factor: number;
-  experience_factor: number;
   nil_bonus: number;
+  confidence_type: "measured" | "projected";
 }
 
 export interface DetailedWARResult {
@@ -144,14 +143,129 @@ const NIL_STAR_THRESHOLDS: Record<string, { min: number; stars: number }[]> = {
   ],
 };
 
-// Star rating multipliers (must match backend)
+// Star adjustment REDUCED: secondary indicator, not primary driver
+// Old range: 0.3 to 2.0 (6.7x swing). New: 0.85 to 1.15 (1.35x swing)
 const STAR_MULTIPLIERS: Record<number, number> = {
-  5: 2.0,    // 5-star = proven elite talent
-  4: 1.5,    // 4-star = high upside
+  5: 1.15,   // 5-star = slight boost, not defining factor
+  4: 1.08,   // 4-star
   3: 1.0,    // 3-star = baseline
-  2: 0.6,    // 2-star = developmental
-  1: 0.3,    // Walk-on level
+  2: 0.93,   // 2-star
+  1: 0.85,   // Walk-on level
 };
+
+// PFF estimate from star rating (fallback when no PFF data available)
+const STAR_PFF_ESTIMATE: Record<number, number> = {
+  5: 82, 4: 72, 3: 62, 2: 55, 1: 48,
+};
+const FBS_AVG_STARTER_GRADE = 65;
+
+// PFF data interface for performance calculation
+export interface PFFData {
+  pff_overall?: number;
+  pff_passing?: number;
+  pff_rushing?: number;
+  pff_receiving?: number;
+  pff_offense?: number;
+  pff_defense?: number;
+  pff_pass_rush?: number;
+  pff_coverage?: number;
+  pff_pass_block?: number;
+  pff_run_block?: number;
+  pff_run_defense?: number;
+  completion_pct?: number;
+  big_time_throw_pct?: number;
+  turnover_worthy_play_pct?: number;
+  elusive_rating?: number;
+  yaco_per_attempt?: number;
+  yards_per_route_run?: number;
+  drop_rate?: number;
+  pass_rush_win_rate?: number;
+  pass_rushing_productivity?: number;
+  forced_incompletion_rate?: number;
+  passer_rating_allowed?: number;
+  pass_blocking_efficiency?: number;
+}
+
+/**
+ * Calculate position-specific performance multiplier from PFF data.
+ * This is the PRIMARY differentiator in WAR v2.
+ * Must match backend calculate_position_performance_score().
+ */
+function calculatePerformanceMultiplier(
+  position: string,
+  pffData?: PFFData | null,
+  stars?: number,
+): { multiplier: number; confidence: "measured" | "projected" } {
+  const pos = position.toUpperCase();
+
+  if (!pffData || !pffData.pff_overall) {
+    const estGrade = STAR_PFF_ESTIMATE[stars || 2] || 55;
+    return { multiplier: estGrade / FBS_AVG_STARTER_GRADE, confidence: "projected" };
+  }
+
+  const g = (key: keyof PFFData, fallback: number): number =>
+    (pffData[key] as number) ?? fallback;
+
+  let grade: number;
+
+  if (pos === "QB") {
+    const pffPass = g("pff_passing", g("pff_offense", g("pff_overall", 60)));
+    const pffRush = g("pff_rushing", 60);
+    const compPct = g("completion_pct", 58);
+    const btt = g("big_time_throw_pct", 3.5);
+    const twp = g("turnover_worthy_play_pct", 3.5);
+    const compScore = Math.min(compPct / 65.0, 1.5) * 65;
+    const decisionBonus = Math.max(0, btt - twp) * 3;
+    grade = 0.50 * pffPass + 0.15 * pffRush + 0.20 * compScore + 0.15 * Math.min(80, 60 + decisionBonus);
+  } else if (pos === "WR" || pos === "TE") {
+    const pffRec = g("pff_receiving", g("pff_offense", g("pff_overall", 60)));
+    const yprr = g("yards_per_route_run", 1.2);
+    const drop = g("drop_rate", 8.0);
+    const yprrScore = Math.min(yprr / 1.5, 1.5) * 65;
+    const dropScore = Math.max(40, 80 - drop * 3);
+    grade = 0.50 * pffRec + 0.30 * yprrScore + 0.20 * dropScore;
+  } else if (pos === "RB") {
+    const pffRush = g("pff_rushing", g("pff_offense", g("pff_overall", 60)));
+    const elusive = g("elusive_rating", 40);
+    const yaco = g("yaco_per_attempt", 2.0);
+    const elusiveScore = Math.min(elusive / 50, 1.5) * 65;
+    const yacoScore = Math.min(yaco / 2.5, 1.5) * 65;
+    grade = 0.50 * pffRush + 0.25 * elusiveScore + 0.25 * yacoScore;
+  } else if (pos === "EDGE" || pos === "DL" || pos === "DE") {
+    const pffPR = g("pff_pass_rush", g("pff_defense", g("pff_overall", 60)));
+    const prwr = g("pass_rush_win_rate", 10);
+    const prp = g("pass_rushing_productivity", 5);
+    const prwrScore = Math.min(prwr / 12.0, 1.5) * 65;
+    const prpScore = Math.min(prp / 6.0, 1.5) * 65;
+    grade = 0.50 * pffPR + 0.30 * prwrScore + 0.20 * prpScore;
+  } else if (pos === "DT") {
+    const pffDef = g("pff_run_defense", g("pff_defense", g("pff_overall", 60)));
+    const pffPR = g("pff_pass_rush", 55);
+    grade = 0.50 * pffDef + 0.50 * pffPR;
+  } else if (pos === "CB" || pos === "S") {
+    const pffCov = g("pff_coverage", g("pff_defense", g("pff_overall", 60)));
+    const fi = g("forced_incompletion_rate", 8);
+    const pra = g("passer_rating_allowed", 90);
+    const fiScore = Math.min(fi / 10.0, 1.5) * 65;
+    const praScore = Math.max(40, 90 - (pra - 70) * 0.8);
+    grade = 0.50 * pffCov + 0.25 * fiScore + 0.25 * praScore;
+  } else if (["OT", "OG", "C", "OL", "IOL"].includes(pos)) {
+    const pffPB = g("pff_pass_block", g("pff_offense", g("pff_overall", 60)));
+    const pffRB = g("pff_run_block", g("pff_offense", g("pff_overall", 60)));
+    const pbe = g("pass_blocking_efficiency", 95);
+    const pbeScore = Math.min(pbe / 96.0, 1.3) * 65;
+    grade = 0.40 * pffPB + 0.35 * pffRB + 0.25 * pbeScore;
+  } else if (pos === "LB") {
+    const pffDef = g("pff_defense", g("pff_overall", 60));
+    const pffCov = g("pff_coverage", 55);
+    const pffRD = g("pff_run_defense", 55);
+    grade = 0.40 * pffDef + 0.30 * pffCov + 0.30 * pffRD;
+  } else {
+    grade = g("pff_overall", 60);
+  }
+
+  return { multiplier: grade / FBS_AVG_STARTER_GRADE, confidence: "measured" };
+}
 
 /**
  * Estimate star rating from NIL value when actual stars not available
@@ -182,42 +296,48 @@ function getNILMarketSignal(nilValue: number, position: string): number {
   const baseline = positionNILBaseline[position.toUpperCase()] || 10000;
   const ratio = nilValue / baseline;
 
-  if (ratio >= 10) return 0.5;      // 10x = superstar
-  if (ratio >= 5) return 0.35;      // 5x = premium
-  if (ratio >= 2) return 0.2;       // 2x = above average
-  if (ratio >= 1) return 0.1;       // At baseline
+  // REDUCED: NIL is minor signal (max 0.15, was 0.5) — avoid circularity
+  if (ratio >= 10) return 0.15;     // 10x = superstar
+  if (ratio >= 5) return 0.10;      // 5x = premium
+  if (ratio >= 2) return 0.06;      // 2x = above average
+  if (ratio >= 1) return 0.03;      // At baseline
   return 0;
 }
 
 /**
- * Calculate WAR using Portal IQ's proprietary algorithm
- * IMPORTANT: This must match dashboard/utils/win_impact_calculator.py
+ * Calculate WAR using Portal IQ's proprietary algorithm (v2 — Performance-First)
+ * IMPORTANT: This must match ml-engine/src/utils/data_loader.py calculate_player_war()
  */
-export function calculateWAR(nilValue: number, position: string, stars?: number, school?: string): number {
+export function calculateWAR(
+  nilValue: number,
+  position: string,
+  stars?: number,
+  school?: string,
+  pffData?: PFFData | null,
+): number {
   const pos = position?.toUpperCase() || "ATH";
 
   // 1. Base WAR from position
   const baseWAR = POSITION_BASE_WAR[pos] || 0.8;
   const scarcity = POSITION_SCARCITY[pos] || 1.0;
 
-  // 2. Star rating multiplier
+  // 2. Star adjustment (SECONDARY — reduced from primary)
   const effectiveStars = stars || estimateStarsFromNIL(nilValue, pos);
-  const starMult = STAR_MULTIPLIERS[effectiveStars] || 1.0;
+  const starAdj = STAR_MULTIPLIERS[effectiveStars] || 1.0;
 
-  // 3. School tier factor (if school provided)
+  // 3. School tier factor (competition level context)
   const { multiplier: schoolMult } = getSchoolTier(school || "");
 
-  // 4. NIL market signal (bonus, not multiplier)
-  // Treat all NIL from leaderboard as predicted (0.7 discount)
-  const nilBonus = getNILMarketSignal(nilValue, pos) * 0.7;
+  // 4. Performance multiplier (THE PRIMARY DIFFERENTIATOR)
+  const { multiplier: perfMult } = calculatePerformanceMultiplier(pos, pffData, effectiveStars);
 
-  // Calculate final WAR (simplified - no measurables/experience without full data)
-  const rawWAR = baseWAR * scarcity;
-  const adjustedWAR = rawWAR * starMult;
-  const schoolAdjusted = adjustedWAR * schoolMult;
-  const finalWAR = schoolAdjusted + nilBonus;
+  // 5. NIL market signal (MINOR bonus — avoid circularity)
+  const nilBonus = getNILMarketSignal(nilValue, pos);
 
-  return Math.round(finalWAR * 100) / 100;
+  // WAR = Base × Scarcity × Performance × School × Stars + NIL
+  const rawWAR = baseWAR * scarcity * perfMult * schoolMult * starAdj + nilBonus;
+
+  return Math.round(Math.max(0, rawWAR) * 100) / 100;
 }
 
 /**
@@ -268,13 +388,20 @@ export async function getWARLeaderboard(
     headshot_url?: string;
     stars?: number;
     origin_school?: string;
+    pff_overall?: number;
   }>; total: number };
 
   // Transform NIL data to WAR metrics using Portal IQ's proprietary algorithm
   const warPlayers: WARPlayer[] = data.players.map((player, index) => {
     const nilValue = player.valuation || 0;
     // Pass school for school tier adjustment in WAR calculation
-    const war = calculateWAR(nilValue, player.position, undefined, player.school);
+    // Pass PFF data from leaderboard response for performance-first WAR
+    const pffData: PFFData | undefined = player.pff_overall ? {
+      pff_overall: player.pff_overall,
+      pff_offense: (player as Record<string, unknown>).pff_offense as number | undefined,
+      pff_defense: (player as Record<string, unknown>).pff_defense as number | undefined,
+    } : undefined;
+    const war = calculateWAR(nilValue, player.position, player.stars, player.school, pffData);
     const winProbAdded = calculateWinProbAdded(war);
     const valuePerWin = war > 0 ? nilValue / war : 0;
 
@@ -307,25 +434,19 @@ export async function getWARLeaderboard(
 }
 
 /**
- * Calculate WAR for a custom player input
+ * Calculate WAR for a custom player input (v2 — uses PFF data)
  */
 export async function calculatePlayerWAR(input: {
   name: string;
   position: string;
   school: string;
   nil_valuation: number;
-  pff_grade?: number;
+  stars?: number;
+  pffData?: PFFData | null;
 }): Promise<WARPlayer> {
-  // Use NIL value for base calculation
-  let nilValue = input.nil_valuation;
-
-  // Adjust based on performance grade if provided (65-95 range)
-  if (input.pff_grade) {
-    const gradeMultiplier = (input.pff_grade - 60) / 30; // 0-1.17 range
-    nilValue = nilValue * (0.7 + gradeMultiplier * 0.6);
-  }
-
-  const war = calculateWAR(nilValue, input.position);
+  const war = calculateWAR(
+    input.nil_valuation, input.position, input.stars, input.school, input.pffData,
+  );
   const winProbAdded = calculateWinProbAdded(war);
   const valuePerWin = war > 0 ? input.nil_valuation / war : 0;
 
@@ -336,10 +457,11 @@ export async function calculatePlayerWAR(input: {
     position: input.position,
     school: input.school,
     nil_valuation: input.nil_valuation,
-    war: Math.round(war * 10) / 10,
+    war: Math.round(war * 100) / 100,
     win_prob_added: Math.round(winProbAdded * 10) / 10,
     value_per_win: Math.round(valuePerWin),
     grade: getGrade(war),
+    stars: input.stars,
   };
 }
 
@@ -419,91 +541,68 @@ export function getSchoolTier(school: string): { tier: string; multiplier: numbe
 }
 
 /**
- * Calculate detailed WAR with full breakdown (matching Streamlit algorithm)
+ * Calculate detailed WAR with full breakdown (v2 — Performance-First)
+ * Must match backend calculate_player_war() exactly.
  */
 export function calculateDetailedWAR(input: {
   position: string;
   stars?: number;
   nil_value?: number;
   destination_school?: string;
-  is_predicted_nil?: boolean;
+  pffData?: PFFData | null;
 }): DetailedWARResult {
   const position = input.position?.toUpperCase() || "ATH";
   const stars = input.stars || 3;
 
-  // 1. Base WAR from position (using same weights as POSITION_WAR_WEIGHTS)
-  const positionBaseWAR: Record<string, number> = {
-    QB: 3.0, WR: 1.2, RB: 0.9, TE: 0.8,
-    OT: 1.0, OG: 0.7, C: 0.6, IOL: 0.7,
-    EDGE: 1.5, CB: 1.2, S: 0.9, LB: 1.0, DT: 0.8, DL: 0.9,
-    K: 0.4, P: 0.3, ATH: 0.8,
-  };
+  // 1. Base WAR from position
+  const baseWAR = POSITION_BASE_WAR[position] || 0.8;
+  const scarcity = POSITION_SCARCITY[position] || 1.0;
 
-  const positionScarcity: Record<string, number> = {
-    QB: 1.4, EDGE: 1.3, OT: 1.2, CB: 1.2, WR: 1.0, RB: 0.8,
-  };
-
-  const baseWAR = positionBaseWAR[position] || 0.8;
-  const scarcity = positionScarcity[position] || 1.0;
-
-  // 2. Star rating multiplier
-  const starMult = STAR_MULTIPLIERS[stars] || 1.0;
+  // 2. Star adjustment (secondary)
+  const starAdj = STAR_MULTIPLIERS[stars] || 1.0;
 
   // 3. School tier factor
   const { tier: tierName, multiplier: schoolMult } = getSchoolTier(input.destination_school || "");
 
-  // 4. NIL market signal (bonus, not multiplier)
-  let nilBonus = 0;
-  if (input.nil_value && input.nil_value > 0) {
-    const positionNILBaseline: Record<string, number> = {
-      QB: 500000, WR: 200000, RB: 150000, EDGE: 150000, CB: 120000,
-    };
-    const baseline = positionNILBaseline[position] || 100000;
-    const ratio = input.nil_value / baseline;
+  // 4. Performance multiplier (PRIMARY)
+  const { multiplier: perfMult, confidence: confType } = calculatePerformanceMultiplier(
+    position, input.pffData, stars,
+  );
 
-    if (ratio >= 10) nilBonus = 0.5;
-    else if (ratio >= 5) nilBonus = 0.35;
-    else if (ratio >= 2) nilBonus = 0.2;
-    else if (ratio >= 1) nilBonus = 0.1;
-
-    // Reduce confidence in predicted NIL
-    if (input.is_predicted_nil) {
-      nilBonus *= 0.7;
-    }
-  }
+  // 5. NIL market signal (minor)
+  const nilBonus = input.nil_value ? getNILMarketSignal(input.nil_value, position) : 0;
 
   // Calculate final WAR
-  const rawWAR = baseWAR * scarcity;
-  const adjustedWAR = rawWAR * starMult;
-  const schoolAdjusted = adjustedWAR * schoolMult;
-  const finalWAR = Math.round((schoolAdjusted + nilBonus) * 100) / 100;
+  const finalWAR = Math.round(
+    Math.max(0, baseWAR * scarcity * perfMult * schoolMult * starAdj + nilBonus) * 100
+  ) / 100;
 
-  // Confidence level
+  // Confidence based on data quality
   let confidence: "high" | "medium" | "low" = "low";
-  let confidenceScore = 0;
-  if (stars > 0) confidenceScore += 30;
-  if (input.nil_value && input.nil_value > 0) confidenceScore += input.is_predicted_nil ? 15 : 25;
-  if (input.destination_school && tierName !== "developmental") confidenceScore += 15;
+  if (confType === "measured") {
+    confidence = "high";
+  } else if (stars > 0 && input.destination_school) {
+    confidence = "medium";
+  }
 
-  if (confidenceScore >= 60) confidence = "high";
-  else if (confidenceScore >= 35) confidence = "medium";
+  // Confidence-based range
+  const rangeFactor = confType === "measured" ? 0.15 : 0.4;
 
   return {
     war: finalWAR,
-    war_low: Math.round(finalWAR * 0.7 * 100) / 100,
-    war_high: Math.round(finalWAR * 1.3 * 100) / 100,
+    war_low: Math.round(finalWAR * (1 - rangeFactor) * 100) / 100,
+    war_high: Math.round(finalWAR * (1 + rangeFactor) * 100) / 100,
     confidence,
     breakdown: {
       base_war: Math.round(baseWAR * 100) / 100,
       position_scarcity: Math.round(scarcity * 100) / 100,
-      star_multiplier: Math.round(starMult * 100) / 100,
-      rating_bonus: 0,
+      performance_multiplier: Math.round(perfMult * 100) / 100,
+      star_adjustment: Math.round(starAdj * 100) / 100,
       school_tier: tierName,
       school_multiplier: Math.round(schoolMult * 100) / 100,
-      measurables_factor: 1.0,
-      experience_factor: 1.0,
       nil_bonus: Math.round(nilBonus * 100) / 100,
-    }
+      confidence_type: confType,
+    },
   };
 }
 

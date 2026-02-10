@@ -173,7 +173,6 @@ export default function PlayerDetailPage() {
       stars: playerStats.stars,
       nil_value: playerStats.nil_value,
       destination_school: playerStats.school,
-      is_predicted_nil: true,
     });
 
     const transferValue = analyzeTransferValue(
