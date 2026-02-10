@@ -30,12 +30,55 @@ sys.path.insert(0, str(PROJECT_ROOT.parent))
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
+import boto3
+from io import BytesIO
 
 load_dotenv(PROJECT_ROOT / ".env")
 
 DATA_DIR = PROJECT_ROOT / "data" / "processed"
 
 from src.models.custom_nil_valuator import CustomNILValuator  # noqa: E402
+
+# S3/R2 client for loading PFF detailed stats
+_s3_client = None
+
+def get_s3_client():
+    """Get or create S3 client for R2."""
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = boto3.client(
+            's3',
+            endpoint_url=os.getenv('R2_ENDPOINT_URL'),
+            aws_access_key_id=os.getenv('R2_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('R2_SECRET_ACCESS_KEY'),
+            region_name='auto'
+        )
+    return _s3_client
+
+def load_pff_stat_from_r2(category: str, stat_type: str, season: int = 2025) -> pd.DataFrame:
+    """Load PFF detailed stat file from R2.
+
+    Args:
+        category: Category folder (passing, rushing, receiving, defense, pass_rush, blocking)
+        stat_type: Stat file name without year prefix (e.g., "passing_summary")
+        season: Year to load (default: 2025)
+
+    Returns:
+        DataFrame with the stats
+    """
+    filename = f"{season}_{stat_type}.csv"
+    s3_key = f"pff/{category}/{filename}"
+    bucket = os.getenv('R2_BUCKET_NAME', 'portal-iq-data')
+
+    try:
+        s3 = get_s3_client()
+        obj = s3.get_object(Bucket=bucket, Key=s3_key)
+        df = pd.read_csv(BytesIO(obj['Body'].read()), low_memory=False)
+        df["season"] = season
+        return df
+    except Exception as e:
+        print(f"  Warning: Could not load {s3_key}: {e}")
+        return pd.DataFrame()
 
 # PFF columns to merge into unified table (curated from 100+ available)
 PFF_COLUMNS = [
@@ -139,6 +182,26 @@ def load_data():
         print(f"Team talent: {len(data['team_talent'])} teams")
     else:
         data["team_talent"] = pd.DataFrame()
+
+    # Load PFF detailed stats from R2 (production data - yards, TDs, games)
+    print(f"\nLoading PFF detailed stats from R2...")
+    season = 2025  # Current season
+
+    data["pff_passing"] = load_pff_stat_from_r2("passing", "passing_summary", season)
+    if not data["pff_passing"].empty:
+        print(f"  Passing stats: {len(data['pff_passing'])} QB records")
+
+    data["pff_rushing"] = load_pff_stat_from_r2("rushing", "rushing_summary", season)
+    if not data["pff_rushing"].empty:
+        print(f"  Rushing stats: {len(data['pff_rushing'])} RB records")
+
+    data["pff_receiving"] = load_pff_stat_from_r2("receiving", "receiving_summary", season)
+    if not data["pff_receiving"].empty:
+        print(f"  Receiving stats: {len(data['pff_receiving'])} WR/TE records")
+
+    data["pff_defense"] = load_pff_stat_from_r2("defense", "defense_summary", season)
+    if not data["pff_defense"].empty:
+        print(f"  Defense stats: {len(data['pff_defense'])} defensive records")
 
     return data
 
@@ -273,32 +336,139 @@ def build_player_dataframe(data: dict, expanded_pff: bool = False) -> tuple:
         base_df["weight"] = None
 
     # =========================================================================
-    # STEP 3: MERGE CFBD STATS (production data - yards, TDs, etc.)
+    # STEP 3: MERGE PFF DETAILED STATS (production data - yards, TDs, games, etc.)
     # =========================================================================
 
-    cfbd_stats = data.get("cfbd_stats", pd.DataFrame())
-    if not cfbd_stats.empty:
-        print(f"\nMerging CFBD stats ({len(cfbd_stats)} records)...")
+    print(f"\nMerging PFF detailed stats (production data)...")
 
-        # Get latest season per player
-        if "season" in cfbd_stats.columns:
-            cfbd_stats = cfbd_stats.sort_values("season", ascending=False)
+    # Merge passing stats (QB)
+    pff_passing = data.get("pff_passing", pd.DataFrame())
+    if not pff_passing.empty:
+        # Standardize column names
+        if "player" in pff_passing.columns:
+            pff_passing = pff_passing.rename(columns={"player": "name"})
 
-        stat_cols = ["passing_yards", "passing_tds", "rushing_yards", "rushing_tds",
-                     "receiving_yards", "receiving_tds", "tackles", "sacks"]
+        # Rename PFF columns to match expected names
+        pff_passing = pff_passing.rename(columns={
+            "yards": "passing_yards",
+            "touchdowns": "passing_tds",
+            "interceptions": "passing_ints",
+            "player_game_count": "games_played",
+            "grades_pass": "pff_passing_grade"
+        })
 
-        stats_name_col = "player" if "player" in cfbd_stats.columns else "player_name"
-        if stats_name_col in cfbd_stats.columns:
-            cfbd_stats["name_normalized"] = cfbd_stats[stats_name_col].apply(_normalize_name)
-            cfbd_stats = cfbd_stats.drop_duplicates(subset=["name_normalized"], keep="first")
+        pff_passing["name_normalized"] = pff_passing["name"].apply(_normalize_name)
 
-            stats_merge = cfbd_stats[["name_normalized"] +
-                                     [c for c in stat_cols if c in cfbd_stats.columns]].copy()
+        # Select relevant columns
+        pass_cols = ["name_normalized", "attempts", "completions", "passing_yards", "passing_tds",
+                     "passing_ints", "games_played", "pff_passing_grade"]
+        pass_merge = pff_passing[[c for c in pass_cols if c in pff_passing.columns]].copy()
+        pass_merge = pass_merge.drop_duplicates(subset=["name_normalized"], keep="first")
 
-            base_df = base_df.merge(stats_merge, on="name_normalized", how="left")
+        base_df = base_df.merge(pass_merge, on="name_normalized", how="left", suffixes=("", "_pff_pass"))
 
-            stats_matched = base_df["passing_yards"].notna().sum() if "passing_yards" in base_df.columns else 0
-            print(f"  CFBD stats matched: {stats_matched} players")
+        pass_matched = base_df["passing_yards"].notna().sum() if "passing_yards" in base_df.columns else 0
+        print(f"  Passing stats matched: {pass_matched} QBs")
+
+    # Merge rushing stats (RB/QB/etc)
+    pff_rushing = data.get("pff_rushing", pd.DataFrame())
+    if not pff_rushing.empty:
+        if "player" in pff_rushing.columns:
+            pff_rushing = pff_rushing.rename(columns={"player": "name"})
+
+        # Rename PFF columns to match expected names
+        pff_rushing = pff_rushing.rename(columns={
+            "yards": "rushing_yards",
+            "touchdowns": "rushing_tds",
+            "attempts": "rushing_attempts",
+            "player_game_count": "games_played_rushing"
+        })
+
+        pff_rushing["name_normalized"] = pff_rushing["name"].apply(_normalize_name)
+
+        rush_cols = ["name_normalized", "rushing_attempts", "rushing_yards", "rushing_tds",
+                     "games_played_rushing"]
+        rush_merge = pff_rushing[[c for c in rush_cols if c in pff_rushing.columns]].copy()
+        rush_merge = rush_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(rush_merge, on="name_normalized", how="left", suffixes=("", "_pff_rush"))
+
+        rush_matched = base_df["rushing_yards"].notna().sum() if "rushing_yards" in base_df.columns else 0
+        print(f"  Rushing stats matched: {rush_matched} RBs")
+
+    # Merge receiving stats (WR/TE)
+    pff_receiving = data.get("pff_receiving", pd.DataFrame())
+    if not pff_receiving.empty:
+        if "player" in pff_receiving.columns:
+            pff_receiving = pff_receiving.rename(columns={"player": "name"})
+
+        # Rename PFF columns to match expected names
+        pff_receiving = pff_receiving.rename(columns={
+            "yards": "receiving_yards",
+            "touchdowns": "receiving_tds",
+            "player_game_count": "games_played_receiving"
+        })
+
+        pff_receiving["name_normalized"] = pff_receiving["name"].apply(_normalize_name)
+
+        rec_cols = ["name_normalized", "targets", "receptions", "receiving_yards", "receiving_tds",
+                    "games_played_receiving"]
+        rec_merge = pff_receiving[[c for c in rec_cols if c in pff_receiving.columns]].copy()
+        rec_merge = rec_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(rec_merge, on="name_normalized", how="left", suffixes=("", "_pff_rec"))
+
+        rec_matched = base_df["receiving_yards"].notna().sum() if "receiving_yards" in base_df.columns else 0
+        print(f"  Receiving stats matched: {rec_matched} WR/TEs")
+
+    # Merge defense stats (tackles, sacks, etc)
+    pff_defense = data.get("pff_defense", pd.DataFrame())
+    if not pff_defense.empty:
+        if "player" in pff_defense.columns:
+            pff_defense = pff_defense.rename(columns={"player": "name"})
+
+        # Rename PFF columns
+        pff_defense = pff_defense.rename(columns={
+            "player_game_count": "games_played_defense"
+        })
+
+        pff_defense["name_normalized"] = pff_defense["name"].apply(_normalize_name)
+
+        def_cols = ["name_normalized", "tackles", "assists", "sacks", "interceptions",
+                    "games_played_defense"]
+        def_merge = pff_defense[[c for c in def_cols if c in pff_defense.columns]].copy()
+        def_merge = def_merge.drop_duplicates(subset=["name_normalized"], keep="first")
+
+        base_df = base_df.merge(def_merge, on="name_normalized", how="left", suffixes=("", "_pff_def"))
+
+        def_matched = base_df["tackles"].notna().sum() if "tackles" in base_df.columns else 0
+        print(f"  Defense stats matched: {def_matched} defenders")
+
+    # Consolidate games_played from multiple sources (prioritize by position)
+    if "games_played" not in base_df.columns:
+        base_df["games_played"] = None
+
+    for idx in base_df.index:
+        if pd.notna(base_df.at[idx, "games_played"]):
+            continue
+
+        pos = base_df.at[idx, "position"] if "position" in base_df.columns else ""
+
+        # Prioritize by position
+        if pos == "QB" and "games_played" in base_df.columns and pd.notna(base_df.at[idx, "games_played"]):
+            pass  # Already set from passing
+        elif pos in ["RB", "HB", "FB"] and "games_played_rushing" in base_df.columns:
+            base_df.at[idx, "games_played"] = base_df.at[idx, "games_played_rushing"]
+        elif pos in ["WR", "TE"] and "games_played_receiving" in base_df.columns:
+            base_df.at[idx, "games_played"] = base_df.at[idx, "games_played_receiving"]
+        elif "games_played_defense" in base_df.columns:
+            base_df.at[idx, "games_played"] = base_df.at[idx, "games_played_defense"]
+
+    # Count players with stats
+    stat_cols = [c for c in ["passing_yards", "rushing_yards", "receiving_yards", "tackles"] if c in base_df.columns]
+    if stat_cols:
+        total_with_stats = base_df[stat_cols].notna().any(axis=1).sum()
+        print(f"  Total players with production stats: {total_with_stats}")
 
     # =========================================================================
     # STEP 4: MERGE CFBD ROSTERS (additional measurables)
@@ -359,6 +529,7 @@ def build_player_dataframe(data: dict, expanded_pff: bool = False) -> tuple:
         fbs_schools = set(espn_df["school"].dropna().unique())
 
     # Add known FBS schools from CFBD
+    cfbd_stats = data.get("cfbd_stats", pd.DataFrame())
     if not cfbd_stats.empty and "school" in cfbd_stats.columns:
         fbs_schools.update(cfbd_stats["school"].dropna().unique())
 
