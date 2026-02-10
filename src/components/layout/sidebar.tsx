@@ -54,12 +54,6 @@ const mainNavigation = [
     description: "Player impact analysis",
   },
   {
-    name: "Flight Risk",
-    href: "/flight-risk",
-    icon: AlertTriangle,
-    description: "Roster vulnerability",
-  },
-  {
     name: "AI Assistant",
     href: "/ai-assistant",
     icon: Bot,
@@ -68,6 +62,12 @@ const mainNavigation = [
 ];
 
 const secondaryNavigation = [
+  {
+    name: "Schools",
+    href: "/schools",
+    icon: School,
+    description: "Program profiles",
+  },
   {
     name: "Power Rankings",
     href: "/power-rankings",
@@ -91,12 +91,6 @@ const secondaryNavigation = [
     href: "/watchlist",
     icon: Users,
     description: "Your targets",
-  },
-  {
-    name: "Schools",
-    href: "/schools",
-    icon: School,
-    description: "Program profiles",
   },
   {
     name: "Reports",

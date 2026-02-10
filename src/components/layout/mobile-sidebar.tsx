@@ -53,11 +53,6 @@ const mainNavigation = [
     icon: TrendingUp,
   },
   {
-    name: "Flight Risk",
-    href: "/flight-risk",
-    icon: AlertTriangle,
-  },
-  {
     name: "AI Assistant",
     href: "/ai-assistant",
     icon: Bot,
@@ -65,6 +60,11 @@ const mainNavigation = [
 ];
 
 const toolsNavigation = [
+  {
+    name: "Schools",
+    href: "/schools",
+    icon: School,
+  },
   {
     name: "Power Rankings",
     href: "/power-rankings",
@@ -84,11 +84,6 @@ const toolsNavigation = [
     name: "Watchlist",
     href: "/watchlist",
     icon: Users,
-  },
-  {
-    name: "Schools",
-    href: "/schools",
-    icon: School,
   },
 ];
 
