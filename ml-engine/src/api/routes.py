@@ -2565,33 +2565,92 @@ async def team_rankings(
             school_data["nil_valuation"] = tier_info.get("nil_valuation")
             school_data["nil_valuation_change"] = tier_info.get("nil_valuation_change")
 
-            # Calculate PFF team averages
+            # Calculate roster-based metrics (PFF + NIL talent)
             try:
                 roster_df = cache.get_players_by_school(school)
-                if not roster_df.empty and "pff_overall" in roster_df.columns:
-                    pff_grades = roster_df["pff_overall"].dropna()
-                    avg_pff = float(pff_grades.mean()) if not pff_grades.empty else 0
+                if not roster_df.empty:
                     roster_size = len(roster_df)
-                else:
-                    avg_pff, roster_size = 0, 0
 
-                school_data["pff_avg"] = round(avg_pff, 1)
-                school_data["roster_size"] = roster_size
+                    # PFF team average
+                    if "pff_overall" in roster_df.columns:
+                        pff_grades = roster_df["pff_overall"].dropna()
+                        avg_pff = float(pff_grades.mean()) if not pff_grades.empty else 0
+                    else:
+                        avg_pff = 0
+
+                    # Roster talent score (based on player NIL valuations)
+                    if "nil_value" in roster_df.columns:
+                        nil_values = roster_df["nil_value"].dropna()
+                        if not nil_values.empty:
+                            # Talent score: avg NIL normalized to 0-1000 scale
+                            avg_nil = float(nil_values.mean())
+                            # Also weight by top players (elite talent matters)
+                            top_10_nil = float(nil_values.nlargest(10).mean())
+                            # Combined: 60% avg + 40% top-10
+                            roster_talent = (avg_nil * 0.6 + top_10_nil * 0.4) / 100
+                        else:
+                            roster_talent = 0
+                    else:
+                        roster_talent = 0
+
+                    school_data["pff_avg"] = round(avg_pff, 1)
+                    school_data["roster_size"] = roster_size
+                    school_data["roster_talent"] = round(roster_talent, 1)
+                else:
+                    avg_pff, roster_size, roster_talent = 0, 0, 0
+                    school_data["pff_avg"] = 0
+                    school_data["roster_size"] = 0
+                    school_data["roster_talent"] = 0
             except Exception:
                 school_data["pff_avg"] = 0
                 school_data["roster_size"] = 0
+                school_data["roster_talent"] = 0
 
-            # Calculate combined power score
-            # Weights: talent (30%), SP+ (25%), wins (20%), PFF (15%), tier (10%)
+            # Calculate combined power score - Portal IQ Proprietary Algorithm
+            # Our comprehensive ranking combining:
+            # - On-field performance (SP+, wins): 30%
+            # - Roster quality (PFF, talent): 25%
+            # - Portal performance (On3, transfers): 25%
+            # - NIL/recruiting power (tier, spending): 20%
             power_score = 0
-            if school_data["talent_composite"] > 0:
-                power_score += (school_data["talent_composite"] / 1000) * 30
+
+            # On-field performance (30%)
             if school_data["sp_plus_overall"] > -15:
-                power_score += ((school_data["sp_plus_overall"] + 15) / 45) * 25
-            power_score += (school_data["wins"] / 15) * 20
+                power_score += ((school_data["sp_plus_overall"] + 15) / 45) * 18  # 18%
+            power_score += (school_data["wins"] / 15) * 12  # 12%
+
+            # Roster quality (25%) - Based on actual player performance/value
             if school_data["pff_avg"] > 0:
-                power_score += (school_data["pff_avg"] / 90) * 15
-            power_score += (school_data["tier_multiplier"] / 3.0) * 10
+                power_score += (school_data["pff_avg"] / 90) * 15  # 15% - PFF grades
+            if school_data["roster_talent"] > 0:
+                power_score += (school_data["roster_talent"] / 1000) * 10  # 10% - NIL-based talent
+
+            # Portal performance (25%) - On3 rankings + transfer quality
+            if school_data["portal_rank"]:
+                # Lower rank is better: rank 1 = 15 pts, rank 50 = 0 pts
+                portal_score = max(0, (51 - school_data["portal_rank"]) / 51 * 15)
+                power_score += portal_score  # 15%
+
+            # Transfer quality delta (avg rating in vs out)
+            if school_data["avg_rating_in"] and school_data["avg_rating_out"]:
+                rating_diff = school_data["avg_rating_in"] - school_data["avg_rating_out"]
+                # +10 rating diff = 5 pts
+                power_score += min(5, max(0, (rating_diff / 10) * 5))  # 5%
+
+            # Star recruits net gained (weighted by star level)
+            stars_gained = (school_data["five_stars_net"] * 3 +
+                          school_data["four_stars_net"] * 1.5 +
+                          school_data["three_stars_net"] * 0.5)
+            power_score += min(5, max(0, stars_gained / 2))  # 5%
+
+            # NIL/recruiting power (20%)
+            power_score += (school_data["tier_multiplier"] / 3.0) * 10  # 10%
+
+            # NIL spending (portal investment)
+            if school_data["nil_valuation_change"] and school_data["nil_valuation_change"] > 0:
+                # $5M spend = 10 pts
+                nil_score = min(10, (school_data["nil_valuation_change"] / 5000000) * 10)
+                power_score += nil_score  # 10%
 
             school_data["power_score"] = round(power_score, 1)
 
