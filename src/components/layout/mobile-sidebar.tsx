@@ -16,6 +16,8 @@ import {
   Menu,
   Bell,
   AlertTriangle,
+  Trophy,
+  GitCompare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +65,16 @@ const mainNavigation = [
 ];
 
 const toolsNavigation = [
+  {
+    name: "Power Rankings",
+    href: "/power-rankings",
+    icon: Trophy,
+  },
+  {
+    name: "Team Compare",
+    href: "/team-compare",
+    icon: GitCompare,
+  },
   {
     name: "Player Comparison",
     href: "/player-comparison",

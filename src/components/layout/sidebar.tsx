@@ -19,6 +19,8 @@ import {
   FileText,
   GitCompareArrows,
   AlertTriangle,
+  Trophy,
+  GitCompare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -66,6 +68,18 @@ const mainNavigation = [
 ];
 
 const secondaryNavigation = [
+  {
+    name: "Power Rankings",
+    href: "/power-rankings",
+    icon: Trophy,
+    description: "Team rankings",
+  },
+  {
+    name: "Team Compare",
+    href: "/team-compare",
+    icon: GitCompare,
+    description: "Compare teams",
+  },
   {
     name: "Player Comparison",
     href: "/player-comparison",

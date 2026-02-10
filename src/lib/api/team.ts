@@ -196,3 +196,147 @@ export const SCHOOL_LIST = [
   // Independents
   "Connecticut", "UMass",
 ].sort();
+
+// =============================================================================
+// Team Rankings (Portal IQ Proprietary Algorithm)
+// =============================================================================
+
+export interface TeamRanking {
+  rank: number;
+  school: string;
+  power_score: number;
+  tier: string;
+  tier_multiplier: number;
+  tier_label: string;
+  wins: number;
+  losses: number;
+  conference: string;
+  sp_plus_overall: number;
+  sp_plus_offense: number;
+  sp_plus_defense: number;
+  talent_composite: number;
+  pff_avg: number;
+  roster_size: number;
+  roster_talent: number;
+  portal_rank?: number;
+  portal_score?: number;
+  transfers_in: number;
+  transfers_out: number;
+  portal_net: number;
+  avg_rating_in?: number;
+  avg_rating_out?: number;
+  five_stars_net: number;
+  four_stars_net: number;
+  three_stars_net: number;
+  nil_valuation?: number;
+  nil_valuation_change?: number;
+}
+
+export interface TeamRankingsResponse {
+  teams: TeamRanking[];
+  total: number;
+  sort_by: string;
+  filters: {
+    conference?: string | null;
+    tier?: string | null;
+  };
+}
+
+/**
+ * Get comprehensive team power rankings
+ *
+ * Portal IQ Proprietary Algorithm:
+ * - On-field performance (30%): SP+ ratings + wins
+ * - Roster quality (25%): PFF grades + NIL-based talent
+ * - Portal performance (25%): On3 rankings + transfer quality
+ * - NIL/recruiting power (20%): School tier + portal spending
+ */
+export async function getTeamRankings(
+  conference?: string,
+  tier?: string,
+  sortBy: string = "power_score",
+  limit: number = 130
+): Promise<TeamRankingsResponse> {
+  const params: Record<string, string | number> = {
+    sort_by: sortBy,
+    limit,
+  };
+
+  if (conference) params.conference = conference;
+  if (tier) params.tier = tier;
+
+  const response = await apiClient.get("/api/teams/rankings", { params });
+  return response as unknown as TeamRankingsResponse;
+}
+
+// =============================================================================
+// Team Comparison
+// =============================================================================
+
+export interface TeamComparison {
+  school: string;
+  tier: string;
+  tier_multiplier: number;
+  tier_label: string;
+  wins: number;
+  losses: number;
+  conference: string;
+  sp_plus_overall: number;
+  sp_plus_offense: number;
+  sp_plus_defense: number;
+  talent_composite: number;
+  roster_size: number;
+  position_breakdown: Record<string, number>;
+  pff_grades: {
+    pff_overall?: number;
+    pff_offense?: number;
+    pff_defense?: number;
+  };
+  portal_outgoing: number;
+  nil_total: number;
+  nil_avg: number;
+  error?: string;
+}
+
+export interface TeamComparisonResponse {
+  schools: string[];
+  comparisons: TeamComparison[];
+}
+
+/**
+ * Compare multiple teams side-by-side across all metrics
+ */
+export async function compareTeams(schools: string[]): Promise<TeamComparisonResponse> {
+  const response = await apiClient.get("/api/teams/compare", {
+    params: { schools: schools.join(",") },
+  });
+  return response as unknown as TeamComparisonResponse;
+}
+
+// =============================================================================
+// Conference Lists
+// =============================================================================
+
+export const CONFERENCES = [
+  "SEC",
+  "Big Ten",
+  "ACC",
+  "Big 12",
+  "American Athletic",
+  "Sun Belt",
+  "Mountain West",
+  "Mid-American",
+  "Conference USA",
+  "FBS Independents",
+];
+
+export const TIER_LIST = [
+  "blue_blood",
+  "elite",
+  "power_strong",
+  "power_mid",
+  "power_low",
+  "g5_strong",
+  "g5_mid",
+  "fcs",
+];
