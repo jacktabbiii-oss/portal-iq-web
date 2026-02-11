@@ -103,12 +103,19 @@ export interface CoverageStats {
 }
 
 export interface BlockingStats {
+  // O-line blocking stats (efficiency-based)
   pass_blocking_efficiency?: number;
   pressures_allowed?: number;
   sacks_allowed?: number;
   hits_allowed?: number;
   hurries_allowed?: number;
   run_block_percent?: number;
+
+  // Skill position blocking stats (grade-based for WR/TE/RB)
+  pass_block_grade?: number;
+  run_block_grade?: number;
+  pass_blocking_snaps?: number;
+  run_blocking_snaps?: number;
 }
 
 export interface TacklingStats {

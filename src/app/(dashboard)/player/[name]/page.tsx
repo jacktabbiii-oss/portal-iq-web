@@ -973,13 +973,19 @@ export default function PlayerDetailPage() {
               </Card>
             )}
 
-            {playerStats.blocking && (playerStats.blocking.pass_blocking_efficiency || playerStats.blocking.pressures_allowed) && (
+            {playerStats.blocking && (
+              playerStats.blocking.pass_blocking_efficiency ||
+              playerStats.blocking.pressures_allowed ||
+              playerStats.blocking.pass_block_grade ||
+              playerStats.blocking.run_block_grade
+            ) && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>Blocking Stats</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4">
+                    {/* O-line blocking stats (efficiency-based) */}
                     {playerStats.blocking.pass_blocking_efficiency && (
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Pass Block Eff</p>
@@ -990,6 +996,32 @@ export default function PlayerDetailPage() {
                       <div className="text-center p-3 bg-card rounded-lg">
                         <p className="text-xs text-muted-foreground">Press Allowed</p>
                         <p className="text-2xl font-bold">{playerStats.blocking.pressures_allowed}</p>
+                      </div>
+                    )}
+
+                    {/* Skill position blocking stats (grade-based for WR/TE/RB) */}
+                    {playerStats.blocking.pass_block_grade && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Pass Block Grade</p>
+                        <p className="text-2xl font-bold">{playerStats.blocking.pass_block_grade.toFixed(1)}</p>
+                      </div>
+                    )}
+                    {playerStats.blocking.run_block_grade && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Run Block Grade</p>
+                        <p className="text-2xl font-bold">{playerStats.blocking.run_block_grade.toFixed(1)}</p>
+                      </div>
+                    )}
+                    {playerStats.blocking.pass_blocking_snaps !== undefined && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Pass Block Snaps</p>
+                        <p className="text-2xl font-bold">{playerStats.blocking.pass_blocking_snaps}</p>
+                      </div>
+                    )}
+                    {playerStats.blocking.run_blocking_snaps !== undefined && (
+                      <div className="text-center p-3 bg-card rounded-lg">
+                        <p className="text-xs text-muted-foreground">Run Block Snaps</p>
+                        <p className="text-2xl font-bold">{playerStats.blocking.run_blocking_snaps}</p>
                       </div>
                     )}
                   </div>
